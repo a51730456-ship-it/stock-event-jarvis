@@ -124,6 +124,20 @@ class SidebarTests(unittest.TestCase):
         self.assertNotIn("li:nth-child(8) { display: none", source,
                          "줄 번호로 감추면 안 된다")
 
+    def test_every_closed_page_is_hidden_from_the_first_screen_menu(self):
+        # 2026-10-29 — PC 첫 화면 메뉴에 닫힌 시장판단·자비스2·3·5·6·7·8 이 그대로 보였다. page_access 목록으로 감춘다.
+        source = (ROOT / "app.py").read_text(encoding="utf-8")
+        block = source[source.index("_NAV_PATHS = {"):]
+        names = dict(re.findall(r'"([^"]+)": "([^"]+)"', block[:block.index("}")]))
+        self.assertEqual(set(page_access.ALL_PAGES) - {"자비스1"}, set(names))     # 빠진 화면이 없다
+        self.assertEqual("자비스3", names["미국테마"])
+        self.assertIn('a[href$="/{path}"]', block)                                   # 주소 끝으로 고른다
+        closed = [path for name, path in names.items() if not page_access.is_open(name)]
+        self.assertIn("자비스3", closed)
+        self.assertIn("자비스7", closed)
+        self.assertNotIn("자비스12", closed)
+        self.assertNotIn("자비스4", closed)
+
 
 class ChooserTests(unittest.TestCase):
     def test_the_chooser_only_lists_open_pages(self):

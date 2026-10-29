@@ -444,6 +444,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 닫아 둔 화면은 **첫 화면 왼쪽 메뉴에서도** 감춘다 (2026-10-29 상하님 — "자비스12와 한국테마만 연결하고 다른 것은 다
+# 막아라"). 메뉴는 스트림릿이 pages/ 를 보고 저절로 만들어 page_access 로는 안 빠진다 — 눌러도 「닫혀 있습니다」만
+# 나오지만 열린 것처럼 보였다(PC 에서 시장판단·자비스2·3·5·6·7·8). 목록은 page_access 에서 그대로 가져온다 — 도로 열면
+# 메뉴에도 저절로 다시 나온다. 주소 끝(href$=)으로 고른다 — 「자비스1」 처럼 앞부분이 같은 이름이 걸리지 않게.
+# 「자비스1」(첫 화면 자신)은 넣지 않는다 — 첫 화면으로 돌아오는 길이다.
+_NAV_PATHS = {
+    "시장판단": "시장판단", "자비스2": "자비스2", "미국테마": "자비스3", "한국테마": "자비스4",
+    "자비스5": "자비스5", "자비스6": "자비스6", "자비스6미국테마": "자비스6_미국테마", "자비스7": "자비스7",
+    "자비스8": "자비스8", "한국증시": "자비스10", "자비스11": "자비스11", "자비스12": "자비스12",
+}
+_closed_nav = [path for name, path in _NAV_PATHS.items() if not page_access.is_open(name)]
+if _closed_nav:
+    from urllib.parse import quote as _quote
+
+    st.markdown(
+        "<style>" + ",".join(
+            f'[data-testid="stSidebarNav"] a[href$="/{path}"],[data-testid="stSidebarNav"] a[href$="/{_quote(path)}"]'
+            for path in _closed_nav
+        ) + " { display: none !important; }</style>",
+        unsafe_allow_html=True,
+    )
+
 # **로그인하면 뜨던 지구(ACCESS GRANTED 연출)를 뺐다** (2026-10-29 상하님 — "지구본 뜨는것도 삭제해라 쓸데없이
 # 로딩시간만 잡아먹는다" · "로그인하면 지구가 뜨는 것 이야기하는 것이야"). 로그인 버튼이 연출 표식을 더는 달지 않는다
 # (아래 login_submit). 예전에는 지구 그림(assets/jarvis_earth.webp · 444KB)을 화면을 그릴 때마다 읽어 base64 로
