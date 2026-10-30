@@ -232,8 +232,9 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # ("자비스6 온라인 화면에서 안 보이게 해라").
         # 2026-10-29 자비스12 와 한국테마(자비스4)만 남겼다(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
         # 2026-10-30 한국테마 새 화면 자비스13 을 더했다(상하님 「둘 다 해라」 — PC 목록 맨 끝 · 열고 닫는 이름표는 「한국테마」).
-        self.assertEqual(["자비스12", "자비스4", "자비스13"], targets)
-        for closed in ("자비스3", "자비스7", "자비스8", "자비스10", "자비스11", "자비스6_미국테마"):
+        # 같은 날 옛 한국테마(자비스4)를 닫았다(상하님 「그전 한국테마는 중지시켜야지」 — 이름표 「자비스4」 로 닫음).
+        self.assertEqual(["자비스12", "자비스13"], targets)
+        for closed in ("자비스3", "자비스4", "자비스7", "자비스8", "자비스10", "자비스11", "자비스6_미국테마"):
             self.assertNotIn(closed, targets)
         # 자비스1은 2026-08-28부터 닫아 두었다 — 그 단추도 없다(상하님 지시).
         self.assertNotIn("entry_go", [node.key for node in app.button])
@@ -322,12 +323,13 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-10-09 한국증시·자비스11 을 숨기고 자비스12 를 더해 다섯.
         # 2026-10-29 자비스12 와 한국테마만 남겨 둘(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
         # 2026-10-30 한국테마 새 화면 자비스13 이 늘어 셋(PC 전용 · 폰·태블릿은 entry_pc_only_ 상자로 감춤).
-        self.assertEqual(3, len(links), labels)
-        self.assertEqual(["미국테마 (자비스12)", "한국테마 (자비스4)", "한국테마 (자비스13)"], labels)
+        # 같은 날 옛 한국테마(자비스4)를 닫아 둘(상하님 「그전 한국테마는 중지시켜야지」).
+        self.assertEqual(2, len(links), labels)
+        self.assertEqual(["미국테마 (자비스12)", "한국테마 (자비스13)"], labels)
         j13 = next(node for node in links if node.label == "한국테마 (자비스13)")
         self.assertIn("자비스13", str(j13.proto.page))
         for hidden in ("미국테마 (자비스3)", "자비스7 미국테마", "자비스8 미국주식 연구실",
-                       "한국증시 (자비스10)", "미국테마 (자비스11)"):
+                       "한국증시 (자비스10)", "미국테마 (자비스11)", "한국테마 (자비스4)"):
             self.assertNotIn(hidden, labels)
         # 자비스12 고리는 자비스12 화면으로 가야 한다(「미국테마」 앞부분에 먼저 걸려 자비스3 으로 가면 안 된다).
         j12 = next(node for node in links if node.label == "미국테마 (자비스12)")

@@ -13,6 +13,18 @@ ROOT = Path(__file__).parent
 PAGE = ROOT / "pages" / "3_자비스4.py"
 
 
+# 2026-10-30 상하님 「그전 한국테마는 중지시켜야지」 — 이 화면(자비스4)을 닫았다. 한국테마는 자비스13(pages/12_자비스13.py)
+# 으로 옮겼고, 이 시험을 이름만 바꿔 베낀 test_jarvis13_page 가 그대로 돈다. 닫힌 화면은 안내만 그리고 멈추므로 **화면을
+# 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다(자비스3 · 2026-10-29 와 같은 방식). 파일 글을 읽는
+# 시험은 그대로 돈다. page_access.OPEN_PAGES 에 "자비스4" 를 넣으면 저절로 다시 돈다.
+def _j4_page_app(*args, **kwargs):
+    import page_access
+
+    if not page_access.is_open("자비스4"):
+        raise unittest.SkipTest("자비스4 화면을 닫아 두어(page_access · 2026-10-30) 화면을 띄우는 시험은 막혀 있다")
+    return AppTest.from_file(*args, **kwargs)
+
+
 def _index_metrics(current=6641.52, change=0.87):
     return {
         "ok": True, "current": current, "prev_close": current / (1 + change / 100),
@@ -301,7 +313,7 @@ def _run_page(market=None, *, guest=False):
         for item in _patches(market):
             item.start()
             started.append(item)
-        app = AppTest.from_file(str(PAGE), default_timeout=90)
+        app = _j4_page_app(str(PAGE), default_timeout=90)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
         _open_all_details(app)
@@ -355,7 +367,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=90)
@@ -394,7 +406,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -711,7 +723,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -771,7 +783,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -806,7 +818,7 @@ class Jarvis4PageTests(unittest.TestCase):
                 started.append(item)
             with patch("jarvis4_data.find_pullback_stocks",
                        return_value=_pullback_stocks()) as search,                  patch("jarvis4_data.clear_pullback_cache") as clear:
-                app = AppTest.from_file(str(PAGE), default_timeout=90)
+                app = _j4_page_app(str(PAGE), default_timeout=90)
                 app.secrets["APP_PASSWORD"] = "test"
                 app.session_state["authenticated"] = True
                 _open_all_details(app)
@@ -843,7 +855,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -892,7 +904,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -928,7 +940,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -965,7 +977,7 @@ class Jarvis4PageTests(unittest.TestCase):
             leaders = patch("jarvis4_data.get_theme_leaders", return_value=six)
             leaders.start()
             started.append(leaders)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1009,7 +1021,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for extra in (search, analyze):
                 extra.start()
                 started.append(extra)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1040,7 +1052,7 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1076,7 +1088,7 @@ class PartnerFlowColumnTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1126,7 +1138,7 @@ class PartnerFlowColumnTests(unittest.TestCase):
             for item in _patches():
                 item.start()
                 started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app = _j4_page_app(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)

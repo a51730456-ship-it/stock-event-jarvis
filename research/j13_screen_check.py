@@ -10,6 +10,11 @@
      테마 순위표 · 수급 카드 · 눌림목 찾기 · 상승장 · 급락 후 반등장 · 순위 7(주인) · 날짜별 목록 글을 견준다(시각은 빼고).
   ③ 폰 — 412px 에서 화면이 옆으로 넘치지 않나(표는 원래 옆으로 민다 — 화면 전체만 본다)
   ④ 첫 화면 — PC 「어디로 갈까요」에 자비스13 이 보이고, 폰은 그대로 바로 자비스12 로 가나
+
+2026-10-30 자비스4 를 닫은 뒤(상하님 「그전 한국테마는 중지시켜야지」)에는 ②를 못 한다 — 그때는 저절로 「닫은 뒤」 확인을 한다.
+  ⑤ 자비스4 — 주소로 바로 들어와도 「닫혀 있습니다」만 나오고 테마표가 없나
+  ⑥ 한국테마로 가는 길 — 첫 화면 PC 오른쪽 판 · 자비스12 맨 위 「🌏 한국테마 →」(눌러서 실제로 어디 닿는지까지)이 자비스13 으로 가나
+  ⑦ 자비스13 — 게스트(PC·폰) · 주인 PC 로 열어 ①③ 을 본다
 """
 from __future__ import annotations
 
@@ -24,6 +29,12 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import page_access  # noqa: E402  — 자비스4 를 닫았나(아래 J4_CLOSED)
+
+# 자비스4 를 닫았나 — 맨 앞에 「자비스4」 이름표로 막는 줄이 있고 그 이름표가 닫혀 있으면 닫은 것이다(2026-10-30).
+J4_CLOSED = ('page_access.guard(st, "자비스4")' in (ROOT / "pages" / "3_자비스4.py").read_text(encoding="utf-8")
+             and not page_access.is_open("자비스4"))
 BASE = os.environ.get("J13_BASE", "http://localhost:8501")
 OUT = Path(os.environ.get("J13_OUT") or "/tmp/j13shots")
 # 비밀번호 — 깃허브는 이 실행에서만 만든 .streamlit/secrets.toml 에서 읽는다(시험할 때는 J13_PASSWORD 로 줄 수 있다)
@@ -243,6 +254,98 @@ def entry_check(browser) -> dict:
     return out
 
 
+def closed_check(browser) -> dict:
+    """⑤ 옛 한국테마(자비스4) — 주소로 바로 들어와도 「닫혀 있습니다」만 나오고 테마표가 없어야 한다."""
+    out = {}
+    for who, suffix in (("게스트 주소", "?guest=1"), ("그냥 주소", "")):
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        try:
+            page.goto(f"{BASE}/자비스4{suffix}", timeout=180_000)
+            page.wait_for_function("() => document.body.innerText.includes('닫혀 있습니다')", timeout=120_000)
+            page.wait_for_timeout(3000)                 # 막은 뒤에 더 그려지는 것이 없나 잠깐 더 본다
+            body = page.evaluate("() => document.body.innerText") or ""
+            out[who] = {
+                "closed": "이 화면은 지금 닫혀 있습니다" in body,
+                "theme_table": page.evaluate("() => !!document.querySelector('div[class*=\"st-key-j4_theme_table\"]')"),
+                "links": page.evaluate("() => [...document.querySelectorAll('a')].map(a => a.innerText.trim()).filter(Boolean)"),
+                "problems": _problems(page),
+            }
+            page.screenshot(path=str(OUT / f"closed_{'guest' if suffix else 'plain'}_자비스4.png"), full_page=True)
+        except Exception as exc:
+            out[who] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
+        finally:
+            page.close()
+    return out
+
+
+def roads_check(browser) -> dict:
+    """⑥ 한국테마로 가는 길 — 첫 화면 PC 오른쪽 판 · 자비스12 맨 위 「🌏 한국테마 →」(눌러서 닿는 곳까지)."""
+    out = {}
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    try:
+        page.goto(BASE + "/", timeout=180_000)
+        link = page.locator('div[class*="st-key-jp_panel_KR"] a').first
+        link.wait_for(timeout=180_000)
+        out["첫 화면 오른쪽 판"] = {
+            "label": link.inner_text().strip(),
+            "href": page.evaluate("(a) => decodeURIComponent(a.getAttribute('href') || '')", link.element_handle()),
+        }
+    except Exception as exc:
+        out["첫 화면 오른쪽 판"] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    finally:
+        page.close()
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    try:
+        page.goto(f"{BASE}/자비스12?guest=1", timeout=180_000)
+        link = page.locator('div[class*="st-key-jarvis_cross_market"] a').first
+        link.wait_for(timeout=240_000)
+        row = {"label": link.inner_text().strip(),
+               "href": page.evaluate("(a) => decodeURIComponent(a.getAttribute('href') || '')", link.element_handle())}
+        link.click()
+        page.wait_for_function("() => decodeURIComponent(location.pathname).endsWith('/자비스13')", timeout=60_000)
+        page.wait_for_timeout(8000)
+        row["landed"] = page.evaluate("() => decodeURIComponent(location.pathname)")
+        row["problems"] = _problems(page)
+        page.screenshot(path=str(OUT / "road_자비스12_to_자비스13.png"), full_page=True)
+        out["자비스12 「🌏 한국테마 →」"] = row
+    except Exception as exc:
+        out["자비스12 「🌏 한국테마 →」"] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    finally:
+        page.close()
+    return out
+
+
+def after_close(browser, report: dict) -> None:
+    """자비스4 를 닫은 뒤의 확인(⑤⑥⑦) — 맨 끝에 한 줄로 됐나/안 됐나를 적는다."""
+    entry = report["entry"]
+    report["closed"] = closed_check(browser)
+    report["roads"] = roads_check(browser)
+    _log(f"자비스4: {json.dumps(report['closed'], ensure_ascii=False)}")
+    _log(f"가는 길: {json.dumps(report['roads'], ensure_ascii=False)}")
+    for owner in (False, True):
+        sizes = (("pc", 1400, 900),) if owner else (("pc", 1400, 900), ("phone", 412, 915))
+        for tag, width, height in sizes:
+            run = visit(browser, "자비스13", "j13", owner=owner, width=width, height=height,
+                        tag=f"{'owner' if owner else 'guest'}_{tag}")
+            report["runs"].append(run)
+            _report_run(run)
+    checks = {
+        "PC 목록이 자비스12 · 자비스13 둘": (entry.get("pc") or {}).get("links") == ["미국테마 (자비스12)", "한국테마 (자비스13)"],
+        "폰은 바로 자비스12": (entry.get("phone") or {}).get("path") == "/자비스12",
+        "자비스4 닫힘(테마표 없음)": all(v.get("closed") and not v.get("theme_table") for v in report["closed"].values()),
+        "첫 화면 오른쪽 판 → 자비스13": "자비스13" in str((report["roads"].get("첫 화면 오른쪽 판") or {}).get("href")),
+        "「🌏 한국테마 →」 → 자비스13": str((report["roads"].get("자비스12 「🌏 한국테마 →」") or {}).get("landed", "")).endswith("/자비스13"),
+        "자비스13 오류 상자 0": all(not (r.get("problems") or {}).get("exceptions") and not r.get("error") for r in report["runs"]),
+        "자비스13 테마표 보임": all(r.get("theme_table") for r in report["runs"]),
+        "폰 옆 넘침 0": all((r.get("problems") or {}).get("overflow", 1) <= 0 for r in report["runs"] if r["width"] < 600),
+    }
+    report["checks"] = checks
+    _log("\n### 자비스4 를 닫은 뒤")
+    for name, ok in checks.items():
+        _log(f"  {'됨' if ok else '⚠ 안 됨'} · {name}")
+    _log(f"\n끝(닫은 뒤) · {'모두 됨' if all(checks.values()) else '⚠ 안 된 것 있음'}")
+
+
 def _report_run(run: dict) -> None:
     probs = run.get("problems") or {}
     _log(f"\n[{run['page']} · {'주인' if run['owner'] else '게스트'} · {run['width']}px"
@@ -265,6 +368,11 @@ def main() -> int:
         browser = play.chromium.launch()
         report["entry"] = entry_check(browser)
         _log(f"첫 화면: {json.dumps(report['entry'], ensure_ascii=False)}")
+        if J4_CLOSED:
+            after_close(browser, report)
+            browser.close()
+            (OUT / "j13_screen_check.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            return 0
         _log(f"여는 차례: {' → '.join(name for name, _p in PAGES)} (주인은 끝에 자비스13 을 한 번 더)")
         for owner in (False, True):
             for name, p in PAGES:

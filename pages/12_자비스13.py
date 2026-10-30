@@ -39,6 +39,22 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
 st.set_page_config(page_title="자비스13 — 한국테마", layout="wide")
 
+# 2026-10-30 「한국테마」 이름표를 이 화면이 이어받았다 — 옛 자비스4 는 「자비스4」 로 닫았다(상하님 「당연히 자비스13으로
+# 연결되어야지 · 그전 한국테마는 중지시켜야지」). 맨 앞에서 막는 줄 — 열린 동안은 아무것도 안 한다(자비스12 와 같은 자리).
+# 막기 전에 — 자비스12 맨 위 「🌏 한국테마 →」 · 첫 화면 오른쪽 판이 쓰는 주소표(method_help · login_prism)를 자비스4 → 자비스13
+# 으로 바꾸며 번호를 안 올렸다(올리면 자비스12 · 자비스3 까지 고쳐야 한다). 서버에 옛 표가 남아 있으면 여기서 다시 읽는다 —
+# 서버에 하나뿐이라 자비스12 의 단추도 같이 고쳐진다.
+import importlib as _importlib  # noqa: E402
+
+import method_help  # noqa: E402
+import page_access  # noqa: E402
+
+if getattr(method_help, "CROSS_PAGES", {}).get("US", ("",))[0] != "pages/12_자비스13.py":
+    method_help = _importlib.reload(method_help)
+if dict(row[:2] for row in getattr(login_prism, "PANELS", ())).get("KR") != "pages/12_자비스13.py":
+    login_prism = _importlib.reload(login_prism)
+page_access.guard(st, "한국테마")
+
 st.markdown(
     """
     <style>

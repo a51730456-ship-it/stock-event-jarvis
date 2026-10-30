@@ -44,7 +44,8 @@ jobs:
         run: |
           nohup streamlit run app.py --server.port 8501 --server.headless true > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8501/ > /dev/null && break; sleep 2; done
-      - name: 자비스4 · 자비스13 나란히 확인
+      # 2026-10-30 자비스4 를 닫은 뒤에는 나란히 못 연다 — 프로그램이 알아보고 「닫힘 · 가는 길 · 자비스13」 확인을 한다.
+      - name: 자비스13 확인 (자비스4 가 열려 있으면 나란히 · 닫혔으면 닫힘과 가는 길)
         env:
           J13_OUT: ${{ runner.temp }}/j13shots
         run: python research/j13_screen_check.py

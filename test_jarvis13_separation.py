@@ -105,5 +105,64 @@ class Jarvis13SeparationTests(unittest.TestCase):
         self.assertNotIn("자비스13", phone)
 
 
+class OldScreenClosedTests(unittest.TestCase):
+    """2026-10-30 상하님 — 「당연히 자비스13으로 연결되어야지 · 그전 한국테마는 중지시켜야지」.
+
+    「한국테마」 이름표는 자비스13 이 쓰고 옛 자비스4 는 「자비스4」 이름표로 닫는다(page_access.OPEN_PAGES 는 그대로라
+    온라인에 옛 page_access 가 남아도 열고 닫는 것이 어긋나지 않는다). 한국테마로 가는 길 셋을 모두 자비스13 으로 돌린다.
+    """
+
+    def test_jarvis13_is_open_and_jarvis4_is_closed(self):
+        import page_access
+
+        self.assertTrue(page_access.is_open("한국테마"))
+        self.assertFalse(page_access.is_open("자비스4"))
+        self.assertIn("자비스4", page_access.ALL_PAGES)                 # 되살릴 이름은 남긴다
+        self.assertIn('page_access.guard(st, "한국테마")', PAGE)
+        self.assertIn('page_access.guard(st, "자비스4")', J4)
+        for source in (PAGE, J4):                                       # 맨 앞 — 화면 설정 바로 다음
+            self.assertLess(source.index("st.set_page_config("), source.index("page_access.guard(st,"))
+
+    def test_menu_keys_point_the_korean_theme_at_jarvis13(self):
+        start = APP.index("_ALL_DEST_OPTIONS = [")
+        options = ast.literal_eval(APP[start:].split("=", 1)[1].split("]\n", 1)[0] + "]")
+        keys = ast.literal_eval(APP[APP.index("_DEST_KEYS = ["):].split("=", 1)[1].split("]", 1)[0] + "]")
+        key_of = dict(zip(options, keys))
+        self.assertEqual("자비스4", key_of["한국테마 (자비스4)"])
+        self.assertEqual("한국테마", key_of["한국테마 (자비스13)"])
+        nav = APP[APP.index("_NAV_PATHS = {"):]
+        self.assertIn('"한국테마": "자비스13"', nav[:nav.index("}")])
+        self.assertIn('"자비스4": "자비스4"', nav[:nav.index("}")])
+
+    def test_the_three_roads_to_the_korean_theme_go_to_jarvis13(self):
+        import login_prism
+        import method_help
+
+        # ① 자비스12 맨 위 「🌏 한국테마 →」 (자비스12 파일은 안 고치고 같이 쓰는 주소표 한 줄만 바꾼다)
+        self.assertEqual(("pages/12_자비스13.py", "🌏 한국테마 →"), method_help.CROSS_PAGES["US"])
+        # ② 자비스13 맨 위 「🌎 미국테마 →」 는 그대로 자비스12
+        self.assertEqual("pages/11_자비스12.py", method_help.CROSS_PAGES["KR"][0])
+        # ③ 첫 화면 PC 오른쪽 큰 판
+        panels = {row[0]: row for row in login_prism.PANELS}
+        self.assertEqual("pages/12_자비스13.py", panels["KR"][1])
+        self.assertEqual("pages/11_자비스12.py", panels["US"][1])
+        # 폰·태블릿 판과 판 번호는 그대로(자비스12 시험이 묶어 둔 값 — 자비스12 는 손대지 않는다)
+        self.assertEqual("pages/11_자비스12.py", login_prism.PHONE_PANELS["KR"][0])
+        self.assertEqual(2026100901, login_prism.MODULE_REVISION)
+
+    def test_the_cross_button_hides_only_when_the_korean_theme_is_closed(self):
+        source = (ROOT / "method_help.py").read_text(encoding="utf-8")
+        names = source[source.index("def cross_link("):]
+        self.assertIn('"pages/12_자비스13.py": "한국테마"', names)
+        self.assertIn('"pages/3_자비스4.py": "자비스4"', names)
+
+    def test_old_shared_tables_are_read_again_before_use(self):
+        # 주소표(method_help · login_prism)는 번호를 안 올렸다 — 올리면 자비스12 · 자비스3 의 요구 번호까지 고쳐야 한다.
+        # 그래서 옛 표가 서버에 남아 있으면 자비스13 · 자비스4 가 다시 읽는다(옛 표로 자비스4 에 오면 거기서 고쳐 둔다).
+        for source in (PAGE, J4):
+            self.assertIn('!= "pages/12_자비스13.py":\n    method_help = ', source)
+            self.assertIn('!= "pages/12_자비스13.py":\n    login_prism = ', source)
+
+
 if __name__ == "__main__":
     unittest.main()
