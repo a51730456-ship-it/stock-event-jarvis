@@ -1433,7 +1433,8 @@ def _render_kospi_drawdown() -> None:
                 f"<b style='color:{_sign_color(kq['drop'])}'>{float(kq['drop']):+.1f}%</b>"
                 f" (고점 {jarvis13_market.md(kq['peak_date'])})</div>")
         # 분산일(2026-10-30 · 상하님 「다 넣어라」 ⑤) — 같은 코스피 일봉으로 센다(episode 의 dist). 보여 주기만 하고
-        # 색으로 경고하지 않는다 — 「5~6일이면 위험」은 미국에서 쓰는 기준이라 코스피로 재기 전에는 문턱을 그리지 않는다.
+        # 색으로 경고하지 않는다 — 미국의 「5~6일이면 위험」을 코스피 12년치로 재 보니(research/j13_distribution_measure.py ·
+        # 깃허브 실행 41059614912) 갈리지 않았다. 아래 숫자가 그 결과다 — 다시 재면 같이 고친다.
         dist = ep.get("dist") if ep.get("ok") else None
         if dist:
             days = " · ".join(jarvis13_market.md(day) for day in dist["dates"])
@@ -1443,8 +1444,9 @@ def _render_kospi_drawdown() -> None:
                 f"<b style='white-space:nowrap'>{int(dist['count'])}일</b>"
                 + (f" — {days}" if days else "")
                 + "<br><span class='j4-muted'>0.2% 넘게 내리며 거래량이 전날보다 많은 날(큰손이 판 흔적 · 오닐 방식) · "
-                "그 뒤 5% 넘게 오르면 뺌. 미국은 5~6일 쌓이면 경고로 봄 — 코스피로는 아직 재지 않았고 "
-                "점수·판정에 안 씀.</span></div>")
+                "그 뒤 5% 넘게 오르면 뺌. 미국은 5~6일이면 경고로 보지만, 코스피 12년치로 재 보니 5일 이상이 된 첫날(51번) 뒤 "
+                "20일 코스피 평균 −0.2%(아무 날 +1.1%) · 40일 안 −10% 넘게 빠진 비율 14%(아무 날 13%) · 7일 넘게 쌓인 날 뒤는 "
+                "+1.7% — 경고로 쓰지 않고 점수·판정에 안 씀.</span></div>")
     except Exception:
         episode_line = kosdaq_line = dist_line = ""
     st.markdown(

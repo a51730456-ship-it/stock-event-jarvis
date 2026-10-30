@@ -149,8 +149,8 @@ class DistributionDayTests(unittest.TestCase):
         body = PAGE[PAGE.index("def _render_kospi_drawdown"):PAGE.index("def _render_theme_table")]
         line = body[body.index("dist = ep.get(\"dist\")"):body.index("except Exception:\n        episode_line")]
         self.assertIn("🧮 <b>분산일</b>(코스피", line)
-        self.assertIn("코스피로는 아직 재지 않았고", line)
-        self.assertIn("점수·판정에 안 씀", line)
+        self.assertIn("코스피 12년치로 재 보니 5일 이상이 된 첫날(51번)", line)   # 깃허브 실행 41059614912 의 숫자
+        self.assertIn("경고로 쓰지 않고 점수·판정에 안 씀", line)
         self.assertIn("white-space:nowrap", line)          # 「7일」이 「7」 「일」로 갈라지지 않게(폰)
         self.assertNotIn("color:", line)                   # 문턱을 재기 전에는 색으로 경고하지 않는다
 
