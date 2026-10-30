@@ -618,12 +618,16 @@ class Jarvis13PageTests(unittest.TestCase):
         """
         source = Path("pages/12_자비스13.py").read_text(encoding="utf-8")
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
-        self.assertIn("아무 종목이나 사서 같은 기간 들고 있었으면", block)
-        self.assertIn("아무 종목이나 샀으면", block)
-        self.assertIn("기준선보다 못했습니다", block)
-        self.assertIn("기준선보다 나았습니다", block)
+        self.assertIn("아무 종목이나 사서 같은 기간 들고 있었으면", block)       # 상승장
+        # 급락 갈래(2026-10-31 상하님 「라」) — 옛 승률·기준선(국면이 끝나야 아는 「가장 깊은 날」로 잰 값)을 빼고,
+        # 화면 방식으로 다시 잰 국면마다 코스피와 견준 값과 국면 수를 적는다. 진 기간은 졌다고 적는다.
+        self.assertIn("jarvis13_crash_record.record_html()", block)
+        import jarvis13_crash_record as record
+        text = record.record_html()
+        self.assertIn("코스피보다", text)
+        self.assertIn("길게 들면 코스피보다 못했습니다", text)
         # 급락 국면이 몇 번뿐이었는지도 밝혀야 한다.
-        self.assertIn("CRASH_REBOUND_EVENTS", block)
+        self.assertIn(f"국면 {record.EPISODE_COUNT}번", text)
 
     def test_each_section_can_also_be_closed_from_its_bottom(self):
         """폰에서 구역 끝까지 내려가면 위 여는 단추가 화면 밖으로 나간다.
