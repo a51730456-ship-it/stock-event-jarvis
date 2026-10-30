@@ -34,8 +34,10 @@ jobs:
           pip install -r requirements.txt
           pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
-      - name: 이 실행에서만 쓰는 비밀번호 파일
+      - name: 이 실행에서만 쓰는 비밀번호 파일 · 기록 폴더
         run: |
+          # 기록 DB(db/*.sqlite3)는 저장소에 없다(.gitignore) — 폴더만 만들어 매수 기록 표가 빈 채로 열리게 한다.
+          mkdir -p db
           mkdir -p .streamlit
           python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
       - name: 앱 띄우기

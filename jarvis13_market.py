@@ -16,7 +16,7 @@ import pandas as pd
 import jarvis4_data as j4data
 
 # 값이나 돌려주는 칸을 바꾸면 올리고 자비스13 의 _REQUIRED_J13_MARKET_REVISION 도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026103001
+MODULE_REVISION = 2026103002
 
 _SYMBOLS = {"KOSPI": "KS11", "KOSDAQ": "KQ11"}
 # 못 받은 지수는 2분 동안 다시 받으러 가지 않는다 — 네이버가 느릴 때 1분마다 도는 시장판단 판이 그만큼 붙잡히지 않게
@@ -32,6 +32,43 @@ def md(day: str | None) -> str:
     except Exception:
         return str(day or "")
     return f"{stamp.month}월 {stamp.day}일"
+
+
+def index_frame(name: str = "KOSPI", *, ttl_seconds: float = 600):
+    """지수 일봉(Open·High·Low·Close · 약 400일) — 10분 보관 · 못 받으면 None. 성적표의 「같은 날 코스피」가 쓴다."""
+    key = str(name).upper()
+    symbol = _SYMBOLS[key]
+    failed = _FAILED_AT.get(("frame", key))
+    if failed is not None and time.time() - failed < _RETRY_AFTER:
+        return None
+
+    def _produce():
+        frame = j4data._index_frame(symbol)
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            raise RuntimeError(f"{name} 일봉 없음")
+        return frame
+
+    try:
+        value, _stale = j4data._cached(("j13_index_frame", key), ttl_seconds, _produce)
+    except Exception:
+        _FAILED_AT[("frame", key)] = time.time()
+        return None
+    _FAILED_AT.pop(("frame", key), None)
+    return value.copy()
+
+
+def last_finished_day(frame, now=None):
+    """마지막으로 **끝난** 장의 날짜 — 장중(서울 15시 40분 전)이면 오늘 봉은 아직 안 끝났으니 그 앞 장(자비스12 「어제까지」와 같은 뜻)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    days = [pd.Timestamp(stamp).date() for stamp in frame.index]
+    now = now or datetime.now(ZoneInfo("Asia/Seoul"))
+    if days and days[-1] == now.date() and (now.hour, now.minute) < (15, 40):
+        return days[-2] if len(days) > 1 else None
+    return days[-1] if days else None
 
 
 def episode(name: str = "KOSPI", *, ttl_seconds: float = 600) -> dict:

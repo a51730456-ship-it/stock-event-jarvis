@@ -65,7 +65,7 @@ class Jarvis13MarketTests(unittest.TestCase):
         self.assertIn("참고 · 코스닥 1년 최고 종가 대비", body)
         self.assertIn("+ episode_line + kosdaq_line +", body)
         self.assertIn("except Exception:\n        episode_line = kosdaq_line = \"\"", body)
-        self.assertIn("_REQUIRED_J13_MARKET_REVISION = 2026103001", PAGE)
+        self.assertIn("_REQUIRED_J13_MARKET_REVISION = 2026103002", PAGE)
 
 
 if __name__ == "__main__":

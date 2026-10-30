@@ -30,7 +30,7 @@ OUT = Path(os.environ.get("J13_OUT") or "/tmp/j13shots")
 PASSWORD = os.environ.get("J13_PASSWORD") or tomllib.loads(
     (ROOT / ".streamlit" / "secrets.toml").read_text(encoding="utf-8"))["APP_PASSWORD"]
 PAGES = (("자비스4", "j4"), ("자비스13", "j13"))
-WAIT_MS = int(os.environ.get("J13_WAIT_MS") or 600_000)   # 처음 테마 전수 훑기는 몇 분 걸린다
+WAIT_MS = int(os.environ.get("J13_WAIT_MS") or 300_000)   # 처음 테마 전수 훑기는 몇 분 걸린다
 _TIME = re.compile(r"\d{1,2}:\d{2}(:\d{2})?|\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?|\(\d+(\.\d+)?초\)|\d+(\.\d+)?초")
 
 
@@ -38,8 +38,12 @@ def _log(text: str) -> None:
     print(text, flush=True)
 
 
-def _quiet(page, seconds: float = 4.0, limit: float = 600.0) -> None:
-    """스트림릿이 다 그릴 때까지(「실행 중」 표시가 seconds 초 동안 안 보일 때까지) 기다린다."""
+def _quiet(page, seconds: float = 3.0, limit: float = 90.0) -> None:
+    """스트림릿이 다 그릴 때까지(「실행 중」 표시가 seconds 초 동안 안 보일 때까지) 기다린다 — 길어야 limit 초.
+
+    시장판단 칸은 1분마다 혼자 다시 그려져 「실행 중」이 자주 뜬다 — 그래서 한도를 짧게 두고, 표마다는
+    _settled(그 표 글이 몇 초 동안 안 바뀌면 다 그린 것)로 따로 기다린다(2026-10-30 첫 실행이 60분을 넘긴 까닭).
+    """
     start = time.time()
     calm_since = None
     while time.time() - start < limit:
@@ -81,6 +85,22 @@ def _norm(text):
     return re.sub(r"\s+", " ", _TIME.sub("〈시각〉", text)).strip()
 
 
+def _settled(page, key: str, seconds: float = 3.0, limit: float = 180.0) -> str | None:
+    """그 칸 글이 seconds 초 동안 안 바뀔 때까지 기다리고 그 글을 돌려준다(길어야 limit 초)."""
+    start, last, same_since = time.time(), None, None
+    while time.time() - start < limit:
+        now = _text(page, key)
+        if now is not None and now == last:
+            same_since = same_since or time.time()
+            if time.time() - same_since >= seconds:
+                return now
+        else:
+            same_since = None
+        last = now
+        page.wait_for_timeout(500)
+    return last
+
+
 def _click(page, key: str) -> bool:
     button = page.locator(f'div[class*="st-key-{key}"] button').first
     if not button.count():
@@ -90,12 +110,23 @@ def _click(page, key: str) -> bool:
     return True
 
 
-def _wait_box(page, key: str, limit: int = WAIT_MS) -> bool:
-    try:
-        page.wait_for_selector(f'div[class*="st-key-{key}"]', state="attached", timeout=limit)
-        return True
-    except Exception:
-        return False
+# 표 대신 뜨는 「오늘은 자리가 없습니다」 글 — 이것도 다 그린 것이다(빈자리를 채우지 않는 화면 · CLAUDE.md 0-1 바)
+_EMPTY_TEXTS = ("지금은 이 기준에 맞는 종목이 없습니다", "통과한 종목이 없습니다", "조건에 맞는 종목이 없습니다")
+
+
+def _wait_box(page, key: str, limit: int = WAIT_MS, *, empty_ok: bool = False):
+    """그 칸이 생길 때까지 기다린다. empty_ok 면 「종목이 없습니다」 글도 받아들인다 → "table" · "empty" · False."""
+    start = time.time()
+    while (time.time() - start) * 1000 < limit:
+        found = page.evaluate("""([key, texts]) => {
+            if (document.querySelector(`div[class*="st-key-${key}"]`)) return "table";
+            const alerts = [...document.querySelectorAll('[data-testid="stAlert"]')].map(a => a.innerText || "");
+            return texts.some(t => alerts.some(a => a.includes(t))) ? "empty" : "";
+        }""", [key, list(_EMPTY_TEXTS) if empty_ok else []])
+        if found:
+            return found
+        page.wait_for_timeout(500)
+    return False
 
 
 def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, tag: str) -> dict:
@@ -109,22 +140,41 @@ def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, t
             page.locator('input[type="password"]').fill(PASSWORD)
             page.locator(f'div[class*="st-key-{p}_login_submit"] button').click()
         result["theme_table"] = _wait_box(page, f"{p}_theme_table")
+        if result["theme_table"]:
+            _settled(page, f"{p}_theme_table")
         _quiet(page)
         result["first_screen_s"] = round(time.time() - started, 1)
         result["texts"]["theme_table"] = _norm(_text(page, f"{p}_theme_table"))
         result["texts"]["page_top"] = _norm(page.evaluate("() => document.body.innerText.slice(0, 2500)"))
+        if p == "j13":
+            lines = re.findall(r"📉 이번 하락[^\n]*|참고 · 코스닥[^\n]*", page.evaluate("() => document.body.innerText") or "")
+            result["kospi_line"] = " / ".join(lines) if lines else None
         page.screenshot(path=str(OUT / f"{tag}_{name}_1_first.png"), full_page=width > 600)
         steps = [("pullback", f"{p}_pullback_find", f"{p}_pullback_table"),
                  ("breakout", f"{p}_pullback_breakout", f"{p}_rulebook_table"),
                  ("crash", f"{p}_pullback_crash", f"{p}_rulebook_table")]
         if owner:
             steps.append(("top7", f"{p}_top7_find", f"{p}_top7_table"))
+        if p == "j13":
+            # 자비스12 에서 옮겨 온 것 — 파트별 성적표 + 코스피와 견줘 보기(자비스13 에만 있다)
+            steps.append(("scorecard", "btn_j13sc_open", "j13sc_box"))
         for label, button, box in steps:
             at = time.time()
+            before = _text(page, box)
             pressed = _click(page, button)
-            shown = _wait_box(page, box) if pressed else False
-            _quiet(page)
-            text = _norm(_text(page, box)) if shown else None
+            if pressed:
+                page.wait_for_timeout(1500)            # 누른 판이 시작되게
+            shown = _wait_box(page, box, empty_ok=True) if pressed else False
+            if shown == "table" and before is not None:   # 같은 칸을 다시 쓰는 단추(상승장 → 급락) — 글이 바뀔 때까지
+                waited = time.time()
+                while time.time() - waited < 120 and _text(page, box) == before:
+                    page.wait_for_timeout(500)
+            if shown == "table":
+                text = _norm(_settled(page, box))
+            elif shown == "empty":
+                text = "〈오늘은 이 기준에 맞는 종목이 없습니다〉"
+            else:
+                text = None
             result["texts"][label] = text
             result["steps"].append({"step": label, "pressed": pressed, "shown": shown, "seconds": round(time.time() - at, 1),
                                     "chars": None if text is None else len(text)})
@@ -175,7 +225,8 @@ def main() -> int:
         _log(f"첫 화면: {json.dumps(report['entry'], ensure_ascii=False)}")
         for owner in (False, True):
             for name, p in PAGES:
-                for tag, width, height in (("pc", 1400, 900),) + ((("phone", 412, 915),) if not owner else ()):
+                phone = (("phone", 412, 915),) if (not owner and p == "j13") else ()
+                for tag, width, height in (("pc", 1400, 900),) + phone:
                     run = visit(browser, name, p, owner=owner, width=width, height=height,
                                 tag=f"{'owner' if owner else 'guest'}_{tag}")
                     report["runs"].append(run)
@@ -203,9 +254,14 @@ def main() -> int:
             continue
         for key in sorted(set(a["texts"]) | set(b["texts"])):
             ta, tb = a["texts"].get(key), b["texts"].get(key)
+            if key == "scorecard":        # 자비스13 에만 있다 — 견주지 않고 따로 적는다
+                continue
             if key == "page_top":         # 맨 위 글에는 화면 이름(자비스4/13)이 들어 있어 이름을 같게 친 뒤 견준다
                 ta = ta and ta.replace("자비스4", "자비스N")
                 tb = tb and tb.replace("자비스13", "자비스N")
+                # 자비스13 에서 더한 코스피 두 줄(「이번 하락」 · 코스닥 참고)은 빼고 견준다
+                tb = tb and re.sub(r"📉 이번 하락\(코스피 종가\):.*?지금 [-+]?\d+\.\d%( · 급락 후 반등장 기준일 \d+월 \d+일)? ?", "", tb)
+                tb = tb and re.sub(r"참고 · 코스닥 1년 최고 종가 대비 [-+]?\d+\.\d% \(고점 \d+월 \d+일\) ?", "", tb)
             same = ta == tb
             all_same &= same or (ta is None and tb is None)
             report["same"][f"{'주인' if owner else '게스트'}_{width}_{key}"] = same
@@ -215,6 +271,14 @@ def main() -> int:
             if not same and ta and tb:
                 i = next((i for i, (x, y) in enumerate(zip(ta, tb)) if x != y), min(len(ta), len(tb)))
                 _log(f"      자비스4 : …{ta[max(0, i - 80):i + 120]}…\n      자비스13: …{tb[max(0, i - 80):i + 120]}…")
+    _log("\n### 자비스13 에만 있는 것")
+    for run in report["runs"]:
+        if run["page"] != "자비스13":
+            continue
+        who = f"{'주인' if run['owner'] else '게스트'} {run['width']}px"
+        _log(f"  {who} · 코스피 줄: {run.get('kospi_line')}")
+        card = run["texts"].get("scorecard")
+        _log(f"  {who} · 성적표: {'없음' if not card else card[:600]}")
     errors = sum(len((r.get("problems") or {}).get("exceptions") or []) for r in report["runs"])
     crashed = [r["page"] for r in report["runs"] if r.get("error")]
     _log(f"\n끝 · 오류 상자 모두 {errors}개 · 멈춘 판 {crashed or '없음'} · 둘이 모두 같음 {all_same}")

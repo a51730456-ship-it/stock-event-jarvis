@@ -822,9 +822,15 @@ if (
 # 코스피·코스닥 「이번 하락」 한 줄의 값(자비스13 전용 · 2026-10-30). 얼린 jarvis4_data 는 읽기만 한다.
 import jarvis13_market
 
-_REQUIRED_J13_MARKET_REVISION = 2026103001
+_REQUIRED_J13_MARKET_REVISION = 2026103002
 if int(getattr(jarvis13_market, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_REVISION:
     jarvis13_market = importlib.reload(jarvis13_market)
+# 파트별 성적표 + 코스피와 견줘 보기(자비스13 전용 · 2026-10-30 · 자비스12 의 성적표 셈을 베낌).
+import jarvis13_scorecard_compare as j13vx
+
+_REQUIRED_J13_SCORECARD_REVISION = 2026103001
+if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
+    j13vx = importlib.reload(j13vx)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
@@ -2185,6 +2191,203 @@ def _flow_ratio_cell(flow: dict) -> str:
     return f"<span style='color:{_sign_color(ratio)}; font-weight:800'>{ratio:+.1f}%</span>"
 
 
+# ── 4주간 일별 시세 보기 (2026-10-30 · 자비스12 의 같은 창을 한국에 맞춰 옮김) ─────────────────────────
+# 자비스12 — 상하님 2026-09-02 「2주간 일별 시세 보기 … 클릭하면 화면이 밑으로 내려가도록」 → 09-19 3주 → 10-09 4주 ·
+# 09-24 「클릭하면 튀어나오게」. 표는 네이버 증권 「일별 시세」와 같은 칸(날짜 · 종가 · 전일대비 · 등락률) · 거래일 20일.
+# 자비스4 의 「당일 가격 한 줄」은 **그대로 두고** 그 밑에 더한다(상하님 「둘 다 장점을 베낌」 — 빼지 않는다).
+# 꾸밈 이름은 이 화면 것(j13dp-) — 자비스12 의 창 꾸밈(j3cz-·j3dp-)과 섞이지 않게(CLAUDE.md 0-2 ⑤).
+# **처음 한 번만 서버에 묻는다** — 그 종목 일봉(이미 받아 둔 것)을 다시 읽어 표를 만들고 곧바로 창을 띄운다.
+# 그 뒤로는 숨은 스위치로 여닫는다(서버에 안 묻는다).
+_J13DP_CSS = (
+    "<style>"
+    ".j13dp{width:100%;border-collapse:collapse;font-size:.93rem;margin:.2rem 0 .4rem;background:transparent}"
+    ".j13dp th{color:#9aa0aa;font-weight:800;text-align:right;padding:.25rem .5rem;border-bottom:1px solid rgba(255,255,255,.18)}"
+    ".j13dp th:first-child{text-align:left}"
+    ".j13dp td{text-align:right;padding:.2rem .5rem;color:#e6e6e6;border-bottom:1px solid rgba(255,255,255,.06)}"
+    ".j13dp .j13dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
+    ".j13dp .j13dp-c{font-weight:800;color:#e6e6e6}"
+    ".j13dp-tap{position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0}"
+    "label.j13dp-open{display:flex;align-items:center;justify-content:center;width:100%;box-sizing:border-box;"
+    "min-height:2.5rem;padding:.35rem .75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.22);cursor:pointer;"
+    "color:#fff;font-weight:700;background:linear-gradient(90deg,rgba(255,107,107,.36) 0%,rgba(255,183,77,.36) 25%,"
+    "rgba(129,199,132,.36) 50%,rgba(79,172,254,.36) 75%,rgba(186,148,250,.36) 100%)}"
+    ".j13dp-scrim{position:fixed;inset:0;z-index:2147483646;cursor:zoom-out;background:rgba(1,8,22,.8);opacity:0;"
+    "visibility:hidden;transition:opacity .3s ease,visibility 0s linear .56s}"
+    ".j13dp-pop{position:fixed;left:50%;top:50%;z-index:2147483647;cursor:zoom-out;width:min(calc(100vw - 16px),720px);"
+    "max-height:calc(100dvh - 16px);overflow-y:auto;box-sizing:border-box;padding:16px 14px 12px;border-radius:22px;"
+    "background:#0d2344;border:1px solid rgba(157,204,255,.45);box-shadow:0 18px 50px rgba(0,0,0,.6);display:flex;"
+    "flex-direction:column;gap:8px;opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-50%) scale(.55);"
+    "transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),visibility 0s linear .56s}"
+    ".j13dp-tap:checked ~ .j13dp-scrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}"
+    ".j13dp-tap:checked ~ .j13dp-pop{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,-50%) scale(1);"
+    "transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s;"
+    "animation:j13dp-in .9s cubic-bezier(.34,1.56,.64,1)}"
+    "@keyframes j13dp-in{from{opacity:0;transform:translate(-50%,-50%) scale(.55)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}"
+    ".j13dp-name{color:#9dccff;font-size:1.15rem;font-weight:800}"
+    ".j13dp-when{color:#7d8798;font-size:.78rem;font-weight:700}"
+    ".j13dp-close{align-self:center;font-size:.78rem;color:#8fb4de}"
+    "@media (prefers-reduced-motion: reduce){.j13dp-pop,.j13dp-scrim{transition:none!important;animation:none!important}}"
+    "</style>"
+)
+
+
+def _kr_daily_price_rows(code: str, days: int = 20) -> list[dict]:
+    """그 종목의 최근 거래일 days 일치 — 날짜 · 종가 · 전일대비 · 등락률(최근 날이 맨 위). 이미 받아 둔 일봉을 다시 읽는다.
+
+    못 받으면 빈 목록 — 없는 것을 있는 것처럼 적지 않는다. 오늘 봉이 아직 장중이면 날짜 옆에 「장중」.
+    """
+    frame = j4data.get_daily_frame(code)
+    if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+        return []
+    closes = frame["Close"].dropna().astype(float)
+    if len(closes) < 2:
+        return []
+    live_day = None
+    try:
+        finished = jarvis13_market.last_finished_day(frame)
+        last = closes.index[-1].date()
+        live_day = last if finished is not None and last > finished else None
+    except Exception:
+        live_day = None
+    rows = []
+    tail = closes.tail(days + 1)
+    values = tail.tolist()
+    stamps = list(tail.index)
+    for place in range(len(values) - 1, 0, -1):
+        close, before = values[place], values[place - 1]
+        day = stamps[place].date()
+        label = f"{day.year}.{day.month:02d}.{day.day:02d}" + (" 장중" if day == live_day else "")
+        rows.append({"date": label, "close": close, "diff": close - before,
+                     "pct": (close / before - 1.0) * 100.0 if before else None})
+    return rows[:days]
+
+
+def _render_daily_prices(code: str, name: str, *, panel: str = "") -> None:
+    """📅 4주간 일별 시세 보기 — 누르면 창으로 튀어 오른다(자비스12 와 같은 움직임)."""
+    key = f"j13_daily_prices_{panel or 'x'}_{str(code or 'x')}"
+    if not st.session_state.get(key):
+        st.session_state.pop(key + "_shown", None)     # 다시 누르면 곧바로 뜨게
+        _section_toggle("📅 4주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key)
+        if not st.session_state.get(key):
+            return
+    try:
+        rows = _kr_daily_price_rows(code, days=20)
+    except Exception:
+        rows = []
+    if not rows:
+        st.caption("일별 시세를 불러오지 못했습니다.")
+        _section_close(key, "4주간 일별 시세 닫기")
+        return
+    body = []
+    for row in rows:
+        pct = row.get("pct")
+        tone = _sign_color(pct)
+        arrow = "▲" if (pct or 0) >= 0 else "▼"
+        body.append(
+            f"<tr><td class='j13dp-d'>{html.escape(str(row['date']))}</td>"
+            f"<td class='j13dp-c'>{float(row['close']):,.0f}</td>"
+            f"<td style='color:{tone}'>{arrow} {abs(float(row['diff'])):,.0f}</td>"
+            f"<td style='color:{tone};font-weight:800'>{'—' if pct is None else _pct(pct)}</td></tr>")
+    shown_key = key + "_shown"
+    pop_now = not st.session_state.get(shown_key)
+    st.session_state[shown_key] = True
+    tap_id = "j13dp-" + re.sub(r"[^A-Za-z0-9]", "_", key)
+    table = (f"<table class='j13dp'><thead><tr><th>날짜</th><th>종가</th><th>전일대비</th><th>등락률</th></tr></thead>"
+             f"<tbody>{''.join(body)}</tbody></table>")
+    st.markdown(
+        _J13DP_CSS
+        + f"<div class='j13dpz'><input type='checkbox' id='{tap_id}' class='j13dp-tap'>"
+        f"<label for='{tap_id}' class='j13dp-open'>📅 4주간 일별 시세 보기</label>"
+        f"<label for='{tap_id}' class='j13dp-scrim' aria-hidden='true'></label>"
+        f"<label for='{tap_id}' class='j13dp-pop'>"
+        f"<span class='j13dp-name'>{html.escape(str(name or code))} · 4주간 일별 시세</span>{table}"
+        "<span class='j13dp-when'>거래일 20일치 · 최근 날이 맨 위 · 원</span>"
+        "<span class='j13dp-close'>다시 누르면 닫힘</span></label></div>",
+        unsafe_allow_html=True,
+    )
+    # 막 누른 판에서만 스위치를 한 번 켠다 — 켜진 채로 그려 보내면 스트림릿이 그 칸을 「켜짐 고정」으로 붙잡아
+    # 눌러도 안 닫혔다(자비스12 · 2026-09-24 실측). 꺼진 채로 그리고 여기서 켜면 튀어 오르고, 누르면 닫힌다.
+    # 시간 지연(setTimeout) 대신 화면 그리기 차례(requestAnimationFrame)로 다시 본다.
+    if pop_now:
+        try:
+            import json as _json
+            import streamlit.components.v1 as components
+
+            components.html(
+                "<script>(function(){var n=0;function go(){var t=null;"
+                "try{t=window.parent.document.getElementById(" + _json.dumps(tap_id) + ");}catch(e){return;}"
+                "if(t){if(!t.checked){t.click();}return;}"
+                "if(n++<120){window.parent.requestAnimationFrame(go);}}go();})();</script>",
+                height=0,
+            )
+        except Exception:
+            pass
+
+
+# ── 📰 종목 뉴스 (2026-10-30 · 자비스12 의 「종목 뉴스」를 한국에 맞춰 옮김) ─────────────────────────────
+# 자비스12 — **누를 때만 받는다**(받는 데 1~3초 · 세부사항을 열 때마다 받으면 그만큼 늦어진다 · 2026-10-09).
+# 한국은 네이버 뉴스 검색(news_data.fetch_naver_news — 자비스1 이 쓰는 것, 읽기만)으로 종목 이름을 찾는다.
+# 「기업 직접 재료 후보」 같은 분류는 news_data 의 1차 참고 분류 그대로 — **점수·판정에 안 쓴다**(보여 주기만).
+_J13_NEWS_KEEP = 600.0       # 10분 — 그 뒤 다시 열면 새로 받는다
+
+
+def _render_stock_news(code: str, name: str, *, panel: str = "") -> None:
+    key = f"j13_stock_news_{panel or 'x'}_{str(code or 'x')}"
+    if not _section_toggle("📰 종목 뉴스 보기 — 누를 때만 받습니다", key, close_label="종목 뉴스 닫기"):
+        return
+    try:
+        client_id = st.secrets.get("NAVER_CLIENT_ID")
+        client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
+    except Exception:
+        client_id = client_secret = None
+    if not client_id or not client_secret:
+        st.info("네이버 뉴스 열쇠가 설정되지 않아 종목 뉴스를 받을 수 없습니다.")
+        _section_close(key, "종목 뉴스 닫기")
+        return
+    kept = st.session_state.get(key + "_data")
+    if not isinstance(kept, dict) or time.time() - float(kept.get("at") or 0) > _J13_NEWS_KEEP:
+        import news_data
+
+        with st.spinner(f"{name} 뉴스를 받는 중입니다…"):
+            try:
+                result = news_data.fetch_naver_news(client_id, client_secret, str(name or code), display=10, sort="date")
+            except Exception as exc:
+                result = {"status": "조회 오류", "message": _safe_error_text(exc), "data": []}
+        kept = {"at": time.time(), "result": result}
+        # 못 받았으면 담아 두지 않는다 — 다음에 열 때 다시 받는다(있던 것을 지우지 않는 쪽 · CLAUDE.md 0-0 ②)
+        if (result or {}).get("status") == "정상":
+            st.session_state[key + "_data"] = kept
+    result = kept.get("result") or {}
+    items = result.get("data") or []
+    if result.get("status") != "정상" or not items:
+        st.caption("최근 뉴스가 없습니다." if result.get("status") in ("정상", "데이터 없음")
+                   else f"뉴스를 받지 못했습니다 — {html.escape(str(result.get('message') or result.get('status') or ''))}")
+        _section_close(key, "종목 뉴스 닫기")
+        return
+    try:
+        import news_data
+
+        labels = [news_data.classify_news_materiality(item, name, code) for item in items]
+    except Exception:
+        labels = [{} for _item in items]
+    lines = []
+    for item, label in zip(items, labels):
+        raw_link = str(item.get("originallink") or item.get("link") or "").strip()
+        # 주소는 http(s) 만 건다 — 다른 꼴(javascript: 등)은 글자만 보인다
+        link = html.escape(raw_link, quote=True) if raw_link.lower().startswith(("http://", "https://")) else ""
+        title = html.escape(str(item.get("title") or "제목 없음"))
+        when = html.escape(str(item.get("pub_date") or "")[:16].replace("T", " "))
+        level = str((label or {}).get("level") or "")
+        chip = (f"<span style='color:#ffb020;font-weight:800;font-size:.78rem'>[{html.escape(level)}]</span> "
+                if level == "기업 직접 재료 후보" else "")
+        head = f"<a href='{link}' target='_blank' rel='noopener'>{title}</a>" if link else title
+        lines.append(f"<div style='padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.07)'>{chip}{head}"
+                     f"<div class='j4-muted' style='font-size:.8rem'>{when}</div></div>")
+    st.markdown("".join(lines), unsafe_allow_html=True)
+    st.caption("네이버 뉴스 검색 · 최근 순 10건 · [기업 직접 재료 후보]는 낱말로 고른 1차 참고 분류입니다 — 점수·판정에 안 씁니다.")
+    _section_close(key, "종목 뉴스 닫기")
+
+
 def _render_day_price_row(metrics: dict) -> None:
     """당일 가격 한 줄 — 현재가·전일 종가·시가·고가·저가·종가.
 
@@ -2349,6 +2552,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     # 점수/선정 근거·매수 심사·추천 근거는 만들지 않는다.
     if auth.is_guest():
         _render_day_price_row(metrics)
+        _render_daily_prices(code, leader.get("name") or code, panel=panel)   # 자비스12 에서 옮김(2026-10-30)
+        _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
         _render_guest_stock_charts(code, panel)
         _section_close(f"j13_detail_open_{panel}", "선택종목 세부사항 닫기")
         return
@@ -2515,6 +2720,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             st.warning(plan.get("buy_reason"))
 
     _render_day_price_row(metrics)
+    _render_daily_prices(code, leader.get("name") or code, panel=panel)   # 자비스12 에서 옮김(2026-10-30)
+    _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
 
     # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25
     # 사용자 지적, 미국테마와 같은 처리). 대장주와 같은 자료·같은 차트를 쓴다.
@@ -2933,6 +3140,211 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
 # ---------------------------------------------------------------------------
 # 탭
 # ---------------------------------------------------------------------------
+# ── 파트별 성적표 + 코스피와 견줘 보기 (2026-10-30 · 자비스12 의 성적표를 한국에 맞춰 옮김) ──────────────
+# 상하님 — 「둘 다 해라」 · 「자비스4 와 자비스12 둘 다 장점을 베낌」. 잣대는 2026-09-30 상하님 결정 그대로 —
+# **같은 날 코스피보다 나았나 + 실제로 벌었나 둘 다**. 셈은 jarvis13_scorecard_compare(자비스12 와 같은 셈).
+# **누를 때만** 센다 — 저장 목록 종목(지금 181개)의 일봉을 받는 데 몇 초가 든다. 첫 화면을 붙잡지 않는다(CLAUDE.md 0-0).
+_J13SC_OPEN = "j13sc_open"
+_J13SC_SPAN = "j13sc_span"
+_J13SC_DATA = "j13sc_data"
+_J13VX_TAB = "j13vx_tab"
+_J13VX_PERIOD = "j13vx_period"
+_J13VX_VIEW = "j13vx_view"
+_J13SC_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183), ("1년", 365), ("누계", None))
+_J13SC_LABELS = {"누계": "기록 시작 후 누계"}
+_J13SC_KEEP = 1800.0          # 30분 — 그 뒤 다시 열면 새로 센다
+_J13SC_CSS = """
+<style>
+div[class*="st-key-j13sc_box"]{border:1px solid #1d3a63;border-radius:12px;padding:12px 14px}
+div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button{min-height:0!important;padding:.2rem .5rem!important;
+  border-radius:8px!important;background:transparent!important;border:1px solid #1d3a63!important}
+div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button p{font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
+div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
+div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"] p{color:#0a1a33!important}
+</style>
+"""
+
+
+def _j13sc_pick(state_key: str, value) -> None:
+    st.session_state[state_key] = value
+
+
+def _j13sc_load() -> dict:
+    """성적표에 쓰는 것 한 벌 — 저장 줄 · 종목 일봉 · 코스피 일봉 · 마지막으로 끝난 장. 30분 보관.
+
+    저장 목록(picklist_store)은 **읽기만** 한다. 못 받은 종목은 빼고 센다(0으로 채우지 않는다).
+    """
+    kept = st.session_state.get(_J13SC_DATA)
+    if isinstance(kept, dict) and time.time() - float(kept.get("made") or 0) < _J13SC_KEEP:
+        return kept
+    from concurrent.futures import ThreadPoolExecutor
+
+    import picklist_store
+
+    rows = []
+    for day in sorted(picklist_store.available_dates("KR")):
+        for row in picklist_store.load_rows(day, "KR"):
+            kind = str(row.get("list_kind") or "")
+            if kind in j13vx.PARTS and picklist_store.should_show(kind, "KR"):
+                rows.append(row)
+    codes = sorted({str(row.get("code") or "").strip() for row in rows} - {""})
+
+    def _one(code):
+        try:
+            return code, j4data.get_daily_frame(code, ttl_seconds=_J13SC_KEEP)
+        except Exception:
+            return code, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        frames = {code: frame for code, frame in pool.map(_one, codes) if frame is not None}
+    kospi = jarvis13_market.index_frame("KOSPI")
+    data = {"made": time.time(), "rows": rows, "frames": frames, "kospi": kospi,
+            "last_day": jarvis13_market.last_finished_day(kospi), "codes": len(codes)}
+    st.session_state[_J13SC_DATA] = data
+    return data
+
+
+def _j13sc_in_span(rows: list, kospi, last_day, days) -> list:
+    """산 날(목록 다음 장)이 그 기간 안인 줄. 기준은 **마지막으로 끝난 장**이다(자비스12 「어제부터」와 같은 뜻 —
+    오늘 산 것은 장이 안 끝나 성적을 모른다). 「이번 달」은 그 장이 든 달."""
+    import bisect
+
+    calendar = sorted(j13vx.series_by_day(kospi, "Close"))
+    out = []
+    for row in rows:
+        try:
+            listed = date.fromisoformat(str(row.get("trade_date") or "")[:10])
+        except ValueError:
+            continue
+        place = bisect.bisect_right(calendar, listed)
+        if place >= len(calendar) or calendar[place] > last_day:
+            continue                       # 아직 안 산 줄
+        bought = calendar[place]
+        if days is None:
+            out.append(row)
+        elif days == "month":
+            if (bought.year, bought.month) == (last_day.year, last_day.month):
+                out.append(row)
+        elif 0 <= (last_day - bought).days <= int(days):
+            out.append(row)
+    return out
+
+
+def _j13sc_table_html(table: dict, blocked: dict) -> str:
+    head = ("<tr><th>파트</th><th>산 줄</th><th>이익 난 확률</th><th>평균 수익</th><th>같은 날 코스피</th>"
+            "<th>코스피보다 나음</th><th>못 산 줄</th></tr>")
+    lines = []
+    for kind in j13vx.PARTS:
+        slot = table.get(kind) or {}
+        n = int(slot.get("n") or 0)
+        name = html.escape(j13vx.PART_NAMES[kind])
+        color = j13vx.PART_COLORS[kind]
+        miss = int(blocked.get(kind) or 0)
+        if not n:
+            lines.append(f"<tr><td style='color:{color};font-weight:800'>{name}</td>"
+                         f"<td colspan='5' style='text-align:left;color:#8fb4de'>이 기간에 산 줄이 없습니다</td><td>{miss}</td></tr>")
+            continue
+        avg = slot["sum"] / n
+        ix = slot["ix_sum"] / n
+        lines.append(
+            f"<tr><td style='color:{color};font-weight:800'>{name}</td><td>{n}</td>"
+            f"<td><b>{slot['win'] / n * 100:.0f}%</b> <small>({slot['win']}/{n})</small></td>"
+            f"<td style='color:{j13vx.tone(avg)};font-weight:800'>{j13vx.fmt(avg)}</td>"
+            f"<td style='color:{j13vx.tone(ix)}'>{j13vx.fmt(ix)}</td>"
+            f"<td>{slot['beat'] / n * 100:.0f}% <small>({slot['beat']}/{n})</small></td><td>{miss}</td></tr>")
+    return f"<div class='j13sc-wrap'><table class='j13sc-tbl'>{head}{''.join(lines)}</table></div>"
+
+
+def _render_scorecard_section() -> None:
+    """📊 파트별 성적표 — 날짜별 목록 밑. 눌러야 열린다."""
+    st.markdown("<div class='j4-section-title'>📊 파트별 성적표</div>", unsafe_allow_html=True)
+    if not _section_toggle("📊 파트별 성적표 — 코스피와 견줘 보기", _J13SC_OPEN, close_label="파트별 성적표 닫기"):
+        st.caption("저장해 둔 목록대로 샀다면 지금 몇 % 인지, 같은 날 코스피를 샀을 때와 견줍니다. 누를 때만 셉니다.")
+        return
+    with st.spinner("저장해 둔 목록의 종목 값을 받는 중입니다…"):
+        data = _j13sc_load()
+    kospi, last_day = data.get("kospi"), data.get("last_day")
+    if kospi is None or last_day is None or not data.get("rows"):
+        st.info("코스피 값이나 저장해 둔 목록을 못 읽어 지금은 성적표를 셀 수 없습니다. 조금 뒤 다시 열어 보십시오.")
+        _section_close(_J13SC_OPEN, "파트별 성적표 닫기")
+        return
+    span = str(st.session_state.get(_J13SC_SPAN) or "누계")
+    if span not in dict(_J13SC_SPANS):
+        span = "누계"
+    st.markdown(_J13SC_CSS + j13vx.CSS, unsafe_allow_html=True)
+    with st.container(key="j13sc_box"):
+        chips = st.columns(len(_J13SC_SPANS))
+        for index, (label, _days) in enumerate(_J13SC_SPANS):
+            chips[index].button(_J13SC_LABELS.get(label, label), key=f"j13sc_span_{index}", width="stretch",
+                                type="primary" if label == span else "secondary",
+                                on_click=_j13sc_pick, args=(_J13SC_SPAN, label))
+        chosen = _j13sc_in_span(data["rows"], kospi, last_day, dict(_J13SC_SPANS)[span])
+        rows, blocked_rows = j13vx.split_unfillable(chosen, data["frames"])
+        blocked = {}
+        for row in blocked_rows:
+            blocked[str(row.get("list_kind"))] = blocked.get(str(row.get("list_kind")), 0) + 1
+        table = j13vx.part_table(rows, data["frames"], kospi, last_day=last_day)
+        st.markdown(_j13sc_table_html(table, blocked), unsafe_allow_html=True)
+        first_saved = min(str(row.get("trade_date") or "")[:10] for row in data["rows"])
+        missing = data.get("codes", 0) - len(data.get("frames") or {})
+        st.markdown(
+            "<div class='j13sc-note'>"
+            "산 날 = 목록을 찍은 다음 장 · 산 값 = 그날 시가(저장된 매수금액) · "
+            f"지금 값 = <b>{last_day.month}월 {last_day.day}일 종가</b>(장중에는 그 앞 장) · "
+            "코스피도 같은 날 시가에 샀다고 쳤습니다. "
+            "<b>다음 날 시가가 상한가에 붙은 줄은 못 산 것으로 빼고</b> 「못 산 줄」에 셉니다. "
+            f"세기 시작 {jarvis13_market.md(first_saved)}(저장 시작) · 거래비용·세금은 안 넣었습니다."
+            + (f" 값을 못 받은 종목 {missing}개는 빼고 셌습니다." if missing > 0 else "")
+            + "</div>", unsafe_allow_html=True)
+        _render_j13_compare(rows, data, last_day)
+    _section_close(_J13SC_OPEN, "파트별 성적표 닫기")
+
+
+def _render_j13_compare(rows: list, data: dict, last_day) -> None:
+    """📈 코스피와 견줘 보기 — 자비스12 「나스닥 종합과 견줘 보기」와 같은 탭·단추·그림."""
+    st.markdown("<div class='j3vx'><div class='j3vx-head'><b>📈 코스피와 견줘 보기</b>"
+                "<span>위에서 고른 기간 그대로</span></div></div>", unsafe_allow_html=True)
+    tab = str(st.session_state.get(_J13VX_TAB) or "all")
+    tab = tab if tab in j13vx.TAB_PARTS else "all"
+    period = str(st.session_state.get(_J13VX_PERIOD) or "d")
+    period = period if period in dict(j13vx.PERIODS) else "d"
+    view = str(st.session_state.get(_J13VX_VIEW) or "line")
+    view = view if view in dict(j13vx.VIEWS) else "line"
+    with st.container(key="j13vx_rowtabs"):
+        for column, (key, label, _parts) in zip(st.columns(len(j13vx.TABS)), j13vx.TABS):
+            column.button(label, key=f"j13vx_t_{key}", width="stretch", type="primary" if key == tab else "secondary",
+                          on_click=_j13sc_pick, args=(_J13VX_TAB, key))
+    options = ([(_J13VX_PERIOD, key, label, f"j13vx_p_{key}", key == period) for key, label in j13vx.PERIODS]
+               + [(_J13VX_VIEW, key, label, f"j13vx_v_{key}", key == view) for key, label in j13vx.VIEWS])
+    with st.container(key="j13vx_rowopts"):
+        for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
+            column.button(label, key=widget_key, width="stretch", type="primary" if chosen else "secondary",
+                          on_click=_j13sc_pick, args=(state_key, key))
+    try:
+        result = j13vx.compute(rows, data["frames"], data["kospi"], last_day=last_day)
+    except Exception as exc:
+        st.markdown(f"<div class='j3vx-note'>견줘 보기를 못 그렸습니다: {html.escape(_safe_error_text(exc))}</div>",
+                    unsafe_allow_html=True)
+        return
+    if not result.get("parts"):
+        st.markdown("<div class='j3vx-note'>이 기간에는 코스피와 견줄 것이 없습니다.</div>", unsafe_allow_html=True)
+        return
+    if view == "bar":
+        chart, note = j13vx.bar_chart_html(result, tab, period)
+    else:
+        chart, note = j13vx.line_chart_html(result, tab, period), ""
+    st.markdown(
+        j13vx.cards_html(result, tab) + j13vx.legend_html(tab, result) + chart
+        + (f"<div class='j3vx-note'>{html.escape(note)}</div>" if note else "")
+        + "<div class='j3vx-note'>쌓인 수익(선) — 그날까지 산 것을 모두 들고 있다면 몇 % 인가. "
+          "산 날마다(막대) — 그날 산 것이 마지막 날까지 몇 % 인가. 코스피는 그 파트가 <b>산 날에만</b> 같은 돈으로 샀다고 칩니다.</div>",
+        unsafe_allow_html=True)
+    stocks = j13vx.stocks_html(result, tab, first=(result.get("days") or [""])[0], last=result.get("last") or "")
+    if stocks:
+        with st.expander("이 기간에 산 종목 보기", expanded=False):
+            st.markdown(stocks, unsafe_allow_html=True)
+
+
 def _render_radar_tab(market: dict) -> None:
     guest_mode = auth.is_guest()
     action_col, note_col = st.columns([1, 4])
@@ -3053,6 +3465,7 @@ def _render_radar_tab(market: dict) -> None:
             _render_top_reviewed_detail(market)
         _render_my_stock_panel(market)
         jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
+        _render_scorecard_section()
         return
 
     def _close_theme_panel_top():
@@ -3188,6 +3601,8 @@ def _render_radar_tab(market: dict) -> None:
 
     # ⑤ 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다.
     jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
+    # ⑥ 파트별 성적표 — 날짜별 목록 밑(자비스12 와 같은 자리 · 2026-10-30).
+    _render_scorecard_section()
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
@@ -4309,7 +4724,11 @@ def main() -> None:
         # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
         # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
         # 페이지 위 <style>의 .st-key-j13_top7_table 줄에 있다.
-        mobile_ui.page_css(),
+        # 성적표 단추(2026-10-30 · 자비스12 에서 옮김)의 폰 규칙은 얼린 mobile_ui 에 옛 이름(j3sc_·j3vx_)으로 있다 —
+        # 자비스12 처럼 **이름만** 자비스13 것으로 바꿔 넣는다(2026-10-27 j12 때 이걸 빠뜨려 폰 단추가 세로로 쌓였다).
+        mobile_ui.page_css()
+        .replace("st-key-j3sc_", "st-key-j13sc_")
+        .replace("st-key-j3vx_", "st-key-j13vx_"),
         unsafe_allow_html=True,
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).

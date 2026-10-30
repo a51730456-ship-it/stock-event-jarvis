@@ -50,7 +50,8 @@ class Jarvis13SeparationTests(unittest.TestCase):
         self.assertGreater(len(re.findall(r"(?<![A-Za-z0-9])j13", PAGE)), 250)
 
     def test_not_connected_to_jarvis12_or_jarvis3_names(self):
-        code = _code_only(PAGE)
+        # 얼린 mobile_ui 폰 규칙의 옛 이름을 자비스13 이름으로 바꿔 끼우는 두 줄만은 옛 이름이 있어야 한다(2026-10-30 성적표)
+        code = _code_only(PAGE).replace('"st-key-j3sc_"', "").replace('"st-key-j3vx_"', "")
         self.assertEqual([], re.findall(r"(?<![A-Za-z0-9])(j12[A-Za-z_][A-Za-z0-9_]*)", code))
         self.assertEqual([], re.findall(r"(?<![A-Za-z0-9])(j3(?:_|b_|add_|rb|vx_|sc_)[A-Za-z0-9_]*)", code))
 
