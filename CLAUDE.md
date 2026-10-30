@@ -248,6 +248,9 @@ Claude Code는 코드 수정 전 반드시 이 파일을 먼저 확인한다.
 - 자동 저장은 GitHub Actions(`.github/workflows/picklist_collect.yml`)가 한다 —
   상하님이 로그인하지 않아도 쌓여야 한다는 것이 이 기능의 요구다.
 - 저장 칸을 바꾸면 `picklist_store.SCHEMA_VERSION`과 `MODULE_REVISION`을 같이 올린다.
+- **그림자 목록**(2026-10-31 상하님 「라」) — 한국 급락의 자비스12 식 규칙(j13-shadow-v1 · `docs/KR_THEME_SPEC.md` 3-4-1)으로 고른 목록을
+  `data/picklist_shadow/{날짜}.KR.json`에 신호 난 날에만 쌓는다(`research/j13_shadow_collect.py` · 깃허브 「자비스13 그림자 목록 저장」).
+  **지우지 않고 규칙을 바꾸지 않는다** — 미리 적어 둔 규칙의 앞날 성적으로 가리는 시험이라, 바꾸면 시험이 무너진다. 화면 추천에는 안 쓴다.
 
 ## 10-2. 미국 재무 파일 (2026-10-07 도입)
 - 자비스3 선택종목 세부사항의 「📑 재무 한눈에」는 `data/fundamentals/US.json` **만 읽는다.**
