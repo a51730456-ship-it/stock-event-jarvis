@@ -1323,7 +1323,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091720
+_REQUIRED_MOBILE_REVISION = 2026100911  # 2026-10-30 옛 번호(2026091720)를 지금 mobile_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1337,7 +1337,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026090710
+_REQUIRED_METHOD_HELP_REVISION = 2026091830  # 2026-10-30 옛 번호(2026090710)를 지금 method_help 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -1346,7 +1346,7 @@ import picklist_store
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026090230
+_REQUIRED_PICKLIST_REVISION = 2026091740  # 2026-10-30 옛 번호(2026090230)를 지금 picklist_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if (
     # 2026-08-29 「상위 테마 5개」를 화면에서도 남기는 데 쓴다. 옛 모듈이면
     # 이 이름이 없어 그 갈래가 또 통째로 빠진다.
@@ -1392,7 +1392,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091730
+_REQUIRED_J3_REVISION = 2026100701  # 2026-10-30 옛 번호(2026091730)를 지금 jarvis3_data 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.

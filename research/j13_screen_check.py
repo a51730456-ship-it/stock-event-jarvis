@@ -29,9 +29,14 @@ OUT = Path(os.environ.get("J13_OUT") or "/tmp/j13shots")
 # 비밀번호 — 깃허브는 이 실행에서만 만든 .streamlit/secrets.toml 에서 읽는다(시험할 때는 J13_PASSWORD 로 줄 수 있다)
 PASSWORD = os.environ.get("J13_PASSWORD") or tomllib.loads(
     (ROOT / ".streamlit" / "secrets.toml").read_text(encoding="utf-8"))["APP_PASSWORD"]
-PAGES = (("자비스4", "j4"), ("자비스13", "j13"))
+# 여는 차례 — 2026-10-30 3차부터 **자비스13 을 먼저** 연다. 2차(자비스4 먼저)에서 뒤에 연 자비스13 의 눌림목이
+# 22.7초로 자비스4(12.2초)보다 길었다 — 화면 탓인지 차례(시세 보관 90초가 지남) 탓인지 가르려고 바꿔 연다.
+PAGES = (("자비스13", "j13"), ("자비스4", "j4"))
 WAIT_MS = int(os.environ.get("J13_WAIT_MS") or 300_000)   # 처음 테마 전수 훑기는 몇 분 걸린다
 _TIME = re.compile(r"\d{1,2}:\d{2}(:\d{2})?|\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?|\(\d+(\.\d+)?초\)|\d+(\.\d+)?초")
+# 자비스13 에서 더한 코스피 두 줄 — 견줄 때 뺀다(자비스4 에는 없다)
+_J13_LINES = re.compile(r"📉 이번 하락\(코스피 종가\):[^\n]*\n?|참고 · 코스닥 1년 최고 종가 대비[^\n]*\n?")
+_NUMBER = re.compile(r"[-+−]?\d[\d,]*(\.\d+)?")
 
 
 def _log(text: str) -> None:
@@ -85,6 +90,18 @@ def _norm(text):
     return re.sub(r"\s+", " ", _TIME.sub("〈시각〉", text)).strip()
 
 
+def _lines(text):
+    """줄마다 나눈 글(시각은 가림) — 줄 차례만 바뀐 것(장중에 순위가 바뀜)을 가려내려고."""
+    if text is None:
+        return None
+    return [line for line in (_norm(part) for part in text.split("\n")) if line]
+
+
+def _shape(text):
+    """숫자를 # 로 가린 글 — 장중 시세로 숫자만 바뀐 것과 글·칸이 바뀐 것을 가른다."""
+    return None if text is None else _NUMBER.sub("#", text)
+
+
 def _settled(page, key: str, seconds: float = 3.0, limit: float = 180.0) -> str | None:
     """그 칸 글이 seconds 초 동안 안 바뀔 때까지 기다리고 그 글을 돌려준다(길어야 limit 초)."""
     start, last, same_since = time.time(), None, None
@@ -132,7 +149,7 @@ def _wait_box(page, key: str, limit: int = WAIT_MS, *, empty_ok: bool = False):
 def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, tag: str) -> dict:
     page = browser.new_page(viewport={"width": width, "height": height})
     started = time.time()
-    result = {"page": name, "owner": owner, "width": width, "texts": {}, "steps": []}
+    result = {"page": name, "owner": owner, "width": width, "texts": {}, "raw": {}, "steps": []}
     try:
         page.goto(f"{BASE}/{name}" + ("" if owner else "?guest=1"), timeout=180_000)
         if owner:
@@ -144,11 +161,19 @@ def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, t
             _settled(page, f"{p}_theme_table")
         _quiet(page)
         result["first_screen_s"] = round(time.time() - started, 1)
-        result["texts"]["theme_table"] = _norm(_text(page, f"{p}_theme_table"))
-        result["texts"]["page_top"] = _norm(page.evaluate("() => document.body.innerText.slice(0, 2500)"))
+        theme_raw = _text(page, f"{p}_theme_table")
+        result["texts"]["theme_table"] = _norm(theme_raw)
+        result["raw"]["theme_table"] = theme_raw
+        body = page.evaluate("() => document.body.innerText") or ""
         if p == "j13":
-            lines = re.findall(r"📉 이번 하락[^\n]*|참고 · 코스닥[^\n]*", page.evaluate("() => document.body.innerText") or "")
+            lines = re.findall(r"📉 이번 하락[^\n]*|참고 · 코스닥[^\n]*", body)
             result["kospi_line"] = " / ".join(lines) if lines else None
+            # 더한 두 줄은 **자르기 전에** 뺀다 — 2차는 2,500자로 자른 뒤에 빼서 자비스13 글이 그만큼(약 110자) 짧았다
+            body = _J13_LINES.sub("", body)
+        top = body[:2500]
+        top = top[:top.rfind("\n")] if "\n" in top else top      # 잘린 끝 줄은 버린다(숫자 길이에 따라 자른 자리가 달라진다)
+        result["texts"]["page_top"] = _norm(top)
+        result["raw"]["page_top"] = top
         page.screenshot(path=str(OUT / f"{tag}_{name}_1_first.png"), full_page=width > 600)
         steps = [("pullback", f"{p}_pullback_find", f"{p}_pullback_table"),
                  ("breakout", f"{p}_pullback_breakout", f"{p}_rulebook_table"),
@@ -170,7 +195,9 @@ def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, t
                 while time.time() - waited < 120 and _text(page, box) == before:
                     page.wait_for_timeout(500)
             if shown == "table":
-                text = _norm(_settled(page, box))
+                raw = _settled(page, box)
+                text = _norm(raw)
+                result["raw"][label] = raw
             elif shown == "empty":
                 text = "〈오늘은 이 기준에 맞는 종목이 없습니다〉"
             else:
@@ -216,6 +243,21 @@ def entry_check(browser) -> dict:
     return out
 
 
+def _report_run(run: dict) -> None:
+    probs = run.get("problems") or {}
+    _log(f"\n[{run['page']} · {'주인' if run['owner'] else '게스트'} · {run['width']}px"
+         + (" · 한 번 더" if run.get("again") else "") + f"] 첫 화면 {run.get('first_screen_s')}초 · "
+         f"전체 {run.get('total_s')}초 · 테마표 {'보임' if run.get('theme_table') else '없음'} · "
+         f"오류 상자 {len(probs.get('exceptions') or [])} · 알림 {len(probs.get('alerts') or [])} · "
+         f"옆 넘침 {probs.get('overflow')}px" + (f" · ⚠ {run['error']}" if run.get("error") else ""))
+    for step in run["steps"]:
+        _log(f"   {step['step']}: 눌림 {step['pressed']} · 표 {step['shown']} · {step['seconds']}초")
+    for item in (probs.get("exceptions") or []):
+        _log(f"   ⚠ 오류 상자: {item[:300]}")
+    for item in (probs.get("alerts") or []):
+        _log(f"   · 알림: {item[:200]}")
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     report = {"runs": [], "same": {}}
@@ -223,6 +265,7 @@ def main() -> int:
         browser = play.chromium.launch()
         report["entry"] = entry_check(browser)
         _log(f"첫 화면: {json.dumps(report['entry'], ensure_ascii=False)}")
+        _log(f"여는 차례: {' → '.join(name for name, _p in PAGES)} (주인은 끝에 자비스13 을 한 번 더)")
         for owner in (False, True):
             for name, p in PAGES:
                 phone = (("phone", 412, 915),) if (not owner and p == "j13") else ()
@@ -230,22 +273,22 @@ def main() -> int:
                     run = visit(browser, name, p, owner=owner, width=width, height=height,
                                 tag=f"{'owner' if owner else 'guest'}_{tag}")
                     report["runs"].append(run)
-                    probs = run.get("problems") or {}
-                    _log(f"\n[{name} · {'주인' if owner else '게스트'} · {width}px] 첫 화면 {run.get('first_screen_s')}초 · "
-                         f"전체 {run.get('total_s')}초 · 테마표 {'보임' if run.get('theme_table') else '없음'} · "
-                         f"오류 상자 {len(probs.get('exceptions') or [])} · 알림 {len(probs.get('alerts') or [])} · "
-                         f"옆 넘침 {probs.get('overflow')}px" + (f" · ⚠ {run['error']}" if run.get("error") else ""))
-                    for step in run["steps"]:
-                        _log(f"   {step['step']}: 눌림 {step['pressed']} · 표 {step['shown']} · {step['seconds']}초")
-                    for item in (probs.get("exceptions") or []):
-                        _log(f"   ⚠ 오류 상자: {item[:300]}")
-                    for item in (probs.get("alerts") or []):
-                        _log(f"   · 알림: {item[:200]}")
+                    _report_run(run)
+            if owner:
+                # 주인으로 자비스13 을 한 번 더 — 앞에서 받은 시세가 남아 있을 때 걸리는 시간(견주기에는 안 쓴다)
+                run = visit(browser, "자비스13", "j13", owner=True, width=1400, height=900, tag="owner_pc_again")
+                run["again"] = True
+                report["runs"].append(run)
+                _report_run(run)
         browser.close()
     # 같은가 — 같은 조건(주인/게스트 · 폭)끼리 자비스4 와 자비스13 을 견준다
+    # 장중에는 두 화면을 여는 사이(30~60초)에 시세가 바뀐다 — 그래서 셋으로 가른다:
+    #   같음 · 숫자만 다름(글·칸·이름은 같고 숫자만) · 숫자·줄 차례만 다름(순위가 바뀜) · ⚠ 다름(글이나 칸이 다름)
     _log("\n### 자비스4 와 자비스13 이 같은 글을 보이나 (시각은 빼고)")
     by = {}
     for run in report["runs"]:
+        if run.get("again"):
+            continue
         by.setdefault((run["owner"], run["width"]), {})[run["page"]] = run
     all_same = True
     for (owner, width), pair in sorted(by.items()):
@@ -254,26 +297,33 @@ def main() -> int:
             continue
         for key in sorted(set(a["texts"]) | set(b["texts"])):
             ta, tb = a["texts"].get(key), b["texts"].get(key)
+            ra, rb = a["raw"].get(key), b["raw"].get(key)
             if key == "scorecard":        # 자비스13 에만 있다 — 견주지 않고 따로 적는다
                 continue
             if key == "page_top":         # 맨 위 글에는 화면 이름(자비스4/13)이 들어 있어 이름을 같게 친 뒤 견준다
-                ta = ta and ta.replace("자비스4", "자비스N")
-                tb = tb and tb.replace("자비스13", "자비스N")
-                # 자비스13 에서 더한 코스피 두 줄(「이번 하락」 · 코스닥 참고)은 빼고 견준다
-                tb = tb and re.sub(r"📉 이번 하락\(코스피 종가\):.*?지금 [-+]?\d+\.\d%( · 급락 후 반등장 기준일 \d+월 \d+일)? ?", "", tb)
-                tb = tb and re.sub(r"참고 · 코스닥 1년 최고 종가 대비 [-+]?\d+\.\d% \(고점 \d+월 \d+일\) ?", "", tb)
+                ta, ra = (ta and ta.replace("자비스4", "자비스N")), (ra and ra.replace("자비스4", "자비스N"))
+                tb, rb = (tb and tb.replace("자비스13", "자비스N")), (rb and rb.replace("자비스13", "자비스N"))
             same = ta == tb
-            all_same &= same or (ta is None and tb is None)
-            report["same"][f"{'주인' if owner else '게스트'}_{width}_{key}"] = same
-            mark = "같음" if same else "⚠ 다름"
+            shape_same = ta is not None and _shape(ta) == _shape(tb)
+            la, lb = _lines(ra), _lines(rb)
+            lines_same = bool(la) and bool(lb) and sorted(map(_shape, la)) == sorted(map(_shape, lb))
+            ok = same or shape_same or lines_same or (ta is None and tb is None)
+            all_same &= ok
+            mark = ("같음" if same else "숫자만 다름(장중 시세)" if shape_same
+                    else "숫자·줄 차례만 다름(장중 순위)" if lines_same else "⚠ 다름")
+            report["same"][f"{'주인' if owner else '게스트'}_{width}_{key}"] = mark
             _log(f"  {'주인' if owner else '게스트'} {width}px · {key}: {mark} "
                  f"(글자 {len(ta or '')} · {len(tb or '')})")
             if not same and ta and tb:
                 i = next((i for i, (x, y) in enumerate(zip(ta, tb)) if x != y), min(len(ta), len(tb)))
                 _log(f"      자비스4 : …{ta[max(0, i - 80):i + 120]}…\n      자비스13: …{tb[max(0, i - 80):i + 120]}…")
+            if not ok and la and lb:      # 글이 다른 줄만 따로 적는다(숫자는 가린 채)
+                only_a = sorted(set(map(_shape, la)) - set(map(_shape, lb)))[:6]
+                only_b = sorted(set(map(_shape, lb)) - set(map(_shape, la)))[:6]
+                _log(f"      자비스4 에만: {only_a}\n      자비스13 에만: {only_b}")
     _log("\n### 자비스13 에만 있는 것")
     for run in report["runs"]:
-        if run["page"] != "자비스13":
+        if run["page"] != "자비스13" or run.get("again"):
             continue
         who = f"{'주인' if run['owner'] else '게스트'} {run['width']}px"
         _log(f"  {who} · 코스피 줄: {run.get('kospi_line')}")

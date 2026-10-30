@@ -51,11 +51,19 @@ class UsFourChartsTests(unittest.TestCase):
     """미국테마는 네 그림이 한 판에 2×2로 선다 (2026-08-28 상하님 지시)."""
 
     def test_the_four_charts_share_one_grid(self):
-        source = _source(US_PAGE)
+        for page in (US_PAGE, "pages/11_자비스12.py"):
+            with self.subTest(page):
+                self._check_grid(_source(page))
+
+    def _check_grid(self, source):
         block = source.split("def _render_price_chart_bundle(")[1].split("\ndef ")[0]
         for name in ("당일", "일봉", "주봉", "월봉"):
             self.assertIn(f'"{name}"', block, f"{name} 그림이 빠졌다")
-        self.assertIn("j3-chart-grid", block, "한 판에 안 넣었다")
+        # 2026-09-24 「차트를 누르면 크게」(f9a9f76) 때 격자 상자가 _chart_zoom_html 로 옮겨 갔다 — 네 그림을 그 함수에 넘기고,
+        # 그 함수가 한 격자(j3-chart-grid)에 담는다. 같은 일을 하는 미국 화면 자비스12 도 같이 본다(2026-10-30).
+        self.assertIn("_chart_zoom_html(boxes", block, "네 그림을 한 판에 안 넘겼다")
+        zoom = source.split("def _chart_zoom_html(")[1].split("\ndef ")[0]
+        self.assertIn("<div class='j3-chart-grid'>{cells}</div>", zoom, "한 판에 안 넣었다")
         # 스트림릿 칸은 폰에서 위아래로 쌓인다 — 그래서 CSS 격자를 쓴다.
         self.assertNotIn("st.columns(", block, "폰에서 한 줄에 하나가 된다")
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", source,

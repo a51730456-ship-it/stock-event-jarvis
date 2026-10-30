@@ -1242,7 +1242,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026092420
+_REQUIRED_MOBILE_REVISION = 2026100911  # 2026-10-30 옛 번호(2026092420)를 지금 mobile_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance

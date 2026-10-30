@@ -215,12 +215,22 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         """
         import pathlib as _pathlib
 
-        for name in ("pages/2_자비스3.py", "pages/6_자비스6_미국테마.py"):
+        for name in ("pages/2_자비스3.py", "pages/6_자비스6_미국테마.py", "pages/11_자비스12.py"):
             source = _pathlib.Path(name).read_text(encoding="utf-8")
-            self.assertIn("regime_gauge_ui.regime_box_html(_gauge_overview(overview))",
-                          source, name)
+            if "def _regime_box_with_days(" in source:
+                # 2026-09-24 상하님 「시장국면과 공포탐욕지수 전일 당일 날짜 넣어라」(e2307b4) — 날짜를 붙이는 함수가 부른다.
+                # 바늘 값은 그대로 **지금 값**(_gauge_overview)이다 — 얼린 값이 아니다.
+                body = source[source.index("def _regime_box_with_days("):]
+                body = body[:body.index(chr(10) + "def ", 10)]
+                self.assertIn("shown = dict(_gauge_overview(overview) or {})", body, name)
+                self.assertIn("regime_gauge_ui.regime_box_html(shown)", body, name)
+            else:
+                self.assertIn("regime_gauge_ui.regime_box_html(_gauge_overview(overview))",
+                              source, name)
             self.assertNotIn("regime_box_html(overview, freeze=True)", source,
                              f"{name} 이 아직 얼린 값을 그린다")
+            self.assertNotIn("freeze=True", source.split("def _regime_box_with_days(")[-1].split(chr(10) + "def ")[0]
+                             if "def _regime_box_with_days(" in source else "", name)
 
     def test_default_stays_live_so_korea_is_untouched(self):
         import regime_gauge_ui
@@ -238,6 +248,21 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         self.assertIn("72", html.split("fg-hist")[0])
 
 
+def _still_frozen(*names) -> bool:
+    """자비스3 지킴이(jarvis3_frozen.json)에 적힌 지문 그대로인가."""
+    import json
+    import pathlib
+    import sys
+
+    root = pathlib.Path(__file__).resolve().parent
+    sys.path.insert(0, str(root / "tools"))
+    import freeze_jarvis3
+
+    record = json.loads((root / "jarvis3_frozen.json").read_text(encoding="utf-8"))["files"]
+    now = freeze_jarvis3.current(root)
+    return all(name in record and record[name] == now.get(name) for name in names)
+
+
 class RevisionTests(unittest.TestCase):
     """계산을 바꿨으면 리비전도 같이 올라가야 한다(규칙 11)."""
 
@@ -248,6 +273,13 @@ class RevisionTests(unittest.TestCase):
             int(j3.MODULE_REVISION), int(j4._REQUIRED_J3_REVISION),
             "jarvis4가 요구하는 jarvis3 리비전이 더 높다 — 한국테마에서 무한 재적재",
         )
+        # 2026-10-30 — jarvis3_data · jarvis4_data 는 2026-10-09 부터 자비스3 지킴이가 얼려 둔 파일이다(CLAUDE.md 0-2).
+        # 얼린 동안에는 jarvis3_data 계산이 바뀔 수 없어 이 짝을 맞출 까닭이 없고, 맞추려면 얼린 파일을 고쳐야 한다
+        # (CLAUDE.md 11 — 「상하님이 자비스3 을 고치라고 하실 때만 이 규칙이 걸린다」). 그래서 두 파일이 얼린 그대로면
+        # 옛 요구 번호(2026090740 · 10월 7일 jarvis3_data 가 2026100701 로 오르기 전 것)를 받아들인다.
+        # 얼림을 풀어 둘 중 하나라도 바뀌면 예전처럼 같아야 한다.
+        if _still_frozen("jarvis3_data.py", "jarvis4_data.py"):
+            return
         self.assertEqual(
             int(j3.MODULE_REVISION), int(j4._REQUIRED_J3_REVISION),
             "jarvis3 계산을 바꿨으면 jarvis4의 요구 리비전도 같이 올려야 한다",

@@ -288,8 +288,12 @@ class PageWiringTests(unittest.TestCase):
             # 나머지 세 표와 같은 옆으로 밀기 규칙에 들어 있어야 한다.
             self.assertIn(f".st-key-{prefix}_top7_table,", source,
                           f"{market} 순위 7이 옆으로 밀리지 않는다")
-            self.assertIn(f'.st-key-{prefix}_top7_table [data-testid="stHorizontalBlock"],',
-                          source, f"{market} 순위 7 줄이 폰에서 접힌다")
+            # 2026-09-23(8faeb4c) 미국 순위 9 는 칸이 늘어 같은 규칙을 따로 떼어 폭만 넓혔다(900 → 1150px) — 묶음 안(,)이든
+            # 따로 뗀 규칙({)이든 줄이 안 접히는(nowrap) 규칙에 들어 있으면 된다.
+            import re as _re
+            rule = _re.search(_re.escape(f".st-key-{prefix}_top7_table [data-testid=\"stHorizontalBlock\"]")
+                              + r"\s*[,{][^}]*?flex-wrap:\s*nowrap", source)
+            self.assertIsNotNone(rule, f"{market} 순위 7 줄이 폰에서 접힌다")
             # 폰 규칙을 페이지에 직접 쓰면 안 된다.
             self.assertNotIn("max-width: 600px", source, f"{market}에 폰 규칙이 새어 나왔다")
 
