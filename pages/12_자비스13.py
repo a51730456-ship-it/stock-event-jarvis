@@ -864,6 +864,13 @@ import jarvis13_movers  # noqa: E402
 _REQUIRED_J13_MOVERS_REVISION = 2026103101
 if int(getattr(jarvis13_movers, "MODULE_REVISION", 0)) < _REQUIRED_J13_MOVERS_REVISION:
     jarvis13_movers = importlib.reload(jarvis13_movers)
+# 급락 후 반등장 — 화면 방식으로 다시 잰 성적 · 국면별 표 · 동전주 딱지 · 그림자 목록(2026-10-31 상하님 「라」).
+# 얼린 jarvis4_data 의 옛 승률(66.6% · 국면이 끝나야 아는 날로 잰 값)을 화면에서 대신한다.
+import jarvis13_crash_record  # noqa: E402
+
+_REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
+if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
+    jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
@@ -4159,33 +4166,23 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         counts = result.get("bucket_counts") or {}
         cards = []
         for rule in result.get("rules") or []:
-            verdict = (
-                "<span class='j4-green'>기준선보다 나았습니다</span>"
-                if rule.get("beats_baseline")
-                else "<span class='j4-down'>기준선보다 못했습니다</span>"
-            )
+            # 2026-10-31 상하님 「라」 — 예전 승률(66.6%)은 국면이 끝나야 아는 「가장 깊은 날」로 잰 값이라 뺐다.
+            # 화면 방식(국면 안 매일)으로 다시 잰 국면마다 성적을 적는다(docs/KR_THEME_SPEC.md 3-4 · jarvis13_crash_record).
             cards.append(
                 f"<div class='j4-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
                 f"<div class='j4-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
-                f"<div class='j4-reason-body'>승률 {rule.get('win_rate')}%"
-                f"({rule.get('sample')}건) · 가운데 값 +{rule.get('median_return')}%<br>"
-                f"아무 종목이나 샀으면 {rule.get('base_win_rate')}% · "
-                f"+{rule.get('base_median_return')}% → {verdict}<br>"
+                f"<div class='j4-reason-body'>{jarvis13_crash_record.holds_line()}<br>"
                 f"지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
             )
-        events = getattr(j4data, "CRASH_REBOUND_EVENTS", 0)
         # 국면 상자(_kr_crash_state_html)는 위에서 이미 그렸다 — 설명을 접어도
         # 오늘 상태는 보여야 하기 때문이다.
         st.markdown(
             "<div class='j4-pull-guide'>"
-            "<b>찾는 기준</b> — 코스피가 고점 대비 <b>15% 넘게</b> 빠진 국면에서 "
-            "<b>가장 깊었던 날</b>, 그날 고점 대비 <b>40~60% 빠진</b> 종목을 고릅니다"
-            "(하루 평균 거래대금 50억 이상). 신고가가 언제였는지도 이동평균도 "
+            "<b>찾는 기준</b> — 코스피 <b>종가</b>가 1년 최고 종가보다 <b>15% 넘게</b> 빠진 국면에서, "
+            "<b>그때까지 가장 깊었던 날</b>을 기준일로 날마다 다시 고릅니다 — 그날 자기 1년 고점 대비 "
+            "<b>40~60% 빠져</b> 있던 종목(하루 평균 거래대금 50억 이상). 신고가가 언제였는지도 이동평균도 "
             "<u>보지 않습니다</u>.<br>"
-            f"<b>한국 자료로 잰 성적</b>({span}). "
-            f"<b class='j4-down'>다만 이 신호는 12년 동안 {events}번 났습니다</b> — "
-            f"거래 수는 수천 건이지만 사실상 {events}번의 사건이라, "
-            "승률을 앞으로의 확률로 읽으면 안 됩니다.<br>"
+            + jarvis13_crash_record.record_html() +
             "<b>순위를 매기는 기준</b>(2026-08-07 전면 재측정 — 3년 창을 한 달씩 밀며 "
             "창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다). "
             "<b>이 점수가 곧 표의 차례입니다</b>(2026-08-09부터).<br>"
@@ -4291,6 +4288,10 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"<div class='j4-td'>{int(row.get('pullback_rank') or index + 1)}</div>",
             unsafe_allow_html=True,
         )
+        # 동전주 딱지(2026-10-31 상하님 「라」) — 2026-07부터 1,000원 미만이 상장폐지 요건이 됐다(지난 12년 재기에 없던 위험).
+        # 급락 갈래만 · 값으로만 붙인다 — 점수·순위에는 안 쓴다.
+        coin_tag = (not breakout and metrics.get("current") is not None
+                    and 0 < float(metrics.get("current") or 0) < jarvis13_crash_record.PENNY_PRICE)
         if cols[1].button(row["name"], key=f"j13rbf_{index:02d}", width="stretch"):
             picked_themes = row.get("themes") or []
             st.session_state["j13_pullback_pick"] = (
@@ -4306,6 +4307,12 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
                             "j13_bundle_open_pullback")
             # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
             scroll_to.request(st, "detail_pullback")
+        if coin_tag:
+            cols[1].markdown(
+                "<div style='color:#ffb020;font-size:.72rem;font-weight:800;line-height:1.2;text-align:center'>"
+                "⚠ 1,000원 미만 — 2026-07 상장폐지 새 요건</div>",
+                unsafe_allow_html=True,
+            )
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
@@ -5128,6 +5135,16 @@ def _render_watch_page() -> None:
     _render_watch_detail(stocks)
 
 
+def _j13_method_help() -> None:
+    """「📘 이 테마 설명」 창 — method_help.render 와 같은 창 · 같은 열쇠 · 같은 닫기 단추, 글만 급락 부분을 바로잡은 것."""
+    box = st.container(key="jarvis_method_help")
+    with box:
+        with st.popover(method_help.BUTTON_LABEL, key=method_help.popover_key("KR"), on_change="rerun"):
+            method_help._close_button(st, "KR", where="top")
+            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
+            method_help._close_button(st, "KR")
+
+
 def main() -> None:
     # 관심종목 알림(넣었습니다·뺐습니다)은 **한 판만** 산다 — 띄울 자리가 그 판에 안 그려지면 버린다.
     # 남겨 두면 나중에 다른 종목 세부사항을 열 때 옛 알림이 엉뚱하게 뜬다(2026-10-30 화면 시험에서 찾음).
@@ -5170,7 +5187,9 @@ def main() -> None:
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
-    method_help.render(st, "KR")
+    # 2026-10-31 상하님 「라」 — 설명 창은 얼린 method_help 그대로 쓰되 급락 부분(옛 66.6% · 「가장 깊었던 날」)만
+    # 바로잡은 글을 넣는다(method_help 의 help_slot 자리 · 얼린 파일은 한 글자도 안 바뀐다).
+    method_help.render(st, "KR", help_slot=_j13_method_help)
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
     # 첫 화면 높이만 먹었다. 페이지 이름은 파일명이 그대로 쓴다.
     try:
