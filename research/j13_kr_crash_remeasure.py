@@ -39,7 +39,7 @@ import pandas as pd
 OUT = pathlib.Path(os.environ.get("J13_OUT") or "/tmp/j13")
 FAKE = os.environ.get("J13_FAKE") == "1"
 KIND = "https://kind.krx.co.kr"
-NAVER = "https://fchart.stock.naver.com/sise.nhn?timeframe=day&count=3000&requestType=0&symbol={code}"
+NAVER = "https://fchart.stock.naver.com/sise.nhn?timeframe=day&count={count}&requestType=0&symbol={code}"
 UA = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")}
 MARKETS = {"stockMkt": "KOSPI", "kosdaqMkt": "KOSDAQ"}
@@ -119,11 +119,13 @@ def universe() -> tuple[pd.DataFrame, str]:
     return uni.reset_index(drop=True), note
 
 
-def _naver(code: str) -> pd.DataFrame | None:
+def _naver(code: str, count: int = 3000) -> pd.DataFrame | None:
+    """네이버 일봉(수정주가). count 는 받을 줄 수 — 재기는 3,000(≈12년), 그림자 목록 저장(j13_shadow_collect)은 짧게."""
     last = None
     for attempt in range(3):
         try:
-            req = urllib.request.Request(NAVER.format(code=code), headers={**UA, "Referer": "https://finance.naver.com/"})
+            req = urllib.request.Request(NAVER.format(code=code, count=count),
+                                         headers={**UA, "Referer": "https://finance.naver.com/"})
             with urllib.request.urlopen(req, timeout=20) as resp:
                 text = resp.read().decode("euc-kr", errors="replace")
             break
@@ -375,6 +377,9 @@ def evaluate(env, eps, how, basis, band, filters, threshold) -> dict:
         second = df.loc[when >= SPLIT, "ex"]
         loo = [by_ep.drop(i)["ex"].mean() for i in by_ep.index] if len(by_ep) > 1 else []
         res["holds"][h] = {
+            # 국면마다 — 화면 「사례 표」에 쓴다(2026-10-31 상하님 「라」)
+            "by_ep": [{"e": int(e_no), "ex": float(row.ex * 100), "bk": float(row.bk * 100), "k": float(row.k * 100)}
+                      for e_no, row in by_ep.iterrows()],
             "episodes": int(len(by_ep)), "baskets": int(len(df)), "size": float(df["n"].mean()),
             "bk_mean": float(df["bk"].mean() * 100), "bk_median": float(df["bk"].median() * 100),
             "k_mean": float(df["k"].mean() * 100), "all_mean": float(np.nanmean(df["all"]) * 100),
@@ -521,6 +526,20 @@ def main() -> int:
     for res in summary["results"]:
         if res["how"] == "daily" and res["basis"] == "own":
             print("    " + short(res) + (" ✓" if id(res) in passed else ""))
+    # 국면별 표 — 화면 「사례 표」와 그림자 목록 규칙(docs/KR_THEME_SPEC.md 3-4 · 2026-10-31 「라」)에 쓰는 숫자
+    eps15 = episodes(env, -0.15)
+    for title, (how, basis, band, flt) in (("지금 화면 규칙", ("daily", "own", (-0.60, -0.40), ())),
+                                            ("그림자 목록 규칙", ("newlow", "kpeak", (-0.80, -0.50), ("clean", "fresh")))):
+        res = evaluate(env, eps15, how, basis, band, flt, -0.15)
+        print(f"\n### 국면별 — {title} (코스피 −15% · " + short(res).split(" · ", 2)[-1] + ")")
+        table = {h: {row["e"]: row for row in (res["holds"].get(h) or {}).get("by_ep", [])} for h in HOLDS}
+        for e_no, e in enumerate(eps15):
+            cells = []
+            for h in HOLDS:
+                row = table[h].get(e_no)
+                cells.append(f"{h}일 " + ("—" if row is None else f"{row['ex']:+.1f}%p(종목 {row['bk']:+.1f}% · 코스피 {row['k']:+.1f}%)"))
+            print(f"  EP {e_no + 1:>2} · {dates[e['start']].date()} ~ {dates[e['end']].date()} · 가장 깊은 날 "
+                  f"{dates[e['deepest']].date()} {e['depth'] * 100:.1f}% · " + " | ".join(cells))
     (OUT / "j13_kr_crash.json").write_text(json.dumps(summary, ensure_ascii=False, default=str, indent=1),
                                            encoding="utf-8")
     print(f"\n끝 · {time.time() - started:.0f}초 · 결과 파일 {OUT / 'j13_kr_crash.json'}")
