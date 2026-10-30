@@ -15,6 +15,12 @@
   ⑤ 자비스4 — 주소로 바로 들어와도 「닫혀 있습니다」만 나오고 테마표가 없나
   ⑥ 한국테마로 가는 길 — 첫 화면 PC 오른쪽 판 · 자비스12 맨 위 「🌏 한국테마 →」(눌러서 실제로 어디 닿는지까지)이 자비스13 으로 가나
   ⑦ 자비스13 — 게스트(PC·폰) · 주인 PC 로 열어 ①③ 을 본다
+  ⑧ 5단계(2026-10-30) — 밑 막대(홈 · 시장분석 · 관심종목) · 한국 관심종목. 주인 폰으로 찾아 넣기 → 카드 → 세부사항 → 빼기,
+     그사이 게스트 PC 로 보기만 되나(찾기 칸·빼기 단추가 없어야). 깃허브 컴퓨터의 앱은 이 실행에서만 쓰는 빈 DB 라
+     넣고 빼도 진짜 기록(온라인 원격 DB)은 안 건드린다.
+
+온라인 주소를 주면(합친 뒤 확인) 스트림릿 클라우드의 겉 화면부터 본다 — 앱을 안쪽 틀(iframe · /~/+/)에 담거나,
+잠들어 「깨우기」 단추만 있을 수 있다. 무엇이 보였는지 기록에 적고 안쪽 틀 주소로 바로 연다.
 """
 from __future__ import annotations
 
@@ -36,6 +42,8 @@ import page_access  # noqa: E402  — 자비스4 를 닫았나(아래 J4_CLOSED)
 J4_CLOSED = ('page_access.guard(st, "자비스4")' in (ROOT / "pages" / "3_자비스4.py").read_text(encoding="utf-8")
              and not page_access.is_open("자비스4"))
 BASE = os.environ.get("J13_BASE", "http://localhost:8501")
+# 온라인 앱을 볼 때(깃허브 「온라인 주소」 칸)는 비밀번호가 없으니 게스트로 볼 수 있는 것만 본다(2026-10-30 합친 뒤 확인).
+GUEST_ONLY = os.environ.get("J13_GUEST_ONLY") == "1"
 OUT = Path(os.environ.get("J13_OUT") or "/tmp/j13shots")
 # 비밀번호 — 깃허브는 이 실행에서만 만든 .streamlit/secrets.toml 에서 읽는다(시험할 때는 J13_PASSWORD 로 줄 수 있다)
 PASSWORD = os.environ.get("J13_PASSWORD") or tomllib.loads(
@@ -315,6 +323,127 @@ def roads_check(browser) -> dict:
     return out
 
 
+def _login(page, p: str) -> None:
+    page.wait_for_selector('input[type="password"]', timeout=180_000)
+    page.locator('input[type="password"]').fill(PASSWORD)
+    page.locator(f'div[class*="st-key-{p}_login_submit"] button').click()
+
+
+def _body_has(page, text: str, timeout: int = 180_000) -> bool:
+    try:
+        page.wait_for_function("(t) => document.body.innerText.includes(t)", arg=text, timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def _watch_view(page) -> dict:
+    return page.evaluate("""() => ({
+        cards: [...document.querySelectorAll('.j13w-card')].map(c => c.innerText.replace(/\\s+/g, ' ').slice(0, 220)),
+        search: !!document.querySelector('div[class*="st-key-j13w_query"] input'),
+        remove: document.querySelectorAll('div[class*="st-key-j13w_remove_"] button').length,
+        bar: [...document.querySelectorAll('nav.j13b-bottom-nav .j13b-nav-item')].map(e => e.innerText.replace(/\\s+/g, ' ').trim()),
+        active: ((document.querySelector('nav.j13b-bottom-nav .j13b-nav-item.active') || {}).innerText || '').trim(),
+        path: decodeURIComponent(location.pathname + location.search),
+    })""")
+
+
+def watch_check(browser, *, owner_flow: bool) -> dict:
+    """⑧ 5단계 — 밑 막대와 한국 관심종목. owner_flow=False(온라인)면 게스트 PC 로 보기만 한다."""
+    out = {}
+    owner = browser.new_page(viewport={"width": 412, "height": 915}) if owner_flow else None
+    guest = browser.new_page(viewport={"width": 1400, "height": 900})
+    try:
+        if owner is not None:
+            owner.goto(f"{BASE}/자비스13", timeout=180_000)
+            _login(owner, "j13")
+            owner.locator("nav.j13b-bottom-nav").wait_for(timeout=WAIT_MS)
+            _quiet(owner)
+            out["주인 처음"] = _watch_view(owner)            # 시장분석이 먼저 켜져 있어야 한다
+            _click(owner, "j13b_nav_watch")
+            out["주인 관심종목 열림"] = _body_has(owner, "★ 관심종목")
+            _quiet(owner)
+            box = owner.locator('div[class*="st-key-j13w_query"] input')
+            box.fill("삼성전자")
+            box.press("Enter")
+            owner.locator('div[class*="st-key-j13w_add_found"] button').wait_for(timeout=120_000)
+            _click(owner, "j13w_add_found")
+            out["넣음 알림"] = _body_has(owner, "관심종목에 넣었습니다", 120_000)
+            owner.wait_for_selector(".j13w-card", timeout=180_000)
+            _quiet(owner)
+            out["주인 카드"] = _watch_view(owner)["cards"]
+            out["코드"] = owner.evaluate("() => ((document.querySelector('.j13w-code') || {}).innerText || '').trim()")
+            owner.screenshot(path=str(OUT / "watch_owner_phone_1_card.png"), full_page=True)
+            _click(owner, f"j13w_open_{out['코드']}")
+            out["세부사항 열림"] = _body_has(owner, "관심종목에 있음", 180_000)
+            _quiet(owner)
+            owner.screenshot(path=str(OUT / "watch_owner_phone_2_detail.png"), full_page=False)
+            out["주인 문제"] = _problems(owner)
+        # 게스트(PC) — 보기만. 주인이 넣은 카드는 보이고 찾기 칸 · 빼기 단추는 없어야 한다
+        guest.goto(f"{BASE}/자비스13?guest=1", timeout=180_000)
+        guest.locator("nav.j13b-bottom-nav").wait_for(timeout=WAIT_MS)
+        _quiet(guest)
+        _click(guest, "j13b_nav_watch")
+        out["게스트 관심종목 열림"] = _body_has(guest, "★ 관심종목")
+        _quiet(guest)
+        out["게스트"] = _watch_view(guest)
+        out["게스트 문제"] = _problems(guest)
+        guest.screenshot(path=str(OUT / "watch_guest_pc.png"), full_page=True)
+        _click(guest, "j13b_nav_home")
+        guest.wait_for_timeout(8000)
+        out["게스트 홈 →"] = guest.evaluate("() => decodeURIComponent(location.pathname)")
+        if owner is not None:
+            _click(owner, f"j13w_remove_{out['코드']}")
+            out["뺌 알림"] = _body_has(owner, "관심종목에서 뺐습니다", 120_000)
+            _quiet(owner)
+            out["뺀 뒤 카드"] = len(_watch_view(owner)["cards"])
+            _click(owner, "j13b_nav_market")
+            out["시장분석으로"] = _body_has(owner, "한국 전체시장 판단", WAIT_MS)
+            _quiet(owner)
+            _click(owner, "j13b_nav_home")
+            owner.wait_for_timeout(10_000)                     # 폰은 첫 화면이 하나 남은 자비스12 로 바로 넘긴다
+            out["주인 폰 홈 →"] = owner.evaluate("() => decodeURIComponent(location.pathname)")
+    except Exception as exc:
+        out["error"] = f"{type(exc).__name__}: {exc}"[:400]
+        for pg, name in ((owner, "owner"), (guest, "guest")):
+            if pg is not None:
+                try:
+                    pg.screenshot(path=str(OUT / f"watch_{name}_9_error.png"), full_page=True)
+                except Exception:
+                    pass
+    finally:
+        for pg in (owner, guest):
+            if pg is not None:
+                pg.close()
+    return out
+
+
+def watch_checks(watch: dict, *, owner_flow: bool) -> dict:
+    """⑧ 의 됐나/안 됐나."""
+    guest = watch.get("게스트") or {}
+    checks = {
+        "관심종목 화면 — 게스트는 보기만(찾기 칸·빼기 없음)": bool(watch.get("게스트 관심종목 열림")) and not guest.get("search")
+        and not guest.get("remove") and not (watch.get("게스트 문제") or {}).get("exceptions"),
+        "밑 막대 「홈」 → 첫 화면(PC)": str(watch.get("게스트 홈 →", "")).endswith("/"),
+    }
+    if owner_flow:
+        first = watch.get("주인 처음") or {}
+        cards = watch.get("주인 카드") or []
+        checks.update({
+            "밑 막대 차례 홈 · 시장분석 · 관심종목 · 처음은 시장분석":
+                [item.split()[-1] for item in first.get("bar", []) if item] == ["홈", "시장분석", "관심종목"]
+                and "시장분석" in first.get("active", ""),
+            "찾아 넣기 → 카드(원화 · 넣은 날 · 코스피와 견줌)": bool(watch.get("넣음 알림")) and bool(cards)
+                and "원" in cards[0] and "넣은 날" in cards[0] and "코스피" in cards[0],
+            "카드 「세부사항」 열림": bool(watch.get("세부사항 열림")) and not (watch.get("주인 문제") or {}).get("exceptions"),
+            "게스트에게 주인이 넣은 카드 보임": len(guest.get("cards") or []) >= 1,
+            "빼기 → 알림 · 카드 없어짐": bool(watch.get("뺌 알림")) and watch.get("뺀 뒤 카드") == 0,
+            "밑 막대 「시장분석」으로 돌아감": bool(watch.get("시장분석으로")),
+            "폰 「홈」 → 자비스12(폰 첫 화면이 바로 넘김)": str(watch.get("주인 폰 홈 →", "")).endswith("/자비스12"),
+        })
+    return checks
+
+
 def after_close(browser, report: dict) -> None:
     """자비스4 를 닫은 뒤의 확인(⑤⑥⑦) — 맨 끝에 한 줄로 됐나/안 됐나를 적는다."""
     entry = report["entry"]
@@ -329,6 +458,8 @@ def after_close(browser, report: dict) -> None:
                         tag=f"{'owner' if owner else 'guest'}_{tag}")
             report["runs"].append(run)
             _report_run(run)
+    report["watch"] = watch_check(browser, owner_flow=True)
+    _log(f"\n관심종목(5단계): {json.dumps(report['watch'], ensure_ascii=False)}")
     checks = {
         "PC 목록이 자비스12 · 자비스13 둘": (entry.get("pc") or {}).get("links") == ["미국테마 (자비스12)", "한국테마 (자비스13)"],
         "폰은 바로 자비스12": (entry.get("phone") or {}).get("path") == "/자비스12",
@@ -338,12 +469,89 @@ def after_close(browser, report: dict) -> None:
         "자비스13 오류 상자 0": all(not (r.get("problems") or {}).get("exceptions") and not r.get("error") for r in report["runs"]),
         "자비스13 테마표 보임": all(r.get("theme_table") for r in report["runs"]),
         "폰 옆 넘침 0": all((r.get("problems") or {}).get("overflow", 1) <= 0 for r in report["runs"] if r["width"] < 600),
+        **watch_checks(report["watch"], owner_flow=True),
     }
     report["checks"] = checks
     _log("\n### 자비스4 를 닫은 뒤")
     for name, ok in checks.items():
         _log(f"  {'됨' if ok else '⚠ 안 됨'} · {name}")
     _log(f"\n끝(닫은 뒤) · {'모두 됨' if all(checks.values()) else '⚠ 안 된 것 있음'}")
+
+
+def _has_app(frame) -> bool:
+    try:
+        return bool(frame.evaluate("() => !!document.querySelector('[data-testid=\"stApp\"]')"))
+    except Exception:
+        return False
+
+
+def online_root(browser) -> str:
+    """온라인 겉 화면을 먼저 본다 — 잠들었으면 깨우고, 앱이 안쪽 틀(/~/+/)에 있으면 그 주소를 돌려준다.
+
+    2026-10-30 첫 온라인 확인(실행 41012410955)은 모든 칸이 시간 초과였다(첫 화면 305초 · 테마표 없음). 작업 칸에서는
+    사진 첨부를 못 받으니, 겉 화면의 제목 · 글 · 틀 주소를 기록에 적어 까닭을 가린다.
+    """
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    root = BASE
+    try:
+        page.goto(BASE + "/", timeout=180_000)
+        deadline, woke, here, inner = time.time() + 420, 0, False, None
+        while time.time() < deadline:
+            page.wait_for_timeout(5000)
+            wake = page.get_by_role("button", name=re.compile(r"back up|wake", re.I))
+            if wake.count() and woke < 3:              # 잠든 앱 — 「Yes, get this app back up!」
+                wake.first.click()
+                woke += 1
+                continue
+            here = _has_app(page.main_frame)
+            inner = next((f for f in page.frames if f is not page.main_frame and _has_app(f)), None)
+            if here or inner is not None:
+                break
+        info = {"title": page.title(), "url": page.url, "woke": woke, "app_here": here,
+                "app_frame": inner.url if inner is not None else None,
+                "frames": [f.url for f in page.frames][:6],
+                "text": (page.evaluate("() => document.body.innerText") or "")[:300]}
+        _log(f"온라인 겉 화면: {json.dumps(info, ensure_ascii=False)}")
+        page.screenshot(path=str(OUT / "online_0_outer.png"), full_page=True)
+        found = re.match(r"^(https?://[^/]+/~/\+)", inner.url) if (not here and inner is not None) else None
+        if found:
+            root = found.group(1)
+    except Exception as exc:
+        _log(f"온라인 겉 화면을 못 봄: {type(exc).__name__}: {exc}"[:300])
+    finally:
+        page.close()
+    _log(f"온라인 앱을 여는 주소: {root}")
+    return root
+
+
+def online_guest(browser, report: dict) -> None:
+    """온라인 앱 — 게스트로 볼 수 있는 것만: 자비스4 닫힘 · 첫 화면 판 · 「🌏 한국테마 →」(눌러서) · 자비스13 PC·폰 · 관심종목."""
+    global BASE
+    BASE = online_root(browser)
+    report["closed"] = closed_check(browser)
+    report["roads"] = roads_check(browser)
+    _log(f"자비스4: {json.dumps(report['closed'], ensure_ascii=False)}")
+    _log(f"가는 길: {json.dumps(report['roads'], ensure_ascii=False)}")
+    for tag, width, height in (("pc", 1400, 900), ("phone", 412, 915)):
+        run = visit(browser, "자비스13", "j13", owner=False, width=width, height=height, tag=f"online_{tag}")
+        report["runs"].append(run)
+        _report_run(run)
+    report["watch"] = watch_check(browser, owner_flow=False)
+    _log(f"\n관심종목(5단계 · 게스트): {json.dumps(report['watch'], ensure_ascii=False)}")
+    checks = {
+        "자비스4 닫힘(테마표 없음)": all(v.get("closed") and not v.get("theme_table") for v in report["closed"].values()),
+        "첫 화면 오른쪽 판 → 자비스13": "자비스13" in str((report["roads"].get("첫 화면 오른쪽 판") or {}).get("href")),
+        "「🌏 한국테마 →」 → 자비스13": str((report["roads"].get("자비스12 「🌏 한국테마 →」") or {}).get("landed", "")).endswith("/자비스13"),
+        "자비스13 오류 상자 0": all(not (r.get("problems") or {}).get("exceptions") and not r.get("error") for r in report["runs"]),
+        "자비스13 테마표 보임": all(r.get("theme_table") for r in report["runs"]),
+        "폰 옆 넘침 0": all((r.get("problems") or {}).get("overflow", 1) <= 0 for r in report["runs"] if r["width"] < 600),
+        **watch_checks(report["watch"], owner_flow=False),
+    }
+    report["checks"] = checks
+    _log(f"\n### 온라인({BASE}) 게스트로 본 것")
+    for name, ok in checks.items():
+        _log(f"  {'됨' if ok else '⚠ 안 됨'} · {name}")
+    _log(f"\n끝(온라인) · {'모두 됨' if all(checks.values()) else '⚠ 안 된 것 있음'}")
 
 
 def _report_run(run: dict) -> None:
@@ -366,6 +574,11 @@ def main() -> int:
     report = {"runs": [], "same": {}}
     with sync_playwright() as play:
         browser = play.chromium.launch()
+        if GUEST_ONLY:
+            online_guest(browser, report)
+            browser.close()
+            (OUT / "j13_screen_check.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            return 0
         report["entry"] = entry_check(browser)
         _log(f"첫 화면: {json.dumps(report['entry'], ensure_ascii=False)}")
         if J4_CLOSED:

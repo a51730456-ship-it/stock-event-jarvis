@@ -16,7 +16,14 @@ import pandas as pd
 import jarvis4_data as j4data
 
 # 값이나 돌려주는 칸을 바꾸면 올리고 자비스13 의 _REQUIRED_J13_MARKET_REVISION 도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026103002
+# 2026103003 — episode 에 분산일(dist)을 더함.
+MODULE_REVISION = 2026103003
+
+# 분산일(오닐 · IBD 방식 · 2026-10-30 상하님 「다 넣어라」 — 자비스에 넣을 기능 ⑤) — 지수가 0.2% 넘게 내리면서 거래량이
+# 전날보다 많은 날(큰손이 판 흔적). 25거래일이 지나거나 그날 종가보다 5% 넘게 오르면 센 데서 뺀다. 보여 주기만 한다.
+DIST_WINDOW = 25
+DIST_DROP_PCT = -0.2
+DIST_RALLY_PCT = 5.0
 
 _SYMBOLS = {"KOSPI": "KS11", "KOSDAQ": "KQ11"}
 # 못 받은 지수는 2분 동안 다시 받으러 가지 않는다 — 네이버가 느릴 때 1분마다 도는 시장판단 판이 그만큼 붙잡히지 않게
@@ -71,11 +78,41 @@ def last_finished_day(frame, now=None):
     return days[-1] if days else None
 
 
-def episode(name: str = "KOSPI", *, ttl_seconds: float = 600) -> dict:
-    """그 지수의 1년 최고 종가와 그날 · 그 뒤 가장 깊었던 날 · 지금.
+def distribution_days(frame, *, now=None, window: int = DIST_WINDOW) -> dict | None:
+    """**끝난 장까지** 최근 window 거래일 안의 분산일 — {"count", "dates", "last_day"}. 거래량이 없으면 None.
 
-    돌려주는 것 — peak · peak_date · low · low_date · low_drop(%) · current · date · drop(%) · stale.
+    장중(15시 40분 전)에는 오늘 봉을 빼고 센다 — 반나절 거래량은 늘 전날보다 적어 내린 날도 안 잡힌다.
+    """
+    if frame is None or getattr(frame, "empty", True) or "Close" not in frame or "Volume" not in frame:
+        return None
+    last = last_finished_day(frame, now)
+    if last is None:
+        return None
+    data = frame[[pd.Timestamp(stamp).date() <= last for stamp in frame.index]][["Close", "Volume"]].dropna()
+    if len(data) < window + 1:
+        return None
+    close = data["Close"].astype(float)
+    volume = data["Volume"].astype(float)
+    if not (volume > 0).any():
+        return None
+    falling = (close.pct_change() * 100.0 <= DIST_DROP_PCT) & (volume > volume.shift(1))
+    dates = []
+    for stamp in data.index[-window:]:
+        if not bool(falling.loc[stamp]):
+            continue
+        after = close.loc[stamp:].iloc[1:]
+        if not after.empty and float(after.max()) >= float(close.loc[stamp]) * (1.0 + DIST_RALLY_PCT / 100.0):
+            continue                     # 그 뒤 5% 넘게 올라 지워진 날
+        dates.append(str(pd.Timestamp(stamp).date()))
+    return {"count": len(dates), "dates": dates, "last_day": str(last)}
+
+
+def episode(name: str = "KOSPI", *, ttl_seconds: float = 600) -> dict:
+    """그 지수의 1년 최고 종가와 그날 · 그 뒤 가장 깊었던 날 · 지금 · 분산일.
+
+    돌려주는 것 — peak · peak_date · low · low_date · low_drop(%) · current · date · drop(%) · dist · stale.
     drop 은 kr_crash_market_state 의 drop_pct 와 같은 셈이다(같은 일봉 · 같은 252거래일 · 같은 종가).
+    dist 는 같은 일봉으로 센 분산일(distribution_days · 못 세면 None) — 지수를 한 번만 받는다.
     """
     symbol = _SYMBOLS[str(name).upper()]
 
@@ -95,11 +132,16 @@ def episode(name: str = "KOSPI", *, ttl_seconds: float = 600) -> dict:
         current = float(closes.iloc[-1])
         if peak <= 0:
             raise RuntimeError(f"{name} 고점 값이 이상하다")
+        try:
+            dist = distribution_days(frame)
+        except Exception:
+            dist = None                  # 분산일을 못 세도 「이번 하락」 줄은 그대로 그린다(CLAUDE.md 0-0)
         return {
             "name": str(name).upper(), "peak": peak, "peak_date": str(peak_day.date()),
             "low": low, "low_date": str(low_day.date()), "low_drop": (low / peak - 1.0) * 100.0,
             "current": current, "date": str(pd.Timestamp(closes.index[-1]).date()),
             "drop": (current / peak - 1.0) * 100.0,
+            "dist": dist,
         }
 
     key = str(name).upper()

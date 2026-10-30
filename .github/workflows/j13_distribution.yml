@@ -1,0 +1,44 @@
+# 분산일이 코스피·코스닥에서 뜻이 있었나 — 12년치로 잰다 (2026-10-30 상하님 「다 넣어라」 — 자비스에 넣을 기능 ⑤).
+# 클라우드 작업 칸은 네이버가 막혀 못 잰다 — 깃허브 컴퓨터에서 돌려 결과를 실행 기록과 첨부 파일에 남긴다.
+# 저장소에는 아무것도 쓰지 않는다(읽기 권한만). 화면과 같은 함수(jarvis13_market.distribution_days)로 센다.
+# 재기만 한다 — 화면에 문턱(몇 일이면 경고)을 그릴지는 숫자를 보여 드린 뒤 여쭙는다(CLAUDE.md 0-1).
+name: 자비스13 분산일 재기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_distribution_measure.py
+      - jarvis13_market.py
+      - .github/workflows/j13_distribution.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j13-distribution
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install pandas==2.3.3 numpy requests
+      - name: 코스피·코스닥 분산일 재기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13dist
+        run: python research/j13_distribution_measure.py
+      - name: 결과 파일 남기기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j13-distribution
+          path: ${{ runner.temp }}/j13dist
+          retention-days: 30
