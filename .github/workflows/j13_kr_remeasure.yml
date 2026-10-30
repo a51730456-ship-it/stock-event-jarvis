@@ -1,0 +1,44 @@
+# 한국 급락 후 반등장을 자비스12 방식으로 바꾸기 전에 다시 잰다 (2026-10-30 상하님 「둘 다 해라」).
+# 클라우드 작업 칸은 네이버·거래소가 막혀 못 잰다 — 깃허브 컴퓨터에서 돌려 결과를 실행 기록과 첨부 파일에 남긴다.
+# 저장소에는 아무것도 쓰지 않는다(읽기 권한만). 상장폐지 종목까지 받아 다시 잰다(research/j13_kr_crash_remeasure.py).
+name: 자비스13 한국 급락 다시 재기
+
+# 2026-10-30 상하님 「다해라」로 올림(그 전에는 올리지 말라 하셔서 작업 칸에만 두었다). 재기만 한다 — 기준을 바꿀지는
+# 숫자를 보여 드린 뒤 여쭙는다(CLAUDE.md 0-1).
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_kr_crash_remeasure.py
+      - .github/workflows/j13_kr_remeasure.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j13-kr-remeasure
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install pandas==2.3.3 numpy requests lxml html5lib beautifulsoup4 finance-datareader==0.9.202
+      - name: 한국 급락 후 반등장 다시 재기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13
+        run: python research/j13_kr_crash_remeasure.py
+      - name: 결과 파일 남기기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j13-kr-crash
+          path: ${{ runner.temp }}/j13
+          retention-days: 30
