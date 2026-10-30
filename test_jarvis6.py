@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -264,7 +265,15 @@ class AutoLogTests(unittest.TestCase):
 
     def test_refuses_to_run_after_the_closing_auction(self):
         """15:20이 지난 뒤 남기면 종가를 보고 종가에 샀다고 적는 셈이다."""
-        code = self.autolog.main(["--export-dir", str(self.out)])
+        # 2026-10-30 시각을 15:25(월요일)로 묶는다 — 지금 시각을 그대로 쓰면 평일 14:30~15:18 에 돌린 날만
+        # 관찰 구간이라 실패했다(상하님 「실패한 것 해결해야지」). 막는 쪽 계산은 그대로다.
+        class _AfterClose(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 7, 27, 15, 25, tzinfo=ZoneInfo("Asia/Seoul"))
+
+        with patch.object(self.autolog, "datetime", _AfterClose):
+            code = self.autolog.main(["--export-dir", str(self.out)])
         self.assertEqual(code, 0)
         self.assertFalse(list(self.out.glob("*.json")) if self.out.exists() else [])
 
