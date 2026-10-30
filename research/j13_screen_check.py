@@ -378,6 +378,13 @@ def watch_check(browser, *, owner_flow: bool) -> dict:
             out["세부사항 열림"] = _body_has(owner, "관심종목에 있음", 180_000)
             _quiet(owner)
             owner.screenshot(path=str(OUT / "watch_owner_phone_2_detail.png"), full_page=False)
+            # 「📰 오늘 움직인 까닭」(2026-10-31) — 눌러서 열린다. 깃허브 컴퓨터에는 네이버 열쇠가 없어 「열쇠가 설정되지 않아」가 맞다.
+            out["까닭 눌림"] = _click(owner, "btn_j13_movers_watch")
+            if out["까닭 눌림"]:
+                out["까닭 글"] = next((text for text in ("네이버 뉴스 열쇠가 설정되지 않아", "움직인 종목이 없습니다",
+                                                        "원인 확인은 아닙니다", "뉴스를 받지 못했습니다")
+                                       if _body_has(owner, text, 20_000)), None)
+                _quiet(owner)
             out["주인 문제"] = _problems(owner)
         # 게스트(PC) — 보기만. 주인이 넣은 카드는 보이고 찾기 칸 · 빼기 단추는 없어야 한다
         guest.goto(f"{BASE}/자비스13?guest=1", timeout=180_000)
@@ -436,6 +443,8 @@ def watch_checks(watch: dict, *, owner_flow: bool) -> dict:
             "찾아 넣기 → 카드(원화 · 넣은 날 · 코스피와 견줌)": bool(watch.get("넣음 알림")) and bool(cards)
                 and "원" in cards[0] and "넣은 날" in cards[0] and "코스피" in cards[0],
             "카드 「세부사항」 열림": bool(watch.get("세부사항 열림")) and not (watch.get("주인 문제") or {}).get("exceptions"),
+            "「오늘 움직인 까닭」 누르면 열림(오류 없이)": bool(watch.get("까닭 눌림")) and bool(watch.get("까닭 글"))
+                and not (watch.get("주인 문제") or {}).get("exceptions"),
             "게스트에게 주인이 넣은 카드 보임": len(guest.get("cards") or []) >= 1,
             "빼기 → 알림 · 카드 없어짐": bool(watch.get("뺌 알림")) and watch.get("뺀 뒤 카드") == 0,
             "밑 막대 「시장분석」으로 돌아감": bool(watch.get("시장분석으로")),
