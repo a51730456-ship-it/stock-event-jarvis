@@ -858,6 +858,12 @@ if int(getattr(jarvis13_watch, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_REVI
 _REQUIRED_J13_WATCH_STORE_REVISION = 2026103001
 if int(getattr(jarvis13_watch_store, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_STORE_REVISION:
     jarvis13_watch_store = importlib.reload(jarvis13_watch_store)
+# 오늘 움직인 까닭(2026-10-31 · 상하님 「다 넣어라」 ③) — 같은 날 뉴스 제목 고르기. 받는 일은 news_data · 누를 때만.
+import jarvis13_movers  # noqa: E402
+
+_REQUIRED_J13_MOVERS_REVISION = 2026103101
+if int(getattr(jarvis13_movers, "MODULE_REVISION", 0)) < _REQUIRED_J13_MOVERS_REVISION:
+    jarvis13_movers = importlib.reload(jarvis13_movers)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
@@ -2430,6 +2436,79 @@ def _render_stock_news(code: str, name: str, *, panel: str = "") -> None:
     _section_close(key, "종목 뉴스 닫기")
 
 
+# ── 📰 오늘 움직인 까닭 (2026-10-31 · 상하님 「다 넣어라」 ③ · 자비스에 넣을 기능 조사 화면의 예시대로) ─────────────
+# 크게(3% 넘게) 움직인 종목의 **그날** 뉴스 제목을 누를 때만 받아 보인다 — 종목 뉴스와 같은 규칙 · 같은 네이버 열쇠.
+# 「같은 날 나온 제목 · 원인 확인 아님」으로만 보이고 까닭을 지어내지 않는다. 점수·판정에 안 쓴다.
+def _render_movers_reason(rows: list[dict], *, key: str) -> None:
+    close_label = "움직인 까닭 닫기"
+    title = (f"📰 오늘 움직인 까닭 — {jarvis13_movers.MOVE_PCT:.0f}% 넘게 움직인 종목의 같은 날 뉴스 제목"
+             "(누를 때만 받습니다)")
+    if not _section_toggle(title, key, close_label=close_label):
+        return
+    targets = jarvis13_movers.movers(rows)
+    if not targets:
+        st.caption(f"{jarvis13_movers.MOVE_PCT:.0f}% 넘게 움직인 종목이 없습니다.")
+        _section_close(key, close_label)
+        return
+    cut = len(targets) > jarvis13_movers.MAX_STOCKS
+    targets = targets[:jarvis13_movers.MAX_STOCKS]
+    try:
+        client_id = st.secrets.get("NAVER_CLIENT_ID")
+        client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
+    except Exception:
+        client_id = client_secret = None
+    if not client_id or not client_secret:
+        st.info("네이버 뉴스 열쇠가 설정되지 않아 뉴스 제목을 받을 수 없습니다.")
+        _section_close(key, close_label)
+        return
+    import news_data
+
+    stamp = tuple((target["code"], target["day"]) for target in targets)
+    kept = st.session_state.get(key + "_data")
+    if (not isinstance(kept, dict) or kept.get("stamp") != stamp
+            or time.time() - float(kept.get("at") or 0) > _J13_NEWS_KEEP):
+        with st.spinner(f"{len(targets)}종목 뉴스를 받는 중입니다…"):
+            results = jarvis13_movers.fetch_all(
+                targets, lambda target: news_data.fetch_naver_news(
+                    client_id, client_secret, target["name"], display=20, sort="date"))
+        kept = {"at": time.time(), "stamp": stamp, "results": results}
+        # 하나라도 못 받았으면 담아 두지 않는다 — 다음에 열 때 다시 받는다(있던 것을 지우지 않는 쪽 · CLAUDE.md 0-0 ②)
+        if all((result or {}).get("status") in ("정상", "데이터 없음") for result in results.values()):
+            st.session_state[key + "_data"] = kept
+    lines = []
+    for target in targets:
+        result = (kept.get("results") or {}).get(target["code"]) or {}
+        change = target["change_pct"]
+        head = (f"<b>{html.escape(target['name'])}</b> "
+                f"<span class='{'j4-up' if change > 0 else 'j4-down'}'>{change:+.1f}%</span> "
+                f"<span class='j4-muted'>({html.escape(jarvis13_market.md(target['day']))})</span>")
+        if result.get("status") not in ("정상", "데이터 없음"):
+            body = ("<span class='j4-muted'>뉴스를 받지 못했습니다 — "
+                    f"{html.escape(str(result.get('message') or result.get('status') or ''))}</span>")
+        else:
+            picked = jarvis13_movers.pick(
+                jarvis13_movers.same_day(result.get("data"), target["day"]), target["name"], target["code"],
+                classify=news_data.classify_news_materiality)
+            parts = []
+            for item in picked:
+                link = item["link"]
+                # 주소는 http(s) 만 건다 — 다른 꼴(javascript: 등)은 글자만 보인다
+                link = html.escape(link, quote=True) if link.lower().startswith(("http://", "https://")) else ""
+                text = html.escape(item["title"])
+                text = f"<a href='{link}' target='_blank' rel='noopener'>{text}</a>" if link else text
+                chip = ("<span style='color:#ffb020;font-weight:800;font-size:.78rem'>[기업 직접 재료 후보]</span> "
+                        if item["level"] == "기업 직접 재료 후보" else "")
+                parts.append(f"{chip}「{text}」 <span class='j4-muted' style='font-size:.8rem'>"
+                             f"{html.escape(item['when'][11:16])}</span>")
+            body = "<br>".join(parts) if parts else "<span class='j4-muted'>그날 나온 제목이 없습니다.</span>"
+        lines.append(f"<div style='padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.07)'>{head}<br>{body}</div>")
+    st.markdown("".join(lines), unsafe_allow_html=True)
+    st.caption("같은 날 나온 제목일 뿐 **원인 확인은 아닙니다** · 네이버 뉴스 검색(종목 이름 · 최근 20건 중 그날 것) · "
+               "[기업 직접 재료 후보]는 낱말로 고른 1차 참고 분류 · 점수·판정에 안 씁니다."
+               + (f" 움직인 종목이 많아 크게 움직인 {jarvis13_movers.MAX_STOCKS}종목만 받았습니다." if cut else ""))
+    _section_close(key, close_label)
+
+
 def _render_day_price_row(metrics: dict) -> None:
     """당일 가격 한 줄 — 현재가·전일 종가·시가·고가·저가·종가.
 
@@ -3591,6 +3670,12 @@ def _render_radar_tab(market: dict) -> None:
         st.rerun()
 
     _render_leader_comparison(leaders)
+    # 오늘 움직인 까닭(2026-10-31) — 이 테마 1–6위 가운데 크게 움직인 종목의 그날 뉴스 제목(누를 때만)
+    _render_movers_reason(
+        [{"code": row.get("code"), "name": row.get("name"),
+          "change_pct": (row.get("metrics") or {}).get("change_pct"),
+          "day": (row.get("metrics") or {}).get("last_date")} for row in leaders[:6]],
+        key="j13_movers_theme")
     if leaders:
 
         # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
@@ -5031,6 +5116,11 @@ def _render_watch_page() -> None:
                     if not guest:
                         st.button("✕ 빼기", key=f"j13w_remove_{item['code']}", on_click=_watch_remove,
                                   args=(item["code"], item["name"], "page"))
+    # 오늘 움직인 까닭(2026-10-31) — 카드를 다 그린 **뒤**에 둔다(누를 때만 받으니 카드가 기다리지 않는다 · CLAUDE.md 0-0 ①)
+    _render_movers_reason(
+        [{"code": item["code"], "name": item["name"], "change_pct": item.get("change_pct"),
+          "day": str(item.get("last_day") or "")} for item in cards if item.get("ok")],
+        key="j13_movers_watch")
     st.caption(
         "넣은 날부터 성적은 넣은 그 순간의 값에서 지금 값(일봉 마지막 값 · 5분마다 새로 받음)까지입니다. "
         "같은 사이 코스피를 나란히 둡니다 — 보여 주기만 하고 점수·판정에는 쓰지 않습니다."
