@@ -167,7 +167,8 @@ def load_real():
           f"폐지 {int(got.get('delisted', 0))}/{int(asked.get('delisted', 0))}"
           + ("  ⚠ 폐지 종목을 거의 못 받음 — 살아남은 종목 위주라 성적이 좋게 나올 수 있다"
              if got.get("delisted", 0) < 0.2 * max(asked.get("delisted", 0), 1) else ""))
-    note += f" · 일봉 받은 폐지 종목 {int(got.get('delisted', 0))}개"
+    note += (f" · 일봉 받은 종목 상장 {int(got.get('listed', 0))}/{int(asked.get('listed', 0))}"
+             f" · 폐지 {int(got.get('delisted', 0))}/{int(asked.get('delisted', 0))}")
     return wide, idx, meta, note
 
 
@@ -422,6 +423,27 @@ def line(res) -> str:
     return head + extra + "\n      " + "\n      ".join(parts)
 
 
+def short(res) -> str:
+    """한 줄 요약 — 보유기간마다 사건마다 셈(코스피보다 몇 %p) · 코스피를 이긴 사건 · 번 사건."""
+    lo, hi = res["band"]
+    cells, first = [], {}
+    for h in HOLDS:
+        r = res["holds"].get(h)
+        if not r:
+            cells.append(f"{h}일 없음")
+            continue
+        first = first or r
+        cells.append(f"{h}일 {_fmt(r['ep_ex'])}%p 이긴 {r['ep_beat_pct']:.0f}% 번 {r['ep_pos_pct']:.0f}%")
+    return (f"코스피 {res['threshold'] * 100:.0f}% · {HOW_NAME[res['how']]} · {BASIS_NAME[res['basis']]} "
+            f"{abs(hi) * 100:.0f}~{abs(lo) * 100:.0f}% · 빼기 {res['filters']} · 사건 {first.get('episodes', 0)}번 · "
+            + " | ".join(cells))
+
+
+def _worst_ex(res) -> float:
+    values = [r["ep_ex"] for r in res["holds"].values() if r and r.get("ep_ex") is not None]
+    return min(values) if values else float("-inf")
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     started = time.time()
@@ -483,6 +505,22 @@ def main() -> int:
     for res in ok:
         print("  " + line(res))
     summary["passed_all_holds"] = len(ok)
+
+    # 마지막 요약 — 깃허브 기록은 끝부분만 쉽게 읽힌다(작업 칸에서는 기록 파일·첨부를 못 받는다 · 2026-10-30).
+    # 위에서 이미 잰 것을 짧게 다시 적을 뿐 새로 재지 않는다. 기준도 바꾸지 않는다(바꿀지는 상하님께 여쭘 · CLAUDE.md 0-1).
+    passed = {id(res) for res in ok}
+    print("\n\n### 마지막 요약 (위 내용을 짧게 다시)")
+    print(f"  자료: {note} · 종목 {len(env['codes'])} · {dates[0].date()} ~ {dates[-1].date()}")
+    print(f"  지금 코스피 {env['k_close'].iloc[-1]:,.2f} · 1년 최고 종가 대비 {k_dd.iloc[-1] * 100:+.1f}%")
+    print("  국면 수: " + " · ".join(f"코스피 {float(th) * 100:.0f}% 아래 {len(rows)}번"
+                                  for th, rows in summary["episodes"].items()))
+    print(f"  세 보유기간(20·40·60일)을 다 넘은 것 {len(ok)}개 (8월식 「가장 깊은 날」은 미래를 봐서 뺌) — 가장 약한 기간이 좋은 차례로 12개")
+    for res in sorted(ok, key=_worst_ex, reverse=True)[:12]:
+        print("    " + short(res))
+    print("  지금 화면 방식(국면 안 매일 · 자기 1년 고점) — 전부 · ✓ 는 세 기간 다 넘음")
+    for res in summary["results"]:
+        if res["how"] == "daily" and res["basis"] == "own":
+            print("    " + short(res) + (" ✓" if id(res) in passed else ""))
     (OUT / "j13_kr_crash.json").write_text(json.dumps(summary, ensure_ascii=False, default=str, indent=1),
                                            encoding="utf-8")
     print(f"\n끝 · {time.time() - started:.0f}초 · 결과 파일 {OUT / 'j13_kr_crash.json'}")
