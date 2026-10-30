@@ -25,6 +25,9 @@ CLOSED_PAGES = {
     "pages/6_자비스6_미국테마.py": "자비스6미국테마",
     # 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 미국테마(자비스3)도 맨 앞에서 막는다.
     "pages/2_자비스3.py": "미국테마",
+    # 2026-10-30 상하님 「그전 한국테마는 중지시켜야지」 — 옛 한국테마(자비스4)도 맨 앞에서 막는다. 「한국테마」 이름표는
+    # 이날부터 자비스13 이 쓰고, 자비스4 는 「자비스4」 이름으로 닫는다.
+    "pages/3_자비스4.py": "자비스4",
 }
 
 
@@ -41,8 +44,9 @@ class OpenPagesTests(unittest.TestCase):
         # 2026-10-01 자비스11(자비스3 을 베끼고 안 쓰는 코드만 뺀 미국테마)을 열었다.
         # 2026-10-09 한국증시·자비스11 을 숨기고 자비스12(자비스3 을 그대로 베낀 미국테마)를 열었다.
         # 2026-10-29 자비스12 와 한국테마만 남기고 다 닫았다(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
+        # 2026-10-30 「한국테마」 는 자비스13 이다(옛 자비스4 는 「자비스4」 로 닫았다 — 이 목록은 그대로).
         self.assertEqual(("한국테마", "자비스12"), page_access.OPEN_PAGES)
-        for closed in ("미국테마", "자비스7", "자비스8", "자비스6미국테마", "자비스1", "자비스2"):
+        for closed in ("미국테마", "자비스7", "자비스8", "자비스6미국테마", "자비스1", "자비스2", "자비스4"):
             self.assertFalse(page_access.is_open(closed), closed)
         # 막힌 화면에서 안내하는 곳도 열린 곳이어야 한다 — 닫힌 자비스3 으로 보내면 갇힌다.
         self.assertEqual("pages/11_자비스12.py", page_access.HOME_PAGE)
@@ -54,7 +58,7 @@ class OpenPagesTests(unittest.TestCase):
 
     def test_the_full_list_is_kept_for_restoring(self):
         """되살릴 이름을 지우지 않는다 — 지우면 무엇이 있었는지 알 수 없다."""
-        self.assertEqual(13, len(page_access.ALL_PAGES))   # 2026-10-09 자비스12 가 늘었다
+        self.assertEqual(14, len(page_access.ALL_PAGES))   # 2026-10-09 자비스12 · 2026-10-30 자비스4(닫은 옛 한국테마)가 늘었다
 
 
 class GuardPlacementTests(unittest.TestCase):
@@ -76,19 +80,21 @@ class GuardPlacementTests(unittest.TestCase):
             # 그것만 앞에 온다.
             self.assertLess(head.index("st.set_page_config("), guard_at, path)
 
-    def test_the_open_page_is_not_guarded(self):
-        """열어 둔 화면에는 막는 장치를 두지 않는다.
+    def test_the_open_pages_guard_with_their_own_names(self):
+        """열어 둔 화면의 막는 줄은 **제 이름표**로 건다 — 열린 동안은 아무것도 안 한다.
 
         한국테마는 2026-09-07에 닫으면서 막는 장치를 붙였다가, 2026-09-08에
         도로 열면서 그 장치를 뗐다(상하님 지시 — "한국테마는 다시 살려라").
         자비스6미국테마는 2026-09-11에 도로 닫으면서 장치를 다시 붙였으므로
         여기서 빠지고 위 CLOSED_PAGES 로 옮겼다.
         """
-        # 2026-10-29 자비스3 은 닫혀 위 CLOSED_PAGES 로 옮겼다. 열린 곳은 한국테마 · 자비스12 둘이다(자비스12 의 막는 줄은
-        # 2026-10-09 부터 있었고 열린 동안 아무것도 안 한다).
-        for path in ("pages/3_자비스4.py",):
+        # 2026-10-29 자비스3 은 닫혀 위 CLOSED_PAGES 로 옮겼다(자비스12 의 막는 줄은 2026-10-09 부터 있었다).
+        # 2026-10-30 한국테마는 자비스13 으로 옮겼다 — 「한국테마」 이름표로 막는 줄을 둔다. 옛 자비스4 는 닫혀 위로 옮겼다.
+        # 이름표가 틀리면 열어 둔 화면이 「닫혀 있습니다」 로 막힌다 — 그래서 열려 있는지까지 본다.
+        for path, name in (("pages/12_자비스13.py", "한국테마"), ("pages/11_자비스12.py", "자비스12")):
             source = (ROOT / path).read_text(encoding="utf-8")
-            self.assertNotIn("page_access.guard(", source, path)
+            self.assertIn(f'page_access.guard(st, "{name}")', source, path)
+            self.assertTrue(page_access.is_open(name), name)
 
     def test_the_new_design_page_is_not_under_repair(self):
         """자비스6미국테마는 「수리 중입니다」 한 장만 그리고 멈추던 장치가 있었다.
@@ -136,7 +142,10 @@ class SidebarTests(unittest.TestCase):
         self.assertIn("자비스3", closed)
         self.assertIn("자비스7", closed)
         self.assertNotIn("자비스12", closed)
-        self.assertNotIn("자비스4", closed)
+        # 2026-10-30 「한국테마」 는 자비스13 이다 — 옛 자비스4 는 닫혀 메뉴에서 감추고 자비스13 은 보인다.
+        self.assertEqual("자비스13", names["한국테마"])
+        self.assertIn("자비스4", closed)
+        self.assertNotIn("자비스13", closed)
 
 
 class ChooserTests(unittest.TestCase):

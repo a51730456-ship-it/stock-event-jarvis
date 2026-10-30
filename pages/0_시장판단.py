@@ -147,7 +147,7 @@ if not st.session_state.get("authenticated"):
 import market_signal_ui
 import mobile_ui
 
-_REQUIRED_MOBILE_REVISION = 2026091720
+_REQUIRED_MOBILE_REVISION = 2026100911  # 2026-10-30 옛 번호(2026091720)를 지금 mobile_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     import importlib as _importlib
 

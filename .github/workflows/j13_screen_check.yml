@@ -1,0 +1,61 @@
+# 자비스13(한국테마) 화면을 실제 한국 자료로 확인한다 (2026-10-30 상하님 「검증 오류 이런 것 다 확인까지 해라」).
+# 클라우드 작업 칸은 네이버가 막혀 한국 자료가 안 들어온다 — 깃허브 컴퓨터에서 앱을 띄워 자비스4 와 자비스13 을 나란히 연다.
+# 저장소에는 아무것도 쓰지 않는다(읽기 권한만). 비밀번호 파일은 이 실행 안에서만 임시로 만든다(올리지 않는다).
+name: 자비스13 화면 확인
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - pages/12_자비스13.py
+      - jarvis13_*.py
+      - research/j13_screen_check.py
+      - .github/workflows/j13_screen_check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j13-screen-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: |
+          pip install -r requirements.txt
+          pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: 이 실행에서만 쓰는 비밀번호 파일 · 기록 폴더
+        run: |
+          # 기록 DB(db/*.sqlite3)는 저장소에 없다(.gitignore) — 폴더만 만들어 매수 기록 표가 빈 채로 열리게 한다.
+          mkdir -p db
+          mkdir -p .streamlit
+          python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
+      - name: 앱 띄우기
+        run: |
+          nohup streamlit run app.py --server.port 8501 --server.headless true > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8501/ > /dev/null && break; sleep 2; done
+      # 2026-10-30 자비스4 를 닫은 뒤에는 나란히 못 연다 — 프로그램이 알아보고 「닫힘 · 가는 길 · 자비스13」 확인을 한다.
+      - name: 자비스13 확인 (자비스4 가 열려 있으면 나란히 · 닫혔으면 닫힘과 가는 길)
+        env:
+          J13_OUT: ${{ runner.temp }}/j13shots
+        run: python research/j13_screen_check.py
+      - name: 결과 남기기
+        if: always()
+        run: cp "$RUNNER_TEMP/app.log" "$RUNNER_TEMP/j13shots/" 2>/dev/null || true
+      - name: 사진 · 기록 첨부
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j13-screen-check
+          path: ${{ runner.temp }}/j13shots
+          retention-days: 14

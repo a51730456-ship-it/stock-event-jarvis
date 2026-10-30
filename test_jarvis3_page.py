@@ -408,7 +408,9 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn('body:has(.j3-market-top) .stHorizontalBlock'
                       '{row-gap:12px!important}', source,
                       "위아래로 선 두 단추의 틈을 12px 로 안 맞춘다")
-        head = source.index("div.st-key-j3_st5_wrap")
+        # 2026-10-30 블록 시작(「{」 까지)으로 찾는다 — 같은 이름으로 시작하는 마우스 올림 규칙(:hover)이 더 위에 생겨,
+        # 이름만으로 찾으면 그 자리부터 900자를 봐서 -20px 을 못 찾았다(값은 그대로다 · 상하님 「실패한 것 해결해야지」).
+        head = source.index("div.st-key-j3_st5_wrap {")
         # 2026-09-12에 화면 줄 간격을 16px → 9px 로 줄이면서 당길 양도 같이
         # 줄였다. -40px 그대로 두니 카드가 「자세히 보기」 단추를 덮었다.
         self.assertIn("margin-top: -20px !important;", source[head:head + 900],

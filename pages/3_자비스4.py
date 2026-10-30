@@ -35,6 +35,22 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
 st.set_page_config(page_title="자비스4 — 한국 테마 레이더", layout="wide")
 
+# 2026-10-30 자비스4 를 닫았다 — 한국테마는 자비스13(pages/12_자비스13.py)으로 옮겼다(상하님 「당연히 자비스13으로 연결되어야지 ·
+# 그전 한국테마는 중지시켜야지」). 맨 앞에서 막는다. 「한국테마」 이름표는 이제 자비스13 이 쓰고 이 화면은 「자비스4」 이름표로
+# 닫는다 — 도로 열려면 page_access.OPEN_PAGES 에 "자비스4" 를 넣는다(이 줄은 열린 화면에서는 아무것도 안 한다).
+# 막기 전에 — 서버에 옛 주소표(method_help · login_prism)가 남아 그 단추로 이리 왔으면 다시 읽어 둔다. 그래야 다음에 누르는
+# 「🌏 한국테마 →」 · 첫 화면 오른쪽 판이 자비스13 으로 간다(번호를 안 올린 까닭은 그 두 파일의 설명).
+import importlib as _importlib  # noqa: E402
+
+import method_help  # noqa: E402
+import page_access  # noqa: E402
+
+if getattr(method_help, "CROSS_PAGES", {}).get("US", ("",))[0] != "pages/12_자비스13.py":
+    method_help = _importlib.reload(method_help)
+if dict(row[:2] for row in getattr(login_prism, "PANELS", ())).get("KR") != "pages/12_자비스13.py":
+    login_prism = _importlib.reload(login_prism)
+page_access.guard(st, "자비스4")
+
 st.markdown(
     """
     <style>
@@ -729,13 +745,13 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080910
+_REQUIRED_GAUGE_UI_REVISION = 2026082110  # 2026-10-30 옛 번호(2026080910)를 지금 gauge_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082861
+_REQUIRED_MOBILE_REVISION = 2026100911  # 2026-10-30 옛 번호(2026082861)를 지금 mobile_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -749,14 +765,14 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026090710
+_REQUIRED_METHOD_HELP_REVISION = 2026091830  # 2026-10-30 옛 번호(2026090710)를 지금 method_help 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026090230
+_REQUIRED_PICKLIST_REVISION = 2026091740  # 2026-10-30 옛 번호(2026090230)를 지금 picklist_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
 
@@ -778,7 +794,7 @@ import us_index_data
 # 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
 _backnav_closed = back_nav.sync(st)
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026081210
+_REQUIRED_REGIME_GAUGE_REVISION = 2026081310  # 2026-10-30 옛 번호(2026081210)를 지금 regime_gauge_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -811,7 +827,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080910
+_REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11 · 상하님 「실패한 것 해결해야지」)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
