@@ -36,6 +36,8 @@ import page_access  # noqa: E402  — 자비스4 를 닫았나(아래 J4_CLOSED)
 J4_CLOSED = ('page_access.guard(st, "자비스4")' in (ROOT / "pages" / "3_자비스4.py").read_text(encoding="utf-8")
              and not page_access.is_open("자비스4"))
 BASE = os.environ.get("J13_BASE", "http://localhost:8501")
+# 온라인 앱을 볼 때(깃허브 「온라인 주소」 칸)는 비밀번호가 없으니 게스트로 볼 수 있는 것만 본다(2026-10-30 합친 뒤 확인).
+GUEST_ONLY = os.environ.get("J13_GUEST_ONLY") == "1"
 OUT = Path(os.environ.get("J13_OUT") or "/tmp/j13shots")
 # 비밀번호 — 깃허브는 이 실행에서만 만든 .streamlit/secrets.toml 에서 읽는다(시험할 때는 J13_PASSWORD 로 줄 수 있다)
 PASSWORD = os.environ.get("J13_PASSWORD") or tomllib.loads(
@@ -346,6 +348,31 @@ def after_close(browser, report: dict) -> None:
     _log(f"\n끝(닫은 뒤) · {'모두 됨' if all(checks.values()) else '⚠ 안 된 것 있음'}")
 
 
+def online_guest(browser, report: dict) -> None:
+    """온라인 앱 — 게스트로 볼 수 있는 것만: 자비스4 닫힘 · 첫 화면 판 · 「🌏 한국테마 →」(눌러서) · 자비스13 PC·폰."""
+    report["closed"] = closed_check(browser)
+    report["roads"] = roads_check(browser)
+    _log(f"자비스4: {json.dumps(report['closed'], ensure_ascii=False)}")
+    _log(f"가는 길: {json.dumps(report['roads'], ensure_ascii=False)}")
+    for tag, width, height in (("pc", 1400, 900), ("phone", 412, 915)):
+        run = visit(browser, "자비스13", "j13", owner=False, width=width, height=height, tag=f"online_{tag}")
+        report["runs"].append(run)
+        _report_run(run)
+    checks = {
+        "자비스4 닫힘(테마표 없음)": all(v.get("closed") and not v.get("theme_table") for v in report["closed"].values()),
+        "첫 화면 오른쪽 판 → 자비스13": "자비스13" in str((report["roads"].get("첫 화면 오른쪽 판") or {}).get("href")),
+        "「🌏 한국테마 →」 → 자비스13": str((report["roads"].get("자비스12 「🌏 한국테마 →」") or {}).get("landed", "")).endswith("/자비스13"),
+        "자비스13 오류 상자 0": all(not (r.get("problems") or {}).get("exceptions") and not r.get("error") for r in report["runs"]),
+        "자비스13 테마표 보임": all(r.get("theme_table") for r in report["runs"]),
+        "폰 옆 넘침 0": all((r.get("problems") or {}).get("overflow", 1) <= 0 for r in report["runs"] if r["width"] < 600),
+    }
+    report["checks"] = checks
+    _log(f"\n### 온라인({BASE}) 게스트로 본 것")
+    for name, ok in checks.items():
+        _log(f"  {'됨' if ok else '⚠ 안 됨'} · {name}")
+    _log(f"\n끝(온라인) · {'모두 됨' if all(checks.values()) else '⚠ 안 된 것 있음'}")
+
+
 def _report_run(run: dict) -> None:
     probs = run.get("problems") or {}
     _log(f"\n[{run['page']} · {'주인' if run['owner'] else '게스트'} · {run['width']}px"
@@ -366,6 +393,11 @@ def main() -> int:
     report = {"runs": [], "same": {}}
     with sync_playwright() as play:
         browser = play.chromium.launch()
+        if GUEST_ONLY:
+            online_guest(browser, report)
+            browser.close()
+            (OUT / "j13_screen_check.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            return 0
         report["entry"] = entry_check(browser)
         _log(f"첫 화면: {json.dumps(report['entry'], ensure_ascii=False)}")
         if J4_CLOSED:
