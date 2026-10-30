@@ -838,7 +838,7 @@ if (
 # 코스피·코스닥 「이번 하락」 한 줄의 값(자비스13 전용 · 2026-10-30). 얼린 jarvis4_data 는 읽기만 한다.
 import jarvis13_market
 
-_REQUIRED_J13_MARKET_REVISION = 2026103002
+_REQUIRED_J13_MARKET_REVISION = 2026103003
 if int(getattr(jarvis13_market, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_REVISION:
     jarvis13_market = importlib.reload(jarvis13_market)
 # 파트별 성적표 + 코스피와 견줘 보기(자비스13 전용 · 2026-10-30 · 자비스12 의 성적표 셈을 베낌).
@@ -1413,7 +1413,7 @@ def _render_kospi_drawdown() -> None:
     # 「이번 하락」 한 줄 · 코스닥 참고 줄 (2026-10-30 · 자비스12 의 「📉 이번 하락(QQQ)」 을 한국에 맞춰 옮김).
     # 자는 위 큰 숫자와 같다(1년 최고 종가 → 종가 · jarvis13_market) — 화면의 코스피 숫자가 하나다.
     # 색은 이 화면의 _sign_color 그대로(오름 파랑 · 내림 빨강 — 2026-07-29 상하님). 못 받으면 이 두 줄만 안 그린다(막대는 그대로).
-    episode_line = kosdaq_line = ""
+    episode_line = kosdaq_line = dist_line = ""
     try:
         ep = jarvis13_market.episode("KOSPI")
         if ep.get("ok") and ep.get("low_date") != ep.get("peak_date"):
@@ -1432,8 +1432,21 @@ def _render_kospi_drawdown() -> None:
                 "<div class='j4-ndd-note' style='margin-top:.15rem'>참고 · 코스닥 1년 최고 종가 대비 "
                 f"<b style='color:{_sign_color(kq['drop'])}'>{float(kq['drop']):+.1f}%</b>"
                 f" (고점 {jarvis13_market.md(kq['peak_date'])})</div>")
+        # 분산일(2026-10-30 · 상하님 「다 넣어라」 ⑤) — 같은 코스피 일봉으로 센다(episode 의 dist). 보여 주기만 하고
+        # 색으로 경고하지 않는다 — 「5~6일이면 위험」은 미국에서 쓰는 기준이라 코스피로 재기 전에는 문턱을 그리지 않는다.
+        dist = ep.get("dist") if ep.get("ok") else None
+        if dist:
+            days = " · ".join(jarvis13_market.md(day) for day in dist["dates"])
+            dist_line = (
+                "<div class='j4-ndd-note' style='margin-top:.15rem'>🧮 <b>분산일</b>(코스피 · "
+                f"{jarvis13_market.md(dist['last_day'])}까지 끝난 장 25거래일) "
+                f"<b style='white-space:nowrap'>{int(dist['count'])}일</b>"
+                + (f" — {days}" if days else "")
+                + "<br><span class='j4-muted'>0.2% 넘게 내리며 거래량이 전날보다 많은 날(큰손이 판 흔적 · 오닐 방식) · "
+                "그 뒤 5% 넘게 오르면 뺌. 미국은 5~6일 쌓이면 경고로 봄 — 코스피로는 아직 재지 않았고 "
+                "점수·판정에 안 씀.</span></div>")
     except Exception:
-        episode_line = kosdaq_line = ""
+        episode_line = kosdaq_line = dist_line = ""
     st.markdown(
         "<div class='j4-ndd'>"
         f"<div class='j4-ndd-head'><b class='j4-ndd-title'>{headline}</b> "
@@ -1444,7 +1457,7 @@ def _render_kospi_drawdown() -> None:
         "<span class='j4-ndd-center'></span></div>"
         "<div class='j4-ndd-scale'><span>고점 −40%</span>"
         "<span class='j4-ndd-scale-mid'>전고점</span><span>고점 +40%</span></div>"
-        + episode_line + kosdaq_line +
+        + episode_line + kosdaq_line + dist_line +
         "<div class='j4-ndd-note'><span class='j4-ndd-key'>코스피 12년치</span>로 재 보니 "
         "가장 나았던 자리는 <span class='j4-ndd-key'>고점 대비 −12~−18%</span>였습니다"
         "(지수 100번 중 63번 · 앞 6년 55번 → 뒤 6년 77번). "
