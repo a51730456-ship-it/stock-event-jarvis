@@ -1967,6 +1967,11 @@ import jarvis12_movers
 _REQUIRED_J12_MOVERS_REVISION = 2026103101
 if int(getattr(jarvis12_movers, "MODULE_REVISION", 0)) < _REQUIRED_J12_MOVERS_REVISION:
     jarvis12_movers = importlib.reload(jarvis12_movers)
+# 시장분석 「🧮 분산일」(2026-10-31 상하님 「넣어라」) — 보여 주기만.
+import jarvis12_market
+_REQUIRED_J12_MARKET_REVISION = 2026103101
+if int(getattr(jarvis12_market, "MODULE_REVISION", 0)) < _REQUIRED_J12_MARKET_REVISION:
+    jarvis12_market = importlib.reload(jarvis12_market)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
@@ -4019,6 +4024,14 @@ def _render_nasdaq_drawdown(overview: dict | None = None) -> None:
             "<div class='j3-ndd-note' style='margin-top:.15rem'>참고 · 나스닥 종합지수(IXIC) "
             f"<b style='color:{_sign_color(ixic_pct)}'>{ixic_pct:+.1f}%</b> — 나스닥 전체(3천여 종목)라 "
             "큰 100종목인 QQQ 와 숫자가 다릅니다.</div>")
+    # 「🧮 분산일」(2026-10-31 상하님 「넣어라」) — 시장분석이 이미 받아 둔 1년 일봉(같은 캐시)으로 센다. 실패하면 줄만 안 그린다.
+    dist_line = ""
+    try:
+        daily, _meta = j3data._download_cached(("^IXIC", "^GSPC"), period="1y", interval="1d", ttl_seconds=600)
+        dist_line = jarvis12_market.line_html(jarvis12_market.distribution_days(daily.get("^IXIC")),
+                                              jarvis12_market.distribution_days(daily.get("^GSPC")))
+    except Exception:
+        dist_line = ""
     st.markdown(
         "<div class='j3-ndd'>"
         f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
@@ -4032,7 +4045,7 @@ def _render_nasdaq_drawdown(overview: dict | None = None) -> None:
         "<span class='j3-ndd-center'></span></div>"
         "<div class='j3-ndd-scale'><span>고점 −25%</span>"
         "<span class='j3-ndd-scale-mid'>전고점</span><span>고점 +25%</span></div>"
-        + episode_line + ixic_line +
+        + episode_line + ixic_line + dist_line +
         # '지금 · 1년 최고 · 문턱 …' 줄은 2026-08-06에 뺐다(사용자 지시). 막대와
         # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
         # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져

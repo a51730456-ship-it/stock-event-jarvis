@@ -9,6 +9,7 @@ on:
     paths:
       - jarvis12_watch_since.py
       - jarvis12_movers.py
+      - jarvis12_market.py
       - research/j12_screen_check.py
       - .github/workflows/j12_screen_check.yml
   workflow_dispatch:
