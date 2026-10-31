@@ -79,7 +79,7 @@ def visit(browser, password: str, width: int) -> dict:
             page.wait_for_timeout(1500)
             out["movers"] = page.evaluate("""() => {
                 const t = document.body.innerText;
-                const i = t.search(/% 넘게 움직인 종목/);
+                const i = t.indexOf('움직인 까닭 닫기');   // 열면 단추 글이 「✕ 움직인 까닭 닫기」로 바뀐다 — 그 밑이 까닭 줄
                 return i < 0 ? '' : t.slice(i, i + 700).replace(/\\s+/g, ' ');
             }""")
             out["movers_problems"] = _problems(page)
