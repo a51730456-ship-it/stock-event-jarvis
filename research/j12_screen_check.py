@@ -84,6 +84,16 @@ def visit(browser, password: str, width: int) -> dict:
             }""")
             out["movers_problems"] = _problems(page)
             page.screenshot(path=str(OUT / f"j12_movers_{width}.png"), full_page=width > 600)
+        # ③ 시장분석 「🧮 분산일」 — 밑 막대 「시장분석」으로 가서 나스닥 막대 밑 줄을 본다.
+        page.locator('div[class*="st-key-j3b_nav_market"] button').click()
+        page.wait_for_function("() => document.body.innerText.includes('🧮 분산일')", timeout=180_000)
+        page.wait_for_timeout(1500)
+        out["dist"] = page.evaluate("""() => {
+            const t = document.body.innerText; const i = t.indexOf('🧮 분산일');
+            return i < 0 ? '' : t.slice(i, i + 260).replace(/\\s+/g, ' ');
+        }""")
+        out["dist_problems"] = _problems(page)
+        page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
         try:
@@ -119,6 +129,11 @@ def main() -> int:
         "오류 상자 0": all(not (run.get("problems") or {}).get("exceptions") for run in runs),
         "폰 옆 넘침 0": all((run.get("problems") or {}).get("overflow", 1) <= 0 for run in runs if run["width"] < 600),
         "② 움직인 까닭 — 눌러서 열림": all(run.get("movers_button") and run.get("movers") for run in runs),
+        "③ 분산일 줄 보임(숫자)": all("일" in (run.get("dist") or "") and "경고로 쓰지 않고" in (run.get("dist") or "")
+                                    for run in runs),
+        "③ 시장분석 오류 0 · 폰 넘침 0": all(not (run.get("dist_problems") or {}).get("exceptions")
+                                       and ((run.get("dist_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                       for run in runs),
         "② 연 뒤 오류 0 · 폰 넘침 0": all(not (run.get("movers_problems") or {}).get("exceptions")
                                      and ((run.get("movers_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                      for run in runs),
