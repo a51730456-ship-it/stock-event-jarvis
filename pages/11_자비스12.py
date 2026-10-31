@@ -1962,6 +1962,11 @@ import jarvis12_watch_since
 _REQUIRED_J12_WATCH_SINCE_REVISION = 2026103101
 if int(getattr(jarvis12_watch_since, "MODULE_REVISION", 0)) < _REQUIRED_J12_WATCH_SINCE_REVISION:
     jarvis12_watch_since = importlib.reload(jarvis12_watch_since)
+# 「오늘 움직인 까닭」(2026-10-31 상하님 「자비스12에도 넣어라」) — 누를 때만 · 보여 주기만.
+import jarvis12_movers
+_REQUIRED_J12_MOVERS_REVISION = 2026103101
+if int(getattr(jarvis12_movers, "MODULE_REVISION", 0)) < _REQUIRED_J12_MOVERS_REVISION:
+    jarvis12_movers = importlib.reload(jarvis12_movers)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
@@ -8107,6 +8112,11 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
         # 「🏅 대장주 1~3위 비교」는 **「상세 종목 선택」 밑 · 「선택종목 세부사항」 위**다 (2026-10-09 상하님 지시 —
         # "상세 종목 선택 밑에, 즉 선택 종목 세부사항 닫기 위에 넣어라"). 예전 자리는 1~6위 표 바로 밑이었다.
         _leader_comparison_box(leaders)
+        # 「오늘 움직인 까닭」(2026-10-31) — 이 테마 1~6위 가운데 크게 움직인 종목. 누를 때만 받는다.
+        _render_movers_reason(
+            [{"ticker": item.get("ticker"), "name": item.get("name"),
+              "change_pct": (item.get("metrics") or {}).get("change_pct")} for item in top_candidates[:6]],
+            key="j12_movers_theme")
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
     # 돌아가야 한다(2026-08-28 상하님 지시).
@@ -14193,6 +14203,69 @@ def _company_news(ticker: str) -> dict:
     )
 
 
+@st.fragment
+def _render_movers_reason(rows: list[dict], *, key: str) -> None:
+    """「📰 오늘 움직인 까닭」(2026-10-31 상하님 「자비스12에도 넣어라」) — **누를 때만** 받는다.
+
+    3% 넘게 움직인 종목의 뉴스를 「종목 뉴스」와 같은 공책(_company_news)으로 받아, 그 장 시간대(앞 장 마감 뒤 ~ 그 장 날
+    20:00 · 미국 동부)에 나온 제목만 둘씩 보인다. 원인 확인이 아니다. 덩이(fragment)라 여닫아도 이 칸만 다시 그린다.
+    """
+    close_label = "움직인 까닭 닫기"
+    title = (f"📰 오늘 움직인 까닭 — {jarvis12_movers.MOVE_PCT:.0f}% 넘게 움직인 종목의 그 장 시간대 뉴스 제목"
+             "(누를 때만 받습니다)")
+    if not _section_toggle(title, key, close_label=close_label):
+        return
+    targets = jarvis12_movers.movers(rows)
+    if not targets:
+        st.caption(f"{jarvis12_movers.MOVE_PCT:.0f}% 넘게 움직인 종목이 없습니다.")
+        _section_close(key, close_label)
+        return
+    cut = len(targets) > jarvis12_movers.MAX_STOCKS
+    targets = targets[:jarvis12_movers.MAX_STOCKS]
+    day, start, end = jarvis12_movers.session_window()
+    results = {}
+    try:
+        results = {target["ticker"]: _company_news(target["ticker"]) for target in targets}
+        if any(result.get("pending") and not result.get("items") for result in results.values()):
+            with st.spinner(f"{len(targets)}종목 뉴스를 받는 중입니다…"):
+                deadline = time.monotonic() + 10.0
+                while time.monotonic() < deadline:
+                    time.sleep(0.5)
+                    results = {target["ticker"]: _company_news(target["ticker"]) for target in targets}
+                    if not any(result.get("pending") and not result.get("items") for result in results.values()):
+                        break
+    except Exception:
+        pass
+    lines = []
+    for target in targets:
+        result = results.get(target["ticker"]) or {}
+        change = target["change_pct"]
+        head = (f"<b>{html.escape(target['ticker'])}</b> {html.escape(target['name'])} "
+                f"<span style='color:{'#7de143' if change > 0 else '#ff5c55'};font-weight:800'>{change:+.1f}%</span>")
+        if not result.get("items"):
+            body = ("<span style='color:#9fb6c8'>뉴스를 아직 못 받았습니다 — 닫았다 다시 열면 다시 받습니다.</span>"
+                    if result.get("pending") or not result else
+                    "<span style='color:#9fb6c8'>받은 뉴스가 없습니다.</span>")
+        else:
+            parts = []
+            for item in jarvis12_movers.in_window(result.get("items"), start, end):
+                link = item["link"]
+                # 주소는 http(s) 만 건다 — 다른 꼴(javascript: 등)은 글자만 보인다
+                link = html.escape(link, quote=True) if link.lower().startswith(("http://", "https://")) else ""
+                text = html.escape(item["title"])
+                text = f"<a href='{link}' target='_blank' rel='noopener'>{text}</a>" if link else text
+                parts.append(f"「{text}」 <span style='color:#9fb6c8;font-size:.8rem'>"
+                             f"{item['when']:%m-%d %H:%M} ET</span>")
+            body = ("<br>".join(parts) if parts else
+                    "<span style='color:#9fb6c8'>그 장 시간대에 나온 제목이 없습니다.</span>")
+        lines.append(f"<div style='padding:.4rem 0;border-bottom:1px solid rgba(255,255,255,.07)'>{head}<br>{body}</div>")
+    st.markdown("".join(lines), unsafe_allow_html=True)
+    st.caption(f"그 장({day:%m-%d}) 시간대 = 앞 장 마감(16:00) 뒤 ~ 그날 20:00 · 미국 동부 시각 · 같은 시간대에 나온 제목일 뿐 "
+               "**원인 확인은 아닙니다** · 관심종목 카드·「종목 뉴스」와 같은 뉴스 · 점수·판정에 안 씁니다."
+               + (f" 움직인 종목이 많아 크게 움직인 {jarvis12_movers.MAX_STOCKS}종목만 받았습니다." if cut else ""))
+    _section_close(key, close_label)
+
+
 def _render_stock_news_box(ticker: str, *, panel: str) -> None:
     """**누를 때만 받는다** — 받는 데 1~3초가 걸려, 세부사항을 열 때마다 받으면 그만큼 늦어진다
     (상하님 — "로딩 오래 걸리는 것 있으면 고민해야 된다"). 관심종목 카드와 같은 뉴스(같은 공책)라 거기서
@@ -14955,6 +15028,12 @@ def _render_stock_briefing() -> None:
                               compact=True, group="extra")
         # 「넣은 날부터 성적」(2026-10-31) — 카드가 다 그려진 **뒤에** 센다(CLAUDE.md 0-0 ①).
         _render_watch_since(visible_stocks, cards)
+        # 「오늘 움직인 까닭」(2026-10-31) — 관심종목 가운데 크게 움직인 종목. 누를 때만 받는다.
+        _render_movers_reason(
+            [{"ticker": stock.get("ticker"), "name": stock.get("name"),
+              "change_pct": (cards.get(str(stock.get("ticker") or "").upper()) or {}).get("change_pct")}
+             for stock in visible_stocks],
+            key="j12_movers_watch")
         # 같은 종목이 「사용자 선정」과 「추가 검색」 두 곳에 있을 수 있다 — 숨은 단추는 종목마다 하나(열쇠가 겹치면
         # 판 그리기가 멈춰 맨 끝의 작은 장치들까지 안 실렸다 · 2026-10-09 노트북 실측).
         _render_watch_detail_area(tuple(dict(

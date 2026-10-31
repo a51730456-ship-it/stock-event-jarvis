@@ -69,6 +69,21 @@ def visit(browser, password: str, width: int) -> dict:
         out["problems"] = _problems(page)
         page.locator(".j12ws-box").scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / f"j12_watch_{width}.png"), full_page=width > 600)
+        # 「오늘 움직인 까닭」(②) — 누르기 전에는 안 받고, 누르면 그 장 시간대 제목이나 「움직인 종목이 없습니다」가 나온다.
+        button = page.locator('div[class*="st-key-btn_j12_movers_watch"] button')
+        out["movers_button"] = button.count() == 1
+        if out["movers_button"]:
+            button.click()
+            page.wait_for_function("() => /원인 확인은 아닙니다|움직인 종목이 없습니다/.test(document.body.innerText)",
+                                   timeout=60_000)
+            page.wait_for_timeout(1500)
+            out["movers"] = page.evaluate("""() => {
+                const t = document.body.innerText;
+                const i = t.search(/% 넘게 움직인 종목/);
+                return i < 0 ? '' : t.slice(i, i + 700).replace(/\\s+/g, ' ');
+            }""")
+            out["movers_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_movers_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
         try:
@@ -103,8 +118,12 @@ def main() -> int:
         "NVDA 는 숫자로 셈": "%p" in nvda and "—" not in nvda,
         "오류 상자 0": all(not (run.get("problems") or {}).get("exceptions") for run in runs),
         "폰 옆 넘침 0": all((run.get("problems") or {}).get("overflow", 1) <= 0 for run in runs if run["width"] < 600),
+        "② 움직인 까닭 — 눌러서 열림": all(run.get("movers_button") and run.get("movers") for run in runs),
+        "② 연 뒤 오류 0 · 폰 넘침 0": all(not (run.get("movers_problems") or {}).get("exceptions")
+                                     and ((run.get("movers_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                     for run in runs),
     }
-    print("\n### 자비스12 관심종목 「넣은 날부터 성적」", flush=True)
+    print("\n### 자비스12 관심종목 「넣은 날부터 성적」 · 「오늘 움직인 까닭」", flush=True)
     for name, ok in checks.items():
         print(f"  {'됨' if ok else '안 됨'} · {name}", flush=True)
     print(f"\n끝 · {'모두 됨' if all(checks.values()) else '안 된 것 있음'}", flush=True)
