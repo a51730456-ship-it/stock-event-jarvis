@@ -1957,6 +1957,11 @@ if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVI
 _REQUIRED_J12_PICKLIST_REVISION = 2026102301
 if int(getattr(jarvis12_picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_J12_PICKLIST_REVISION:
     jarvis12_picklist_ui = importlib.reload(jarvis12_picklist_ui)
+# 관심종목 「넣은 날부터 성적」(2026-10-31 상하님 「자비스12에도 넣어라」) — 보여 주기만 한다.
+import jarvis12_watch_since
+_REQUIRED_J12_WATCH_SINCE_REVISION = 2026103101
+if int(getattr(jarvis12_watch_since, "MODULE_REVISION", 0)) < _REQUIRED_J12_WATCH_SINCE_REVISION:
+    jarvis12_watch_since = importlib.reload(jarvis12_watch_since)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
@@ -13682,6 +13687,34 @@ def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, k
                                   compact=compact, group=group)
 
 
+def _render_watch_since(stocks: list[dict], cards: dict) -> None:
+    """관심종목 「넣은 날부터 성적」 표 (2026-10-31 상하님 「자비스12에도 넣어라」).
+
+    카드 모양은 그대로 두고 카드 묶음 밑에 표 하나를 붙인다. 넣은 날은 저장고의 updated_at(읽기만),
+    값은 카드가 이미 받은 6개월 일봉을 다시 쓴다(같은 묶음이면 새로 안 받는다). S&P 500 은 시장분석과
+    같은 1년 일봉. 무엇이 실패해도 관심종목 화면은 그대로 둔다 — 표만 안 그린다.
+    """
+    try:
+        added = jarvis12_watch_since.added_map(briefing_store)
+        names = {}
+        for stock in stocks:
+            ticker = str(stock.get("ticker") or "").strip().upper()
+            if ticker in added and ticker not in names:
+                names[ticker] = str(stock.get("name") or ticker)
+        if not names:
+            return
+        frames, _ = j3data._download_cached(tuple(names), period="6mo", interval="1d", ttl_seconds=300)
+        bench, _ = j3data._download_cached(
+            (jarvis12_watch_since.BENCH,), period="1y", interval="1d", ttl_seconds=300)
+        rows = [jarvis12_watch_since.row(
+                    ticker, name, added[ticker], frames.get(ticker), bench.get(jarvis12_watch_since.BENCH),
+                    price_now=(cards.get(ticker) or {}).get("price"))
+                for ticker, name in names.items()]
+        st.markdown(jarvis12_watch_since.table_html(rows), unsafe_allow_html=True)
+    except Exception:
+        return
+
+
 _BRIEFING_FIRST_VIEW_EXTRAS = (
     {"position": -1, "ticker": "AAPL", "name": "애플"},
     {"position": -2, "ticker": "META", "name": "메타 플랫폼스"},
@@ -14920,6 +14953,8 @@ def _render_stock_briefing() -> None:
                 _render_briefing_manage(selected, extras, group="extra")
         _render_briefing_grid(home_extras, cards, removable=True, key="extra1",
                               compact=True, group="extra")
+        # 「넣은 날부터 성적」(2026-10-31) — 카드가 다 그려진 **뒤에** 센다(CLAUDE.md 0-0 ①).
+        _render_watch_since(visible_stocks, cards)
         # 같은 종목이 「사용자 선정」과 「추가 검색」 두 곳에 있을 수 있다 — 숨은 단추는 종목마다 하나(열쇠가 겹치면
         # 판 그리기가 멈춰 맨 끝의 작은 장치들까지 안 실렸다 · 2026-10-09 노트북 실측).
         _render_watch_detail_area(tuple(dict(
