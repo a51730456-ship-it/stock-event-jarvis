@@ -74,6 +74,7 @@ class RowTests(unittest.TestCase):
         self.assertIsNone(item["base"])
         self.assertIsNone(item["since_pct"])
         self.assertIsNone(item["beat_pp"])
+        self.assertIsNone(item["bench_pct"])                             # 한쪽만 적지 않는다
         self.assertIn("6개월보다 앞 — 셈 안 함", since.table_html([item]))
 
     def test_missing_prices_leave_blanks(self):

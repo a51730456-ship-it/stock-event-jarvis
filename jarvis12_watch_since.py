@@ -96,8 +96,9 @@ def row(ticker: str, name: str, added: date | None, frame, bench, *, price_now=N
             out["base_day"], out["base"] = found
             out["days"] = int(sum(1 for stamp in closes.index if pd.Timestamp(stamp).date() > found[0]))
             out["since_pct"] = (out["now"] / out["base"] - 1.0) * 100.0
+    # 종목을 못 센 줄은 S&P 500 도 비운다 — 한쪽만 적으면 견줄 수 없는 숫자가 남는다(2026-10-31 깃허브 확인에서 AAPL 줄).
     b_closes = _closes(bench)
-    b_found = _before(b_closes, added)
+    b_found = _before(b_closes, added) if out["base"] is not None else None
     if b_found and b_closes is not None:
         out["bench_pct"] = (float(b_closes.iloc[-1]) / b_found[1] - 1.0) * 100.0
     if out["since_pct"] is not None and out["bench_pct"] is not None:
