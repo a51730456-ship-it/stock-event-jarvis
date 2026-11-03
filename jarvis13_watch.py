@@ -14,7 +14,7 @@ from datetime import date
 
 import pandas as pd
 
-MODULE_REVISION = 2026103001
+MODULE_REVISION = 2026110301
 SPARK_DAYS = 20
 
 
@@ -118,7 +118,12 @@ def spark_svg(values, *, width: int = 220, height: int = 44) -> str:
 def card_html(item: dict) -> str:
     name = html.escape(str(item.get("name") or ""))
     code = html.escape(str(item.get("code") or ""))
-    head = f"<div class='j13w-top'><span class='j13w-name'>{name}</span><span class='j13w-code'>{code}</span></div>"
+    # 자비스12 카드처럼 왼쪽 위에 둥근 네모 표(2026-11-03 화면 옷) — 한국 종목은 로고 그림이 없어 이름 첫 글자를 쓴다.
+    badge_colors = ("#216eab", "#7a3fd1", "#0f8a74", "#b5532a", "#9a2d5c", "#3f6f1f")
+    badge_color = badge_colors[sum(map(ord, code)) % len(badge_colors)] if code else badge_colors[0]
+    badge = f"<span class='j13w-badge' style='background:{badge_color}'>{html.escape(str(item.get('name') or '?')[:1])}</span>"
+    head = (f"<div class='j13w-top'>{badge}<div class='j13w-id'><span class='j13w-name'>{name}</span>"
+            f"<span class='j13w-code'>{code}</span></div></div>")
     if not item.get("ok"):
         return (f"<div class='j13w-card'>{head}"
                 "<div class='j13w-miss'>시세를 못 받았습니다 — 잠시 뒤 다시 엽니다.</div></div>")
@@ -142,24 +147,39 @@ def card_html(item: dict) -> str:
 
 
 CSS = """<style>
-.j13w-card{background:linear-gradient(180deg,#0e1a2c,#0a1322);border:1px solid #2b3d5a;border-radius:14px;
-  padding:12px 14px 10px;display:grid;gap:6px;min-width:0;color:#dfe6ee}
-.j13w-top{display:flex;align-items:baseline;gap:8px;min-width:0}
-.j13w-name{color:#c084fc;font-size:1.15rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.j13w-code{color:#8b96a8;font-size:.85rem;font-variant-numeric:tabular-nums}
-.j13w-price{font-size:1.25rem;font-variant-numeric:tabular-nums}
-.j13w-price b{color:#e6e6e6}
+.j13w-card{background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;
+  padding:11px 12px 10px;display:grid;gap:6px;min-width:0;color:#e7edf2;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006}
+.j13w-card:hover{border-color:#d8ab68}
+.j13w-top{display:flex;align-items:center;gap:8px;min-width:0}
+.j13w-badge{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;color:#fff;font-weight:900;
+  font-size:1.05rem;box-shadow:inset 0 1px #ffffff44,0 2px 5px #0008}
+.j13w-id{display:grid;min-width:0}
+.j13w-name{color:#f4faff;font-size:1.12rem;font-weight:900;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.j13w-code{color:#9fb6c8;font-size:.78rem;font-variant-numeric:tabular-nums}
+.j13w-price{font-size:1.3rem;font-weight:850;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.j13w-price b{color:#f4faff}
 .j13w-spark{width:100%;height:44px;display:block}
-.j13w-since{font-size:.92rem;line-height:1.5;font-variant-numeric:tabular-nums;display:grid;gap:5px}
-.j13w-when{color:#8b96a8;font-size:.86rem}
-.j13w-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.j13w-grid > div{background:#0b1626;border:1px solid #22324a;border-radius:9px;padding:5px 8px;display:grid;gap:1px;min-width:0}
-.j13w-grid span{color:#8b96a8;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.j13w-grid b{font-size:1.02rem}
+.j13w-since{font-size:.9rem;line-height:1.45;font-variant-numeric:tabular-nums;display:grid;gap:5px;border-top:1px solid #94b5c52a;padding-top:6px}
+.j13w-when{color:#9fb6c8;font-size:.8rem}
+.j13w-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.j13w-grid > div{background:#04213f;border:1px solid #22324a;border-radius:9px;padding:4px 6px;display:grid;gap:1px;min-width:0}
+.j13w-grid span{color:#9fb6c8;font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.j13w-grid b{font-size:.95rem}
 .j13w-miss{color:#9aa0aa;font-size:.95rem}
-.j13w-target{font-size:.85rem}
-.j13w-empty{border:1px dashed #2b3d5a;border-radius:14px;padding:18px;text-align:center;color:#9aa0aa;line-height:1.7}
+.j13w-target{font-size:.82rem}
+.j13w-empty{border:1px dashed #7091af99;border-radius:14px;padding:18px;text-align:center;color:#c3d7e7;line-height:1.7}
 .j13w-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:.2rem 0 .6rem}
-.j13w-title{font-size:1.55rem;font-weight:800;color:#ffb020}
-.j13w-count{color:#9aa0aa;font-size:.95rem}
+.j13w-title{font-size:1.55rem;font-weight:900;color:#ffc94f;letter-spacing:-.02em}
+.j13w-count{color:#9fb6c8;font-size:.95rem}
+/* 카드 묶음 — 자비스12 처럼 한 통에 넣고 자리는 CSS 가 잡는다(PC 세 칸 · 폰 두 칸) */
+div[class*="st-key-j13w_cards"]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;column-gap:10px!important;
+  row-gap:16px!important;align-items:start!important}
+div[class*="st-key-j13w_cards"]>*{min-width:0!important;width:auto!important}
+div[class*="st-key-j13w_item_"] .stButton button{min-height:30px!important;padding:2px 10px!important;font-size:.82rem!important;
+  border-radius:15px!important;border:1px solid #b9965c!important;background:#062448!important;color:#eaf5ff!important}
+@media (max-width: 600px){
+  div[class*="st-key-j13w_cards"]{grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:7px!important}
+  .j13w-name{font-size:.98rem}.j13w-price{font-size:1.05rem}.j13w-badge{width:30px;height:30px;font-size:.9rem}
+  .j13w-grid{grid-template-columns:1fr}.j13w-grid > div{display:flex;justify-content:space-between;gap:4px}
+}
 </style>"""

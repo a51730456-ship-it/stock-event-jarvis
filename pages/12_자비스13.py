@@ -852,7 +852,7 @@ if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
 import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 
-_REQUIRED_J13_WATCH_REVISION = 2026103001
+_REQUIRED_J13_WATCH_REVISION = 2026110301
 if int(getattr(jarvis13_watch, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_REVISION:
     jarvis13_watch = importlib.reload(jarvis13_watch)
 _REQUIRED_J13_WATCH_STORE_REVISION = 2026103001
@@ -871,6 +871,17 @@ import jarvis13_crash_record  # noqa: E402
 _REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
 if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
     jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
+# 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
+import jarvis13_fundamentals  # noqa: E402
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110302
+if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
+    jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
+# 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
+import jarvis13_skin  # noqa: E402
+import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
+_REQUIRED_J13_SKIN_REVISION = 2026110303
+if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
+    jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
@@ -1263,7 +1274,8 @@ def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
     overview = j4data.get_market_overview()
     st.session_state["j13_market_overview"] = overview
-    st.subheader("한국 전체시장 판단")
+    # 제목은 자비스12 「미국 전체시장 판단」과 같은 모양(보라 · 16px)으로(2026-11-03 화면 옷).
+    st.markdown(f"<div class='{jarvis13_skin.TITLE_CLASS}'>한국 전체시장 판단</div>", unsafe_allow_html=True)
     if not overview.get("ok"):
         st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
         st.caption("네트워크가 복구되면 1분 자동 갱신에서 다시 시도합니다.")
@@ -2644,6 +2656,26 @@ def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
                 st.warning(f"{timeframe} 자료 없음")
 
 
+def _render_fundamentals_box(code: str, metrics: dict | None = None) -> None:
+    """「📑 재무 한눈에 보기」 — 누르면 펴지는 상자(브라우저가 여닫는다 · 서버에 안 묻는다). 못 모은 종목은 한 줄만."""
+    try:
+        price = (metrics or {}).get("current") or (metrics or {}).get("close")
+        info = jarvis13_fundamentals.summary(code, price)
+    except Exception:
+        info = None
+    if not info:
+        st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 "
+                    "없습니다(테마 명부 종목만 주 1회 모읍니다).</div>", unsafe_allow_html=True)
+        return
+    st.markdown(
+        jarvis13_fundamentals.CSS
+        + "<details class='j13fn-box'><summary>📑 재무 한눈에 보기</summary>"
+        + f"<div class='j13fn-name'>{html.escape(str(info.get('name') or code))} · {html.escape(code)} · 재무 한눈에</div>"
+        + jarvis13_fundamentals.card_html(info) + "</details>",
+        unsafe_allow_html=True,
+    )
+
+
 def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
                          stock_key: str, *, panel: str = "theme") -> None:
     """종목 상세 한 벌. 같은 화면을 위(테마 종목)·아래(눌림목 종목) 두 곳에 그린다.
@@ -2675,6 +2707,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"{f'대장주 {detail_rank}위' if detail_rank else '눌림목 선택 종목'} · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
+    # 「📑 재무 한눈에」(2026-11-03 상하님 「재무현황 등도 없고」) — 자비스12 와 같은 자리(종목 이름 밑). 깃허브가 모은
+    # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
+    _render_fundamentals_box(code, metrics)
     # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
     if not auth.is_guest():
         _render_watch_toggle(code, leader.get("name") or code, metrics, panel=panel)
@@ -5110,11 +5145,11 @@ def _render_watch_page() -> None:
         frames = jarvis13_watch.load_frames([stock["code"] for stock in stocks], j4data.get_daily_frame)
         kospi = jarvis13_market.index_frame("KOSPI")
     cards = [jarvis13_watch.card(stock, frames.get(stock["code"]), kospi) for stock in stocks]
-    # 세 장씩 한 줄 — 폰에서는 줄마다 아래로 쌓여 넣은 차례가 그대로다(칸 하나에 몰아 넣으면 폰에서 차례가 섞인다).
-    for start in range(0, len(cards), 3):
-        columns = st.columns(3, gap="small")
-        for column, item in zip(columns, cards[start:start + 3]):
-            with column:
+    # 카드는 **한 통에 넣은 차례대로** 넣고 자리는 CSS 가 잡는다 — PC 세 칸 · 폰 두 칸(자비스12 관심종목과 같은 짜임 ·
+    # 2026-11-03 화면 옷). 예전 st.columns(3) 은 폰에서 한 줄에 한 장씩 쌓여 화면이 길었다.
+    with st.container(key="j13w_cards"):
+        for item in cards:
+            with st.container(key=f"j13w_item_{item['code']}"):
                 st.markdown(jarvis13_watch.card_html(item), unsafe_allow_html=True)
                 # 단추 둘은 한 줄에 — 세로로 쌓으면 카드마다 단추 자리가 카드 반만큼 먹었다(2026-10-30 화면 확인).
                 with st.container(horizontal=True, gap="small"):
@@ -5161,6 +5196,7 @@ def main() -> None:
             scroll_to.now(st, "top")
         # 뒤로가기를 붙잡는 표식(자비스12 j12b_backstop)은 **안 넣는다** — 자비스12 에서는 상하님이 따로 시키신 것이고,
         # 자비스13 은 지금처럼 뒤로가기가 자비스12 로 돌아가는 것이 자연스럽다(시키지 않은 동작은 바꾸지 않는다).
+        st.markdown(jarvis13_skin.watch_css(), unsafe_allow_html=True)      # 자비스12 와 같은 바탕(2026-11-03)
         _render_watch_page()
         _render_j13_bottom_nav("watch")
         return
@@ -5183,9 +5219,20 @@ def main() -> None:
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
     st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 화면 옷(2026-11-03 상하님 「자비스12 형식을 따라라」) — 바탕 · 테두리 · 맨 위 띠 숨김. 표식 덩어리와 규칙 덩어리를 나눠 그린다.
+    st.markdown(jarvis13_skin.MARK, unsafe_allow_html=True)
+    st.markdown(jarvis13_skin.SKIN, unsafe_allow_html=True)
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
+    # 맨 위 그림 띠 「JARVIS 13 · 시장분석」(자비스12 와 같은 띠 · 2026-11-03). 두 단추보다 먼저 그려야 맨 위에 선다.
+    # ↻ 는 자비스12 와 같다 — 담아 둔 시세를 비우고 다시 그린다. 띠를 못 그려도 아래 화면은 그대로 나온다.
+    if hero_banner.render(st, refresh_key="j13hero_refresh", mark="13"):
+        try:
+            j4data.clear_runtime_cache()
+        except Exception:
+            pass
+        st.rerun()
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     # 2026-10-31 상하님 「라」 — 설명 창은 얼린 method_help 그대로 쓰되 급락 부분(옛 66.6% · 「가장 깊었던 날」)만
     # 바로잡은 글을 넣는다(method_help 의 help_slot 자리 · 얼린 파일은 한 글자도 안 바뀐다).

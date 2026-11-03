@@ -1,0 +1,60 @@
+# 자비스12 와 자비스13 화면 사진을 나란히 찍어 따로 갈래(j13-screens)에 올린다 (2026-11-03 상하님 「자비스12 형식을 따라라」).
+# 클라우드 작업 칸은 깃허브 첨부 파일을 못 받아서, 사진만 따로 갈래에 올려 거기서 받는다. master 에는 아무것도 안 쓴다(온라인 앱 그대로).
+# 비밀번호 파일·기록 DB 는 이 실행 안에서만 임시로 만든다(올리지 않는다).
+name: 자비스13 화면 사진(자비스12 와 나란히)
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_screens.py
+      - jarvis13_skin.py
+      - pages/12_자비스13.py
+      - jarvis13_watch.py
+      - .github/workflows/j13_screens.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-screens
+  cancel-in-progress: true
+
+jobs:
+  shoot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: |
+          pip install -r requirements.txt
+          pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: 이 실행에서만 쓰는 비밀번호 파일 · 기록 폴더
+        run: |
+          mkdir -p db .streamlit
+          python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
+          # 관심종목 화면을 카드가 있는 채로 찍으려고 이 실행 안의 임시 DB 에만 셋을 넣는다(지난 날짜로 · 올리지 않는다)
+          python -c "import jarvis13_watch_store as w; w.ensure_tables(); [w.add(c, n) for c, n in (('005930','삼성전자'),('000660','SK하이닉스'),('035420','NAVER'))]; c = w._connection(); c.execute(\"UPDATE jarvis13_watch_stocks SET added_at='2026-10-20T10:00:00'\"); c.commit(); c.close()"
+      - name: 앱 띄우기
+        run: |
+          nohup streamlit run app.py --server.port 8501 --server.headless true > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8501/ > /dev/null && break; sleep 2; done
+      - name: 사진 찍기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13screens
+        run: python research/j13_screens.py
+      - name: 사진만 따로 갈래(j13-screens)에 올리기
+        run: |
+          cd "$RUNNER_TEMP/j13screens"
+          git init -q -b j13-screens
+          git config user.name "j13-screens"
+          git config user.email "j13-screens@users.noreply.github.com"
+          git add .
+          git commit -q -m "화면 사진 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-screens

@@ -1,0 +1,53 @@
+# 자비스13 한국 재무 모으기 (2026-11-03 상하님 「자비스12 형식을 따라라 · 재무현황 등도 없고」 · 「DART 빼고」).
+# 테마 명부 종목의 재무를 네이버 증권 「기업실적분석」에서 받아 data/fundamentals/KR.json 에 올린다. 화면은 그 파일만 읽는다.
+# 주 1회(토요일 06:10 KST) — 실적은 분기마다 바뀌고, 올릴 때마다 온라인 앱이 한 번 껐다 켜지므로 장 없는 날에.
+# 작업 갈래에 올릴 때는 시험으로만 돈다(앞 30종목 · 파일 안 씀). 비밀번호·열쇠는 안 쓴다.
+name: 자비스13 한국 재무 모으기
+
+on:
+  schedule:
+    - cron: "10 21 * * 5"     # 토요일 06:10 KST
+  push:
+    branches: [master-a283cq]
+    paths:
+      - jarvis13_fundamentals.py
+      - research/j13_fundamentals_collect.py
+      - .github/workflows/j13_fundamentals.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-fundamentals
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install pandas==2.3.3 lxml html5lib beautifulsoup4 requests
+      - name: 재무 받기
+        env:
+          J13_DRY: ${{ github.event_name == 'push' && '1' || '' }}
+        run: python research/j13_fundamentals_collect.py
+      - name: 저장소에 올리기 (시험이 아닐 때만)
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "j13-fundamentals"
+          git config user.email "j13-fundamentals@users.noreply.github.com"
+          git add data/fundamentals/KR.json
+          if git diff --cached --quiet; then echo "바뀐 것 없음"; exit 0; fi
+          git commit -m "한국 재무 $(TZ=Asia/Seoul date +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            sleep $((i * 10))
+          done
+          echo "올리기 실패" && exit 1
