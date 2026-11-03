@@ -210,7 +210,8 @@ def _warm_page(page, name: str, url: str, home: str, market: str) -> None:
 # 자비스13 은 첫 화면이 곧 시장분석이라 관심종목을 거치지 않는다. 테마 순위표(가장 오래 걸리는 것)가 뜰 때까지 기다리고,
 # 상승장·급락을 열쇠로 한 번씩 열어 그 목록도 담아 둔다. 자비스12 를 다 데운 **뒤**에 연다 — 자비스12 가 먼저다.
 J13_URL = f"{BASE}/자비스13?guest=1"
-J13_TABLE = "div[class*='st-key-j13_theme_table']"
+# 2026-11-04 순위표는 자비스12 처럼 기본 닫힘 — 순위를 다 센 뒤에 그려지는 「📊 N개 테마」 단추(또는 열린 표)를 기다린다.
+J13_TABLE = "div[class*='st-key-btn_j13_theme_rank_open'], div[class*='st-key-j13_theme_table']"
 
 
 def _warm_j13(page) -> None:

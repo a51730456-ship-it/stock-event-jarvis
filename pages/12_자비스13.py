@@ -329,22 +329,27 @@ st.markdown(
     @media (max-width: 1200px) {
         .st-key-j13_pullback_table [data-testid="stHorizontalBlock"],
         .st-key-j13_pullback_rest [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1180px;
+            flex-wrap: nowrap !important; min-width: 1600px;   /* 2026-11-04 실적 두 칸이 늘었다 */
         }
         /* 낙폭 표는 칸이 열 개라 900px로는 글자가 짓눌린다(2026-08-01). */
         .st-key-j13_rulebook_table [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1150px;
+            flex-wrap: nowrap !important; min-width: 1600px;   /* 2026-11-04 실적 두 칸이 늘었다 */
         }
         /* 그 표의 '16위~20위 더 보기'도 같은 폭을 받는다 — 빠뜨려서 접힌 쪽만
            칸이 세로로 쌓였다(2026-08-09 상하님 지적, 폰·태블릿 둘 다). */
         .st-key-j13_rulebook_rest [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1150px;
+            flex-wrap: nowrap !important; min-width: 1600px;
+        }
+        .st-key-j13_top7_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1250px;   /* 2026-11-04 실적 두 칸이 늘었다 */
         }
         .st-key-j13_theme_rest [data-testid="stHorizontalBlock"],
-        .st-key-j13_leader_table [data-testid="stHorizontalBlock"],
-        .st-key-j13_top7_table [data-testid="stHorizontalBlock"],
         .st-key-j13_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
+        }
+        /* 테마 종목 표는 2026-11-04 「연간 실적」·「분기 실적」 두 칸이 늘었다 — 옆으로 밀어서 본다(자비스12 와 같다). */
+        .st-key-j13_leader_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1250px;
         }
         .st-key-j13_pullback_table [data-testid="stColumn"],
         .st-key-j13_pullback_rest [data-testid="stColumn"],
@@ -354,6 +359,15 @@ st.markdown(
         .st-key-j13_top7_table [data-testid="stColumn"],
         .st-key-j13_rulebook_table [data-testid="stColumn"],
         .st-key-j13_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    /* 넓은 화면(1200px 넘음)에서도 실적 두 칸이 잘리지 않게 최소 폭을 준다(2026-11-04 · 자비스12 와 같다) — 모자라면 옆으로 민다. */
+    @media (min-width: 1201px) {
+        .st-key-j13_leader_table [data-testid="stHorizontalBlock"],
+        .st-key-j13_top7_table [data-testid="stHorizontalBlock"] { min-width: 1250px; }
+        .st-key-j13_rulebook_table [data-testid="stHorizontalBlock"],
+        .st-key-j13_rulebook_rest [data-testid="stHorizontalBlock"],
+        .st-key-j13_pullback_table [data-testid="stHorizontalBlock"],
+        .st-key-j13_pullback_rest [data-testid="stHorizontalBlock"] { min-width: 1600px; }
     }
     /* 설명서 두 갈래 단추 — 미국테마와 같은 색이다(상승장 초록 · 급락장 주황). */
     div[class*="st-key-j13_pullback_breakout"] button {
@@ -878,13 +892,21 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110304
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110401
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
 import jarvis13_skin  # noqa: E402
+import jarvis13_charts  # noqa: E402  — 종목 차트 자비스12 형식 · 누르면 크게(2026-11-04)
+_REQUIRED_J13_CHARTS_REVISION = 2026110401
+if int(getattr(jarvis13_charts, "MODULE_REVISION", 0)) < _REQUIRED_J13_CHARTS_REVISION:
+    jarvis13_charts = importlib.reload(jarvis13_charts)
+import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 자비스12 형식(2026-11-04 · 얼린 market_signal_ui 는 부르기만)
+_REQUIRED_J13_FLOW_CARD_REVISION = 2026110401
+if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
+    jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-_REQUIRED_J13_SKIN_REVISION = 2026110305
+_REQUIRED_J13_SKIN_REVISION = 2026110401
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -1504,6 +1526,48 @@ def _render_kospi_drawdown() -> None:
     )
 
 
+# ── 「📊 N개 테마」 순위표 여닫이 · 「⚡ 강한 테마 TOP 5」 카드 누르기 (2026-11-04 상하님 「테마 디자인 숨기기 하고 미국테마 형식대로」) ──
+# 자비스12(_render_strong_theme_top5 · _THEME_RANK_OPEN)와 같은 장치를 j13 이름으로 옮겼다. 자비스12 파일은 안 고침.
+_J13_THEME_RANK_OPEN = "j13_theme_rank_open"
+_J13_THEME_RANK_ANCHOR = "theme_rank"
+
+
+def _open_theme_rank() -> None:
+    st.session_state[_J13_THEME_RANK_OPEN] = True
+    back_nav.opened(st, _J13_THEME_RANK_OPEN)
+    scroll_to.request(st, _J13_THEME_RANK_ANCHOR)
+
+
+def _theme_rank_toggle(count: int) -> bool:
+    """「📊 20개 테마」 단추 — 기본 닫힘(자비스12 2026-08-14 「처음 열릴 때 순위가 열려 있게 하지 말고 닫아라」).
+    닫으면 그 표에서 연 테마 종목 화면도 같이 닫는다(자비스12 와 같다). 닫기는 누른 때에만 — 다른 길로 연 화면은 그대로 둔다."""
+    def _flip():
+        if st.session_state.get(_J13_THEME_RANK_OPEN):
+            st.session_state[_J13_THEME_RANK_OPEN] = False
+            st.session_state["j13_theme_panel_open"] = False
+        else:
+            _open_theme_rank()
+
+    is_open = bool(st.session_state.get(_J13_THEME_RANK_OPEN))
+    st.button(f"✕ {count}개 테마 실시간 순위 닫기" if is_open else f"📊 {count}개 테마",
+              key=f"btn_{_J13_THEME_RANK_OPEN}", on_click=_flip)
+    return is_open
+
+
+def _render_strong_top5(ranking: dict, count: int) -> None:
+    """「⚡ 강한 테마 TOP 5」 — 바로 밑 순위표와 같은 순위(새로 받지 않음). **카드 어디를 눌러도 순위표가 열린다**(자비스12 와 같다).
+    보이는 카드와 속이 비치는 단추를 한 통에 담아 겹친다 — 겹치기가 안 먹어도 바로 밑 「📊 N개 테마」 단추로 열 수 있다."""
+    top5 = jarvis13_skin.top5_html(
+        ranking, f'<div id="{scroll_to.anchor_id(_J13_THEME_RANK_ANCHOR)}" class="jarvis-anchor"></div>')
+    if not top5:
+        return
+    with st.container(key="j13_st5_wrap"):
+        st.markdown(top5, unsafe_allow_html=True)
+        with st.container(key="j13_st5_open"):
+            # 글자는 남긴다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 읽는다.
+            st.button(f"강한 테마 TOP 5 — {count}개 테마 열기", key="j13_st5_open_btn", on_click=_open_theme_rank)
+
+
 def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     """테마표를 그리고, 테마 이름 버튼이 눌리면 그 테마명을 돌려준다(자비스3와 같은 방식)."""
     # 폰에서도 태블릿처럼 옆으로 밀어 본다(2026-07-25 사용자 지시).
@@ -1577,10 +1641,24 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     return clicked
 
 
-_LEADER_COL_WIDTHS = [0.7, 2.0, 1.6, 0.95, 1.15, 1.05, 1.0, 1.5, 1.7, 1.15]
+# 2026-11-04 「연간 실적」·「분기 실적」 두 칸을 끝에 더했다(상하님 「캡처 화면처럼 각 파트별로 다 해라」 · 자비스12 와 같은 칸 ·
+# 재무 파일 data/fundamentals/KR.json 만 읽는다). 표가 넓어져 1,250px 보다 좁은 화면은 옆으로 밀어서 본다(아래 CSS).
+_LEADER_COL_WIDTHS = [0.7, 2.0, 1.6, 0.95, 1.15, 1.05, 1.0, 1.5, 1.7, 1.15, 1.75, 1.75]
 # 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지 여덟을 묶은 한 덩이.
 _LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
 _LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
+
+
+def _results_cells(codes) -> dict:
+    """표 칸 「연간 실적」·「분기 실적」 — {코드: (연간, 분기)}. 재무 파일을 못 읽으면 빈 사전(칸은 「—」).
+    꾸밈(RESULTS_CSS)은 표마다 한 번 같이 싣는다(같은 꾸밈이 여러 번 실려도 보이는 것은 같다)."""
+    try:
+        cells = jarvis13_fundamentals.results_cells(codes)
+    except Exception:
+        return {}
+    if cells:
+        st.markdown(jarvis13_fundamentals.RESULTS_CSS, unsafe_allow_html=True)
+    return cells
 
 
 def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str | None:
@@ -1597,9 +1675,10 @@ def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str 
     head[2].markdown(
         _flex_row(_LEADER_REST_WIDTHS, ["조건점수", "당일", "52주 고가 대비", "20일 수익률",
                                         "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)",
-                                        "매수 상태"], head=True),
+                                        "매수 상태", "연간 실적", "분기 실적"], head=True),
         unsafe_allow_html=True,
     )
+    results = _results_cells([leader.get("code") for leader in leaders[:6]])
 
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     button_css = []
@@ -1634,6 +1713,7 @@ def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str 
                 _partner5_cell(flow),
                 _partner20_cell(flow),
                 str(plan.get("state", "")),
+                *results.get(str(leader.get("code") or "").strip(), ("—", "—")),
             ]),
             unsafe_allow_html=True,
         )
@@ -1946,9 +2026,9 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
     # 눌러야 열린다(2026-07-30 사용자 지시). 세 종목 × 차트 세 벌이라 늘 그리면
     # 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
     if not _section_toggle(
-        "🏅 대장주 1~3위 · 당일/일봉/주봉 비교 — 클릭하면 볼 수 있습니다",
+        "🏅 대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 클릭하면 볼 수 있습니다",
         "j13_leadercmp_open",
-        close_label="대장주 1~3위 · 당일/일봉/주봉 비교 — 다시 클릭하면 닫힙니다",
+        close_label="대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 다시 클릭하면 닫힙니다",
     ):
         return
     for leader in leaders[:3]:
@@ -1957,7 +2037,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
         medal = _MEDAL_BY_RANK.get(rank, "") if float(leader["score"]) >= 80 else ""
         medal_html = f"<span class='j4-medal'>{medal}</span> " if medal else ""
         with st.container(border=True):
-            left, intraday_col, daily_col, weekly_col = st.columns([1.0, 1.15, 1.15, 1.15])
+            left, charts_col = st.columns([1.0, 3.45])
             with left:
                 st.markdown(
                     f"<div class='j4-leader-name'>{medal_html}{rank}위 · {leader['name']}</div>",
@@ -1979,28 +2059,17 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     st.caption(f"외국인+기관 5일 {_eok(flow.get('net5_amount'))}")
                     st.markdown(_flow_marks_html(flow), unsafe_allow_html=True)
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
-            bundle = j4data.get_chart_bundle(leader["code"])
-            charts = bundle.get("charts", {}) if bundle.get("ok") else {}
-            with intraday_col:
-                st.caption("당일 · 실시간(지연 가능)")
-                intraday = j4data.get_intraday_chart(leader["code"])
-                if intraday and intraday.get("ok"):
-                    st.altair_chart(_intraday_chart(intraday), width="stretch", theme="streamlit")
-                    st.caption(f"기준 {intraday.get('source_time') or '시각 확인 불가'}")
+            # 당일 · 일봉 · 주봉 · 월봉 — 선택종목 세부사항과 같은 판(2026-11-04 · 자비스12 「대장주 1~3위」와 같다 ·
+            # 칸을 누르면 크게 뜬다). 스위치 앞머리는 종목마다 달라야 한다 — 세 종목이 한 화면에 선다.
+            with charts_col:
+                boxes = jarvis13_charts.boxes_for(leader["code"], j4data)
+                if boxes:
+                    zoom_id = "j13cz-lead-" + re.sub(r"[^A-Za-z0-9]", "_", str(leader.get("code") or rank))
+                    st.markdown(jarvis13_charts.zoom_html(boxes, zoom_id), unsafe_allow_html=True)
                 else:
-                    st.info("당일 자료 없음")
-            with daily_col:
-                st.caption("일봉 · 최근 120거래일")
-                if charts.get("일봉", {}).get("ok"):
-                    st.altair_chart(_price_chart(charts["일봉"], height=210), width="stretch", theme="streamlit")
-                else:
-                    st.info("일봉 자료 없음")
-            with weekly_col:
-                st.caption("주봉 · 최근 60주")
-                if charts.get("주봉", {}).get("ok"):
-                    st.altair_chart(_price_chart(charts["주봉"], height=210), width="stretch", theme="streamlit")
-                else:
-                    st.info("주봉 자료 없음")
+                    st.info("차트 자료 없음")
+    # 맨 밑에도 닫기 단추(자비스12 2026-09-25 — 세 종목 차트가 폰에서 화면 몇 장이라 위 단추까지 안 올라가고 닫게).
+    _section_close("j13_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기")
 
 
 def _kr_flow_hint() -> str:
@@ -2593,46 +2662,28 @@ def _render_day_price_row(metrics: dict) -> None:
 
 
 def _render_guest_stock_charts(code: str, panel: str) -> None:
-    """게스트 상세에서 점수판을 제외한 당일·일봉·주봉·월봉은 그대로 그린다."""
-    show_intraday = _section_toggle(
-        "📈 당일 · 실시간 차트 보기", f"j13_intraday_open_{panel}",
-        close_label="당일 차트 닫기",
-    )
-    intraday_error = ""
-    intraday_payload = None
-    if show_intraday:
-        try:
-            intraday_payload = j4data.get_intraday_chart(code)
-        except Exception as exc:
-            intraday_error = _safe_error_text(exc)
-        intraday_col, _, _ = st.columns(3)
-        with intraday_col:
-            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-                st.altair_chart(
-                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
-                                    small=True),
-                    width="content", theme="streamlit",
-                )
-                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-            elif intraday_error:
-                st.info(f"당일 자료 없음 — {intraday_error}")
-            else:
-                st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
-        _section_close(f"j13_intraday_open_{panel}", "당일 차트 닫기")
+    """게스트 상세에서 점수판을 제외한 당일·일봉·주봉·월봉은 그대로 그린다(자비스12 형식 한 판 · 2026-11-04)."""
+    _render_price_chart_bundle(code, panel)
 
-    if not _section_toggle(
-        "📊 일봉 · 주봉 · 월봉 보기", f"j13_bundle_open_{panel}",
-        close_label="일봉·주봉·월봉 닫기",
-    ):
+
+def _render_price_chart_bundle(code: str, panel: str) -> None:
+    """선택 종목의 **당일 · 일봉 · 주봉 · 월봉 넷을 한 판에** — 자비스12 _render_price_chart_bundle 과 같은 모양 (2026-11-04).
+
+    칸을 누르면 크게 뜨고, 뜬 창이나 어두운 바탕을 누르면 닫힌다(jarvis13_charts · 서버에 다시 묻지 않는다).
+    폰은 둘씩 두 줄 · 넓은 화면(1200px 넘음)은 넷이 한 줄. 일봉은 봉차트(여섯 달). 자료는 자비스4 와 같은 것을 그린다.
+    """
+    key = f"j13_bundle_open_{panel}"
+    if not _section_toggle("📊 당일 · 일봉 · 주봉 · 월봉 보기", key, close_label="차트 닫기"):
         return
-    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-               "거래량은 일봉 아래에 함께 표시됩니다.")
-    chart_bundle = j4data.get_chart_bundle(code)
-    if chart_bundle.get("ok"):
-        _render_chart_bundle_body(chart_bundle, panel)
+    st.caption("일봉은 봉차트(여섯 달 · 오른 날 빨강·내린 날 파랑), 당일·주봉·월봉은 시작한 값(당일은 전일 종가) 점선 "
+               "위는 빨강·아래는 파랑입니다. 20선은 주황색 · 50선은 보라색입니다. 칸을 누르면 크게 보입니다.")
+    boxes = jarvis13_charts.boxes_for(code, j4data)
+    if not boxes:
+        st.warning("차트 자료가 없습니다.")
     else:
-        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
-    _section_close(f"j13_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
+        zoom_id = "j13cz-" + re.sub(r"[^A-Za-z0-9]", "_", f"{panel}_{code}")
+        st.markdown(jarvis13_charts.zoom_html(boxes, zoom_id), unsafe_allow_html=True)
+    _section_close(f"j13_bundle_open_{panel}", "차트 닫기")
 
 
 def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
@@ -2713,8 +2764,41 @@ def _render_disclosures_box(code: str, name: str, *, panel: str) -> None:
     _section_close(key, "최근 공시 닫기")
 
 
-def _render_fundamentals_box(code: str, metrics: dict | None = None) -> None:
-    """「📑 재무 한눈에 보기」 — 누르면 펴지는 상자(브라우저가 여닫는다 · 서버에 안 묻는다). 못 모은 종목은 한 줄만."""
+_J13FZ_CSS = (
+    "<style>"
+    # 자비스12 「📑 재무 한눈에 보기」(us_fundamentals label.j3fn-open · j3cz 창)와 같은 단추 띠 · 같은 창 움직임 — 이름만 j13fz
+    ".j13fz{position:relative;margin:.35rem 0 .5rem}"
+    ".j13fz-tap{position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0}"
+    "label.j13fz-open{display:flex;align-items:center;justify-content:center;width:100%;box-sizing:border-box;"
+    "min-height:2.5rem;padding:.35rem .75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.22);cursor:pointer;color:#fff;"
+    "font-weight:700;background:linear-gradient(90deg,rgba(32,201,151,.30) 0%,rgba(77,166,255,.34) 55%,rgba(124,58,237,.34) 100%)}"
+    ".j13fz-scrim{position:fixed;inset:0;z-index:2147483646;cursor:zoom-out;background:rgba(1,8,22,.8);opacity:0;"
+    "visibility:hidden;transition:opacity .3s ease,visibility 0s linear .56s}"
+    ".j13fz-pop{position:fixed;left:50%;top:50%;z-index:2147483647;cursor:zoom-out;width:min(calc(100vw - 16px),960px);"
+    "max-height:calc(100dvh - 16px);overflow-y:auto;box-sizing:border-box;padding:16px 14px 12px;border-radius:22px;"
+    "background:#0d2344;border:1px solid rgba(157,204,255,.45);box-shadow:0 18px 50px rgba(0,0,0,.6);display:flex;"
+    "flex-direction:column;gap:8px;opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-50%) scale(.55);"
+    "transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),visibility 0s linear .56s}"
+    ".j13fz-tap:checked ~ .j13fz-scrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}"
+    ".j13fz-tap:checked ~ .j13fz-pop{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,-50%) scale(1);"
+    "transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s}"
+    ".j13fz-name{color:#9dccff;font-size:1.15rem;font-weight:800}"
+    ".j13fz-close{align-self:center;font-size:.78rem;color:#8fb4de}"
+    # 닫혀 있는 동안은 창 속을 그리지 않는다(자비스12 2026-10-07 — 숨은 창을 늘 그리면 느린 폰에서 세부사항이 늦게 떴다)
+    ".j13fz-pop .j13fn{content-visibility:hidden;transition:content-visibility 0s linear .56s allow-discrete}"
+    ".j13fz-tap:checked ~ .j13fz-pop .j13fn{content-visibility:visible;transition-delay:0s}"
+    # 창이 떠 있는 동안 밑 막대를 숨긴다 — 창 아래쪽을 눌렀는데 투명한 막대 단추가 눌려 다른 화면으로 가면 안 된다(자비스12 와 같다)
+    "body:has(.j13fz-tap:checked) div.st-key-j13b_nav_controls,body:has(.j13fz-tap:checked) .j13b-bottom-nav{visibility:hidden!important}"
+    "@media (prefers-reduced-motion: reduce){.j13fz-pop,.j13fz-scrim{transition:none!important}}"
+    "</style>"
+)
+
+
+def _render_fundamentals_box(code: str, metrics: dict | None = None, *, panel: str = "") -> None:
+    """「📑 재무 한눈에 보기」 — 자비스12 형식(2026-11-04 상하님 「재무 한눈에 보기 이것도 클릭하면 열리고 닫히고 · 미국테마 형식」).
+
+    단추를 누르면 창이 튀어 오르고, 창 어디든(또는 어두운 바탕을) 다시 누르면 닫힌다. 창은 처음부터 숨겨 같이 그려 두고
+    숨은 스위치로 여닫는다 — 눌러도 서버에 안 묻어 곧바로 뜬다(자비스12 와 같다). 못 모은 종목은 한 줄만."""
     try:
         price = (metrics or {}).get("current") or (metrics or {}).get("close")
         info = jarvis13_fundamentals.summary(code, price)
@@ -2724,11 +2808,16 @@ def _render_fundamentals_box(code: str, metrics: dict | None = None) -> None:
         st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 "
                     "없습니다(테마 명부 종목만 주 1회 모읍니다).</div>", unsafe_allow_html=True)
         return
+    tap_id = "j13fz-" + re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{code}")
     st.markdown(
-        jarvis13_fundamentals.CSS
-        + "<details class='j13fn-box'><summary>📑 재무 한눈에 보기</summary>"
-        + f"<div class='j13fn-name'>{html.escape(str(info.get('name') or code))} · {html.escape(code)} · 재무 한눈에</div>"
-        + jarvis13_fundamentals.card_html(info) + "</details>",
+        jarvis13_fundamentals.CSS + _J13FZ_CSS
+        + f"<div class='j13fz'><input type='checkbox' id='{tap_id}' class='j13fz-tap'>"
+        + f"<label for='{tap_id}' class='j13fz-open'>📑 재무 한눈에 보기</label>"
+        + f"<label for='{tap_id}' class='j13fz-scrim' aria-hidden='true'></label>"
+        + f"<label for='{tap_id}' class='j13fz-pop'>"
+        + f"<span class='j13fz-name'>{html.escape(str(info.get('name') or code))} · {html.escape(code)} · 재무 한눈에</span>"
+        + jarvis13_fundamentals.card_html(info)
+        + "<span class='j13fz-close'>다시 누르면 닫힘</span></label></div>",
         unsafe_allow_html=True,
     )
 
@@ -2766,7 +2855,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     )
     # 「📑 재무 한눈에」(2026-11-03 상하님 「재무현황 등도 없고」) — 자비스12 와 같은 자리(종목 이름 밑). 깃허브가 모은
     # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
-    _render_fundamentals_box(code, metrics)
+    _render_fundamentals_box(code, metrics, panel=panel)
     # 「📢 최근 공시 30일」(2026-11-04 상하님 「DART 하자」) — 누를 때만 OpenDART 에서 받는다 · 점수·판정에 안 씀.
     _render_disclosures_box(code, leader.get("name") or code, panel=panel)
     # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
@@ -2948,53 +3037,10 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     _render_daily_prices(code, leader.get("name") or code, panel=panel)   # 자비스12 에서 옮김(2026-10-30)
     _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
 
-    # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25
-    # 사용자 지적, 미국테마와 같은 처리). 대장주와 같은 자료·같은 차트를 쓴다.
-    # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
-    # 늘 그리면 종목을 고를 때마다 분봉·일봉·주봉·월봉을 다 받아 와 느려진다.
-    show_intraday = _section_toggle(
-        "📈 당일 · 실시간 차트 보기", f"j13_intraday_open_{panel}",
-        close_label="당일 차트 닫기",
-    )
-    intraday_error = ""
-    intraday_payload = None
-    if show_intraday:
-        try:
-            intraday_payload = j4data.get_intraday_chart(code)
-        except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
-            intraday_error = _safe_error_text(exc)
-    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
-    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
-    # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
-    if show_intraday:
-        intraday_col, _, _ = st.columns(3)
-        with intraday_col:
-            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-                st.altair_chart(
-                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
-                                    small=True),
-                    width="content", theme="streamlit",
-                )
-                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-            elif intraday_error:
-                st.info(f"당일 자료 없음 — {intraday_error}")
-            else:
-                st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
-        _section_close(f"j13_intraday_open_{panel}", "당일 차트 닫기")
-
-    if _section_toggle(
-        "📊 일봉 · 주봉 · 월봉 보기", f"j13_bundle_open_{panel}",
-        close_label="일봉·주봉·월봉 닫기",
-    ):
-        st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-                   "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
-                   "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다.")
-        chart_bundle = j4data.get_chart_bundle(code)
-        if chart_bundle.get("ok"):
-            _render_chart_bundle_body(chart_bundle, panel)
-        else:
-            st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
-        _section_close(f"j13_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
+    # 차트 — 자비스12 형식(2026-11-04 상하님 「각 차트 전체 다 확인하고 미국테마 형식처럼 누르면 확대 열리고 닫히고」).
+    # 예전 「📈 당일 · 실시간 차트 보기」 · 「📊 일봉 · 주봉 · 월봉 보기」 두 단추를 자비스12 처럼 **한 단추 · 한 판**으로 묶었다.
+    # 눌러야 받아 온다(2026-07-30 · 로딩 단축 그대로).
+    _render_price_chart_bundle(code, panel)
 
     # **넷 중 둘은 바로 위를 소리 내어 다시 읽는 것이었다**(2026-08-07, 미국테마와
     # 같은 정리). '종목 근거'는 배점표가, '매수 근거'는 매수 심사 카드가 이미
@@ -3628,23 +3674,12 @@ def _render_radar_tab(market: dict) -> None:
 전 종목이 0점이 됐습니다. 신고가 항목의 범위가 −45~0인 것은 그 때문이고 지금도 같습니다.
             """
         )
-    # 「⚡ 강한 테마 TOP 5」(2026-11-03 · 자비스12 형식) — 바로 밑 표와 같은 순위를 그대로 쓴다(새로 받지 않음).
-    top5 = jarvis13_skin.top5_html(ranking)
-    if top5:
-        st.markdown(top5, unsafe_allow_html=True)
-    st.markdown(f"### 오늘의 강한 테마 {len(ranking['rows'])} · 실시간 순위")
-    entered, dropped = ranking.get("entered") or [], ranking.get("dropped") or []
-    change_text = ""
-    if entered:
-        change_text += f" · <span style='color:#ff5b5b'>신규 진입 {len(entered)}개({', '.join(entered[:3])})</span>"
-    if dropped:
-        change_text += f" · <span style='color:#4da6ff'>탈락 {len(dropped)}개({', '.join(dropped[:3])})</span>"
-    st.markdown(
-        f"<div class='j4-muted'>네이버 {ranking.get('total_scanned', 0)}개 테마 전체에서 매일 자동 선정합니다 — "
-        f"강한 테마는 새로 들어오고 가장 약한 테마는 자동 탈락{change_text}</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("표에서 테마 이름을 클릭하면 대장주·상세가 그 테마로 연결됩니다.")
+    # 「⚡ 강한 테마 TOP 5」 + 「📊 N개 테마」 여닫이 (2026-11-04 상하님 「테마 디자인 숨기기 하고 미국테마 형식대로 해라 ·
+    # 테마 5개 그래프 미국 테마처럼 해라」) — 자비스12 와 같다: 순위표는 **기본 닫힘** · TOP 5 카드 어디를 눌러도 열림 ·
+    # 막대는 화면에 들어오면 한 번 차오름 · 닫으면 그 표에서 연 테마 종목 화면도 닫힘. 순위·점수는 그대로(같은 ranking).
+    rank_count = len(ranking["rows"])
+    _render_strong_top5(ranking, rank_count)
+    rank_open = _theme_rank_toggle(rank_count)
 
     names = [row["name"] for row in ranking["rows"]]
 
@@ -3652,18 +3687,33 @@ def _render_radar_tab(market: dict) -> None:
     # 자기 자리(아래 눌림목 상세)에서만 열리므로 위쪽 테마를 건드릴 이유가 없다.
     st.session_state.pop("j13_pending_pick", None)
 
-    clicked_theme = _render_theme_table(ranking, st.session_state.get("j13_theme_choice"))
+    clicked_theme = None
+    if rank_open:
+        entered, dropped = ranking.get("entered") or [], ranking.get("dropped") or []
+        change_text = ""
+        if entered:
+            change_text += f" · <span style='color:#ff5b5b'>신규 진입 {len(entered)}개({', '.join(entered[:3])})</span>"
+        if dropped:
+            change_text += f" · <span style='color:#4da6ff'>탈락 {len(dropped)}개({', '.join(dropped[:3])})</span>"
+        st.markdown(
+            f"<div class='j4-muted'>네이버 {ranking.get('total_scanned', 0)}개 테마 전체에서 매일 자동 선정합니다 — "
+            f"강한 테마는 새로 들어오고 가장 약한 테마는 자동 탈락{change_text}</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("표에서 테마 이름을 클릭하면 대장주·상세가 그 테마로 연결됩니다.")
+        clicked_theme = _render_theme_table(ranking, st.session_state.get("j13_theme_choice"))
     if clicked_theme in names:
         st.session_state["j13_theme_choice"] = clicked_theme
         st.session_state["j13_theme_choice_widget"] = clicked_theme
         st.session_state["j13_theme_panel_open"] = True
         # 연 자리가 표 아래라 직접 굴려 내려가야 했다. 열면서 같이 내려간다.
         scroll_to.request(st, "theme_stocks")
-    _render_theme_finder(forced)
+    if rank_open:
+        _render_theme_finder(forced)
 
     # 21위 밖으로 밀린 테마도 볼 수 있게 한다 — 찾던 테마가 왜 안 보이는지 확인용
-    # (2026-07-22 사용자 지적: 금융주 테마가 목록에서 사라졌다).
-    next_rows = ranking.get("next_rows") or []
+    # (2026-07-22 사용자 지적: 금융주 테마가 목록에서 사라졌다). 순위표를 열었을 때만(2026-11-04 · 자비스12 형식).
+    next_rows = (ranking.get("next_rows") or []) if rank_open else []
     if next_rows:
         with st.expander(f"21위 밖 테마 {len(next_rows)}개 보기 (오늘 기준 미달로 빠진 테마)", expanded=False):
             lines = [
@@ -3677,7 +3727,8 @@ def _render_radar_tab(market: dict) -> None:
                 "여기 있는 테마는 오늘 점수가 20위 안에 못 든 것뿐이며, 다음 조회에서 점수가 오르면 "
                 "자동으로 다시 올라옵니다. 어제 상위권이었던 테마는 오늘 등락률이 낮아도 계속 심사합니다."
             )
-    st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 한국 휴장일에는 마지막 거래일 자료")
+    if rank_open:
+        st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 한국 휴장일에는 마지막 거래일 자료")
 
     if st.session_state.get("j13_theme_choice_widget") not in names:
         preferred = st.session_state.get("j13_theme_choice")
@@ -3906,8 +3957,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     )
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세가 열립니다.")
-    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
-    titles = ["순위", "종목", "조건점수", "매수 상태", "현재가", "어느 분야"]
+    # 끝에 「연간 실적」·「분기 실적」 두 칸(2026-11-04 상하님 「각 파트별로 다 해라」 · 자비스12 순위 9 와 같은 칸).
+    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6, 1.75, 1.75]
+    titles = ["순위", "종목", "조건점수", "매수 상태", "현재가", "어느 분야", "연간 실적", "분기 실적"]
+    results = _results_cells([row.get("code") for row in rows])
     box = st.container(key="j13_top7_table")
     for column, title in zip(box.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -3949,6 +4002,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             f"<div class='j4-td j4-muted j4-top7-src' title='{html.escape(source_text)}'>"
             f"{html.escape(source_text)}</div>",
             unsafe_allow_html=True)
+        for place, cell in zip((6, 7), results.get(str(row.get("code") or "").strip(), ("—", "—"))):
+            cols[place].markdown(f"<div class='j4-td'>{cell}</div>", unsafe_allow_html=True)
     # 종목 이름 단추는 '테마 종목 1–6위' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
@@ -4338,10 +4393,11 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07,
     # 미국테마와 같은 이름). 오늘 값만 두면 이미 반등한 종목인지 알 수 없다.
     split_drop = bool(not breakout and rows and rows[0].get("judged_from_high_pct") is not None)
+    # 끝에 「연간 실적」·「분기 실적」 두 칸(2026-11-04 상하님 「캡처 화면처럼 각 파트별로 다 해라」 · 자비스12 와 같은 칸).
     if split_drop:
-        widths = [0.55, 1.85, 1.75, 1.25, 1.15, 1.15, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
+        widths = [0.55, 1.85, 1.75, 1.25, 1.15, 1.15, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5, 1.75, 1.75]
     else:
-        widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
+        widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5, 1.75, 1.75]
     # 일곱째 칸은 갈래마다 다르다. 2026-08-07 재측정으로 **60일 상승폭의 뜻이
     # 뒤집혔다** — 예전에는 많이 오를수록 좋았는데(만점 25점) 창을 밀며 다시 재니
     # 40% 넘게 오른 쪽이 거의 모든 창에서 졌다. 그래서 칸 이름도 바꾼다.
@@ -4353,7 +4409,9 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     headers = (["동반 5일 (외국인+기관)", "당일주가"] + drop_heads
                + ["소속 테마", "신고가" if breakout else "갈래", "보유일수",
                   "같이 걸린 종목",
-                  "최근 60일 (40%↑면 0점)" if breakout else "거래대금 (평소 대비)"])
+                  "최근 60일 (40%↑면 0점)" if breakout else "거래대금 (평소 대비)",
+                  "연간 실적", "분기 실적"])
+    results = _results_cells([row.get("code") for row in rows])
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j13_rulebook_table")
@@ -4500,7 +4558,7 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"{int(row.get('together_count') or 0)}개</span>"
         )
         cells = [_partner5_cell(row.get("flow") or {})] + price_and_high + [
-            together, volume_cell
+            together, volume_cell, *results.get(str(row.get("code") or "").strip(), ("—", "—"))
         ]
         cols[2].markdown(_flex_row(rest_widths, cells), unsafe_allow_html=True)
     st.caption(
@@ -4761,7 +4819,9 @@ def _render_pullback_finder() -> None:
             return
         rows = kept
 
-    widths = [0.55, 2.0, 1.4, 1.1, 1.6, 1.15, 1.05, 0.8, 1.7, 2.0, 1.5, 1.2, 1.1]
+    # 끝에 「연간 실적」·「분기 실적」 두 칸(2026-11-04 상하님 「각 파트별로 다 해라」 · 자비스12 와 같은 칸).
+    widths = [0.55, 2.0, 1.4, 1.1, 1.6, 1.15, 1.05, 0.8, 1.7, 2.0, 1.5, 1.2, 1.1, 1.75, 1.75]
+    results = _results_cells([row.get("code") for row in rows])
     # 코드 칸은 뺐다 — 태블릿에서 수급·동반 칸이 서로 겹쳤다(2026-07-25 사용자 지적).
     # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
     # 테마표·대장주표와 같은 이유로 한 줄을 세 칸으로만 나눈다 — 칸마다 요소를
@@ -4777,7 +4837,8 @@ def _render_pullback_finder() -> None:
     head[2].markdown(
         _flex_row(rest_widths, ["눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
                                 "테마수", "수급(대금%)", "동반(최근 → 5일 전)",
-                                "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"],
+                                "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수",
+                                "연간 실적", "분기 실적"],
                   head=True),
         unsafe_allow_html=True,
     )
@@ -4795,7 +4856,8 @@ def _render_pullback_finder() -> None:
         over_head[2].markdown(
             _flex_row(rest_widths, ["눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
                                     "테마수", "수급(대금%)", "동반(최근 → 5일 전)",
-                                    "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"],
+                                    "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수",
+                                "연간 실적", "분기 실적"],
                       head=True),
             unsafe_allow_html=True,
         )
@@ -4856,6 +4918,7 @@ def _render_pullback_finder() -> None:
                 f"<span style='color:#44f0a1; font-weight:800'>"
                 f"{f'{float(peak):.1f}' if peak is not None else '—'}</span>",
                 f"<span style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</span>",
+                *results.get(str(row.get("code") or "").strip(), ("—", "—")),
             ]),
             unsafe_allow_html=True,
         )
@@ -5322,8 +5385,10 @@ def main() -> None:
     _render_market_overview()
     market = st.session_state.get("j13_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()
-    # 시장판단 화면의 한국장 기관 수급 반전 카드를 그대로 가져온다(자비스4 전용).
-    market_signal_ui.render_kr_flow_card()
+    # 시장판단 화면의 한국장 기관 수급 반전 카드(market_signal_ui.render_kr_flow_card)를 자비스12 「미국장 시장 상태」 형식으로
+    # (2026-11-04 상하님 「이것도 미국테마 디자인처럼 · 누르면 직전 저장이 나와야지」) — 당일 계기판 하나 · 「자세히 보기」를
+    # 누르면 직전 저장까지 든 카드 전체. 판정·계산은 같은 함수를 부르기만 한다(jarvis13_flow_card).
+    jarvis13_flow_card.render()
     st.divider()
     section = st.radio(
         "자비스13 보기",
@@ -5358,5 +5423,27 @@ try:
     import build_stamp
 
     build_stamp.render(st)
+except Exception:
+    pass
+
+# 「⚡ 강한 테마 TOP 5」 막대 — 화면에 들어오면 **한 번** 차오르게 (2026-11-04 상하님 「테마 5개 그래프 미국 테마처럼 해라」).
+# 자비스12 의 _ST5_WATCH 와 같은 장치(jarvis13_skin.ST5_WATCH · 이름은 j13). 카드 옆이 아니라 **맨 끝**에 심는다 — 카드와
+# 「📊 N개 테마」 단추 사이에 높이 0 짜리 칸이 끼면 틈이 벌어진다(자비스12 2026-09-11 실측). 실패해도 막대는 그냥 서 있다.
+try:
+    import json as _json
+    import streamlit.components.v1 as _components
+
+    _components.html(
+        "<script>(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j13-st5-watch')){return;}"
+        "var s=d.createElement('script');s.id='j13-st5-watch';"
+        f"s.textContent={_json.dumps(jarvis13_skin.ST5_WATCH)};d.head.appendChild(s);}}catch(e){{}}}})();"
+        # 차트 칸을 누르면 큰 창에 그 그림을 베껴 넣는 손잡이(jarvis13_charts.CLONE_JS · 2026-11-04) — 같은 칸에 싣는다.
+        "(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j13cz-clone-script')){return;}"
+        "var s=d.createElement('script');s.id='j13cz-clone-script';"
+        f"s.textContent={_json.dumps(jarvis13_charts.CLONE_JS)};d.body.appendChild(s);}}catch(e){{}}}})();</script>",
+        height=0,
+    )
 except Exception:
     pass

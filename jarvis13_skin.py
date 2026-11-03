@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-MODULE_REVISION = 2026110305
+MODULE_REVISION = 2026110401
 TITLE_CLASS = "j13-page-title"
 
 # 표식 + 맨 위 여백 · 숨은 칸 · 단추 자리 — 자비스12 j12-market-top 덩어리와 같은 줄(이름표만 j13).
@@ -152,8 +152,11 @@ def _top5_icon(name) -> str:
             f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_TOP5_ICONS[key]}</svg>')
 
 
-def top5_html(ranking: dict) -> str:
-    """순위의 앞 다섯(자료를 받은 것만). 못 받았으면 빈 글 — 빈 카드가 자리만 먹지 않게."""
+def top5_html(ranking: dict, anchor_html: str = "") -> str:
+    """순위의 앞 다섯(자료를 받은 것만). 못 받았으면 빈 글 — 빈 카드가 자리만 먹지 않게.
+
+    anchor_html — 카드를 눌러 순위표를 열 때 화면이 올라올 자리 표시. 자비스12 처럼 **카드 안에** 찍는다(따로 칸을 만들면
+    높이 0 짜리가 한 칸으로 세어져 틈이 벌어진다 · 자비스12 2026-09-11 실측)."""
     import html as _html
 
     rows = [row for row in (ranking or {}).get("rows") or [] if row.get("ok")][:5]
@@ -171,7 +174,8 @@ def top5_html(ranking: dict) -> str:
                      f'<b>{_html.escape(str(row.get("name") or ""))}</b>'
                      f'<span class="j13-st5-bar"><i style="width:{width:.1f}%"></i></span><strong>{score}</strong></div>')
     return (TOP5_CSS + '<div class="j13-st5"><div class="j13-st5-head"><span class="j13-st5-flash">⚡</span>'
-            '<b>강한 테마 TOP 5</b><span class="j13-st5-unit">테마 점수 / 100</span></div>' + "".join(lines) + "</div>")
+            '<b>강한 테마 TOP 5</b><span class="j13-st5-unit">테마 점수 / 100</span></div>' + "".join(lines)
+            + anchor_html + "</div>")
 
 
 TOP5_CSS = """<style>
@@ -190,6 +194,50 @@ TOP5_CSS = """<style>
 .j13-st5-icon svg{width:15px;height:15px}
 .j13-st5-row b{color:#edf5ff;font-size:14px;font-weight:600;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .j13-st5-bar{height:6px;border-radius:3px;background:#122740;overflow:hidden}
-.j13-st5-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#0860eb,#42caff);box-shadow:0 0 10px rgba(40,180,255,.35)}
+.j13-st5-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#0860eb,#42caff);box-shadow:0 0 10px rgba(40,180,255,.35);
+  transform-origin:left center}
 .j13-st5-row strong{color:#f8cc70;font-size:15px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+@keyframes j13-st5-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes j13-st5-regrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.j13-st5.j13-st5-play .j13-st5-bar i{animation:j13-st5-grow 1.4s cubic-bezier(.33,0,.2,1) both}
+div.st-key-j13_st5_wrap:hover .j13-st5:not(.j13-st5-play) .j13-st5-bar i{animation:j13-st5-regrow 1.4s cubic-bezier(.33,0,.2,1)}
+@media (prefers-reduced-motion: reduce){.j13-st5 .j13-st5-bar i{animation:none!important}}
+div.st-key-j13_st5_wrap{position:relative!important}
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open{position:absolute!important;inset:0!important;margin:0!important;padding:0!important;z-index:6!important}
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open [data-testid="stVerticalBlock"],
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open [data-testid="stElementContainer"],
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open [data-testid="stButton"]{width:100%!important;height:100%!important;margin:0!important;
+  padding:0!important;gap:0!important;max-width:none!important}
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open button{width:100%!important;height:100%!important;min-height:0!important;margin:0!important;
+  padding:0!important;border:0!important;border-radius:16px!important;background:transparent!important;box-shadow:none!important;
+  color:transparent!important;pointer-events:auto!important;touch-action:manipulation!important}
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open button p{color:transparent!important}
+div.st-key-j13_st5_wrap div.st-key-j13_st5_open button:hover{background:rgba(66,202,255,.07)!important}
 </style>"""
+
+# 막대가 화면에 들어오면 **한 번** 왼쪽에서 오른쪽으로 차오르게 — 자비스12 _ST5_WATCH 와 같은 장치(2026-11-04 상하님 「테마 5개
+# 그래프 미국테마처럼」). 이름(window.__j13St5Watch · j13-st5-play · data-j13-armed)은 j13 — 자비스12 것과 같으면 먼저 연 화면의
+# 장치만 심겨 다른 화면 카드가 안 돈다(CLAUDE.md 0-2 ⑤). 실패해도 막대는 그냥 서 있다(지금까지와 같다).
+ST5_WATCH = """
+(function(){
+  if (window.__j13St5Watch) { return; }
+  window.__j13St5Watch = true;
+  function arm() {
+    document.querySelectorAll('.j13-st5:not([data-j13-armed])').forEach(function (card) {
+      card.setAttribute('data-j13-armed', '1');
+      if (!('IntersectionObserver' in window)) { return; }
+      var watcher = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) { return; }
+          watcher.disconnect();
+          card.classList.add('j13-st5-play');
+          window.setTimeout(function () { card.classList.remove('j13-st5-play'); }, 1600);
+        });
+      }, { threshold: 0.4 });
+      watcher.observe(card);
+    });
+  }
+  arm();
+  window.setInterval(arm, 800);
+})();
+"""

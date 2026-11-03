@@ -362,6 +362,7 @@ class Jarvis13PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            app.session_state["j13_theme_rank_open"] = True      # 2026-11-04 순위표는 기본 닫힘 — 연 채로 시험
             app.run(timeout=90)
             self.assertFalse(app.session_state.filtered_state.get("j13_theme_panel_open", False))
             self.assertFalse([
@@ -429,9 +430,10 @@ class Jarvis13PageTests(unittest.TestCase):
         self.assertIn("<div class='j13-page-title'>한국 전체시장 판단</div>", markdowns)
         # 시장판단의 한국장 기관 수급 반전 카드를 그대로 가져왔는지
         self.assertIn("한국장 시장 상태", markdowns)
-        # 동적 테마 선정 문구와 테마표
-        self.assertIn("오늘의 강한 테마", markdowns)
-        self.assertIn("자동 탈락", markdowns)
+        # 동적 테마 선정 — 순위표는 자비스12 처럼 기본 닫힘(2026-11-04) · TOP 5 카드와 「📊 N개 테마」 단추가 선다
+        self.assertIn("강한 테마 TOP 5", markdowns)
+        self.assertTrue([node for node in app.button if str(node.key or "") == "btn_j13_theme_rank_open"])
+
         # 종목 상세와 한국형 6개 항목
         self.assertIn("SK하이닉스", markdowns)
         self.assertIn("수급(외국인+기관)", markdowns)
@@ -599,7 +601,7 @@ class Jarvis13PageTests(unittest.TestCase):
         self.assertIn('.st-key-j13_rulebook_table [data-testid="stColumn"],', source)
         # 칸이 열 개라 900px로는 글자가 짓눌린다 — 자기 폭을 따로 갖는다(2026-08-01).
         block = source.split('.st-key-j13_rulebook_table [data-testid="stHorizontalBlock"] {')[1]
-        self.assertIn("min-width: 1150px", block.split("}")[0])
+        self.assertIn("min-width: 1600px", block.split("}")[0])   # 2026-11-04 연간·분기 실적 두 칸이 늘어 1150 → 1600
 
     def test_korea_shows_its_own_numbers_never_the_us_ones(self):
         """2026-08-01에 한국 자료로 직접 쟀다. 미국 성적은 여전히 옮겨 적지 않는다."""
@@ -637,7 +639,8 @@ class Jarvis13PageTests(unittest.TestCase):
         """
         source = Path("pages/12_자비스13.py").read_text(encoding="utf-8")
         self.assertIn("def _section_close(", source)
-        for key in ("j13_detail_open_", "j13_intraday_open_", "j13_bundle_open_"):
+        # 「당일」 단추는 2026-11-04 자비스12 형식으로 「📊 당일 · 일봉 · 주봉 · 월봉」 한 단추에 합쳤다
+        for key in ("j13_detail_open_", "j13_bundle_open_"):
             self.assertIn(f'_section_close(f"{key}', source,
                           f"{key} 구역에 아래 닫기 단추가 없다")
         # 위 여는 단추보다 작고 조용해야 한다 — 같은 모양이면 화면이 어지럽다.
@@ -747,7 +750,8 @@ class Jarvis13PageTests(unittest.TestCase):
     def test_page_contracts_present(self):
         source = PAGE.read_text(encoding="utf-8")
         # 수급 카드 재사용, 단타 참고 신호, 호가단위, 동적 테마
-        self.assertIn("render_kr_flow_card", source)
+        self.assertIn("render_kr_flow_card", source)          # 그 카드를 자비스12 형식으로 부르는 사본(jarvis13_flow_card)
+        self.assertIn("jarvis13_flow_card.render()", source)
         self.assertIn("단타 참고 신호", source)
         # 나스닥100 선물 실시간 칸(2026-07-22 사용자 요청)과 가격칸 설명
         self.assertIn("나스닥100 선물", source)
@@ -1154,7 +1158,7 @@ class PartnerFlowColumnTests(unittest.TestCase):
         # 눌림목표: 상자가 스크롤되고 줄이 접히지 않아야 한다
         self.assertIn(".st-key-j13_theme_table { overflow-x: auto", blob)
         self.assertIn("min-width: 900px", blob)
-        self.assertIn("flex-wrap: nowrap !important; min-width: 1180px", blob)
+        self.assertIn("flex-wrap: nowrap !important; min-width: 1600px", blob)   # 2026-11-04 실적 두 칸 · 1180 → 1600
         # 11~20위를 담은 '더 보기'도 같은 규칙을 받아야 한다. 빠뜨렸더니 폰에서
         # 그 안만 칸이 세로로 쌓였다(2026-07-25).
         self.assertIn(".st-key-j13_theme_rest", blob)
@@ -1181,10 +1185,47 @@ class StrongTop5Tests(unittest.TestCase):
         self.assertIn("&lt;b&gt;조선", text)                    # 이름은 글자로만
         self.assertEqual("", jarvis13_skin.top5_html({"rows": []}))
 
-    def test_card_sits_right_above_the_theme_table(self):
+    def test_card_sits_right_above_the_theme_rank_button(self):
+        """2026-11-04 상하님 「테마 디자인 숨기기 하고 미국테마 형식대로」 — 카드 → 「📊 N개 테마」 단추 → (열면) 표."""
         source = PAGE.read_text(encoding="utf-8")
-        self.assertLess(source.index("jarvis13_skin.top5_html(ranking)"),
-                        source.index('st.markdown(f"### 오늘의 강한 테마 {len(ranking[\'rows\'])} · 실시간 순위")'))
+        body = source.split("def _render_radar_tab")[1] if "def _render_radar_tab" in source else source
+        self.assertLess(body.index("_render_strong_top5(ranking, rank_count)"), body.index("_theme_rank_toggle(rank_count)"))
+        self.assertLess(body.index("_theme_rank_toggle(rank_count)"),
+                        body.index('clicked_theme = _render_theme_table(ranking, st.session_state.get("j13_theme_choice"))'))
+
+    def test_rank_table_is_closed_first_and_card_opens_it(self):
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            self.assertEqual(len(app.exception), 0)
+            self.assertFalse([node for node in app.button if str(node.key or "").startswith("j13tbtn_")])   # 처음엔 닫힘
+            next(node for node in app.button if str(node.key or "") == "j13_st5_open_btn").click().run(timeout=90)
+            self.assertTrue(app.session_state.filtered_state.get("j13_theme_rank_open"))
+            self.assertTrue([node for node in app.button if str(node.key or "").startswith("j13tbtn_")])
+            close = next(node for node in app.button if str(node.key or "") == "btn_j13_theme_rank_open")
+            self.assertIn("닫기", str(close.label))
+            next(node for node in app.button if str(node.key or "") == "j13tbtn_00").click().run(timeout=90)
+            self.assertTrue(app.session_state.filtered_state.get("j13_theme_panel_open"))
+            next(node for node in app.button if str(node.key or "") == "btn_j13_theme_rank_open").click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        self.assertEqual(len(app.exception), 0)
+        self.assertFalse(app.session_state.filtered_state.get("j13_theme_rank_open"))
+        self.assertFalse(app.session_state.filtered_state.get("j13_theme_panel_open"))   # 닫으면 테마 종목 화면도 닫힘
+
+    def test_bars_grow_once_with_j13_names(self):
+        import jarvis13_skin
+        self.assertIn("window.__j13St5Watch", jarvis13_skin.ST5_WATCH)
+        self.assertNotIn("__j3St5Watch", jarvis13_skin.ST5_WATCH)
+        self.assertIn("j13-st5-play", jarvis13_skin.TOP5_CSS)
+        self.assertIn("'j13-st5-watch'", PAGE.read_text(encoding="utf-8"))
 
 
 class MorningWarmTests(unittest.TestCase):

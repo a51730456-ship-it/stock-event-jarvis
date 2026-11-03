@@ -21,7 +21,7 @@ CHUNKS = int(os.environ.get("J13_CHUNKS") or 3)
 VIEWS = (
     ("자비스12", "j12", "?s=home", ".j3b-card", "j12_home"),
     ("자비스12", "j12", "?s=market", "div[class*='st-key-j12_theme_table'], .j3-ndd", "j12_market"),
-    ("자비스13", "j13", "", "div[class*='st-key-j13_theme_table']", "j13_market"),
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open'], div[class*='st-key-j13_theme_table']", "j13_market"),
     ("자비스13", "j13", "?s=watch", ".j13w-card, .j13w-empty", "j13_watch"),
 )
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
