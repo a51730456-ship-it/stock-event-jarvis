@@ -206,6 +206,33 @@ def _warm_page(page, name: str, url: str, home: str, market: str) -> None:
         _settle(page)
 
 
+# 자비스13(한국테마)도 데운다 (2026-11-03 상하님 「2 넣어라」 — 첫 화면이 테마 266개를 훑느라 PC 27~32초 걸렸다).
+# 자비스13 은 첫 화면이 곧 시장분석이라 관심종목을 거치지 않는다. 테마 순위표(가장 오래 걸리는 것)가 뜰 때까지 기다리고,
+# 상승장·급락을 열쇠로 한 번씩 열어 그 목록도 담아 둔다. 자비스12 를 다 데운 **뒤**에 연다 — 자비스12 가 먼저다.
+J13_URL = f"{BASE}/자비스13?guest=1"
+J13_TABLE = "div[class*='st-key-j13_theme_table']"
+
+
+def _warm_j13(page) -> None:
+    started = time.time()
+    _log("자비스13 열기")
+    page.goto(J13_URL, wait_until="domcontentloaded", timeout=180_000)
+    if _wait_for(page, f"!!document.querySelector({J13_TABLE!r})") is None:
+        _log("자비스13 테마 순위표가 안 떴다 — 그만")
+        return
+    _settle(page)
+    _log(f"자비스13 테마 순위표 준비됨 {time.time() - started:.0f}초")
+    for key in ("j13_pullback_breakout", "j13_pullback_crash"):
+        at = time.time()
+        if not _click_key(page, key):
+            _log(f"자비스13 {key} 단추를 못 찾았다")
+            continue
+        _settle(page)
+        _log(f"자비스13 {key} — 다 그리기 {time.time() - at:.0f}초")
+        _click_key(page, key)             # 같은 단추를 한 번 더 — 닫는다
+        _settle(page)
+
+
 def main() -> int:
     from playwright.sync_api import sync_playwright
 
@@ -223,6 +250,10 @@ def main() -> int:
                 _log("새로 켜진 앱을 못 봤다 — 그래도 지금 앱을 데운다")
             for name, url, home, market in PAGES:
                 _warm_page(page, name, url, home, market)
+            try:
+                _warm_j13(page)
+            except Exception as exc:          # 자비스13 이 안 떠도 자비스12 는 이미 데웠다 — 붉게 만들지 않는다
+                _log(f"자비스13 데우기 실패: {type(exc).__name__}: {exc}"[:200])
             _log("아침 준비 끝")
         finally:
             browser.close()
