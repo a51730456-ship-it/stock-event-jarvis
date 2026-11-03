@@ -871,6 +871,12 @@ import jarvis13_crash_record  # noqa: E402
 _REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
 if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
     jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
+# 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
+import jarvis13_skin  # noqa: E402
+import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
+_REQUIRED_J13_SKIN_REVISION = 2026110301
+if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
+    jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
@@ -1263,7 +1269,8 @@ def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
     overview = j4data.get_market_overview()
     st.session_state["j13_market_overview"] = overview
-    st.subheader("한국 전체시장 판단")
+    # 제목은 자비스12 「미국 전체시장 판단」과 같은 모양(보라 · 16px)으로(2026-11-03 화면 옷).
+    st.markdown(f"<div class='{jarvis13_skin.TITLE_CLASS}'>한국 전체시장 판단</div>", unsafe_allow_html=True)
     if not overview.get("ok"):
         st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
         st.caption("네트워크가 복구되면 1분 자동 갱신에서 다시 시도합니다.")
@@ -5161,6 +5168,7 @@ def main() -> None:
             scroll_to.now(st, "top")
         # 뒤로가기를 붙잡는 표식(자비스12 j12b_backstop)은 **안 넣는다** — 자비스12 에서는 상하님이 따로 시키신 것이고,
         # 자비스13 은 지금처럼 뒤로가기가 자비스12 로 돌아가는 것이 자연스럽다(시키지 않은 동작은 바꾸지 않는다).
+        st.markdown(jarvis13_skin.watch_css(), unsafe_allow_html=True)      # 자비스12 와 같은 바탕(2026-11-03)
         _render_watch_page()
         _render_j13_bottom_nav("watch")
         return
@@ -5183,9 +5191,20 @@ def main() -> None:
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
     st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 화면 옷(2026-11-03 상하님 「자비스12 형식을 따라라」) — 바탕 · 테두리 · 맨 위 띠 숨김. 표식 덩어리와 규칙 덩어리를 나눠 그린다.
+    st.markdown(jarvis13_skin.MARK, unsafe_allow_html=True)
+    st.markdown(jarvis13_skin.SKIN, unsafe_allow_html=True)
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
+    # 맨 위 그림 띠 「JARVIS 13 · 시장분석」(자비스12 와 같은 띠 · 2026-11-03). 두 단추보다 먼저 그려야 맨 위에 선다.
+    # ↻ 는 자비스12 와 같다 — 담아 둔 시세를 비우고 다시 그린다. 띠를 못 그려도 아래 화면은 그대로 나온다.
+    if hero_banner.render(st, refresh_key="j13hero_refresh", mark="13"):
+        try:
+            j4data.clear_runtime_cache()
+        except Exception:
+            pass
+        st.rerun()
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     # 2026-10-31 상하님 「라」 — 설명 창은 얼린 method_help 그대로 쓰되 급락 부분(옛 66.6% · 「가장 깊었던 날」)만
     # 바로잡은 글을 넣는다(method_help 의 help_slot 자리 · 얼린 파일은 한 글자도 안 바뀐다).

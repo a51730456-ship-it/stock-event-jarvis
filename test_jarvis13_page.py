@@ -424,9 +424,9 @@ class Jarvis13PageTests(unittest.TestCase):
     def test_page_renders_market_then_flow_then_tabs(self):
         app = _run_page()
         self.assertEqual(len(app.exception), 0)
-        subheaders = [str(node.value) for node in app.subheader]
-        self.assertIn("한국 전체시장 판단", subheaders)
         markdowns = " ".join(str(node.value) for node in app.markdown)
+        # 제목은 2026-11-03 부터 자비스12 「미국 전체시장 판단」과 같은 모양(보라 16px 글 · 화면 옷)
+        self.assertIn("<div class='j13-page-title'>한국 전체시장 판단</div>", markdowns)
         # 시장판단의 한국장 기관 수급 반전 카드를 그대로 가져왔는지
         self.assertIn("한국장 시장 상태", markdowns)
         # 동적 테마 선정 문구와 테마표
