@@ -1036,7 +1036,7 @@ class Jarvis13PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         headings = [str(node.value) for node in app.markdown]
         self.assertTrue(
-            any("종목검색 (검색종목 세부사항 보기)" in value for value in headings),
+            any("j13-search-tag'>종목검색</div>" in value for value in headings),   # 2026-11-04 자비스12 처럼 「종목검색」 글자만
             "‘종목검색’ 제목이 없다",
         )
         details = [v for v in headings if "<div class='j4-stock-name'>" in v]

@@ -535,22 +535,44 @@ st.markdown(
     /* '매수심사결과 높은 순위 7' 단추 — 사용자가 붙여 준 초록 배너 견본 그대로.
        왼쪽 짙은 초록에서 오른쪽 밝은 초록으로 흐르는 넓은 띠, 흰 글씨 가운데.
        (2026-07-30 사용자 지시. 미국테마도 같은 모양이다.) */
+    /* 2026-11-04 자비스12 와 같은 스카이블루 그라데이션 · 글자 1.14rem(상하님 「미국테마 형식을 따라」) —
+       옆 단추(상승장 초록 · 급락 주황)와 색이 갈려야 갈래가 눈으로 구분된다(자비스12 2026-08-06). */
     div[class*="st-key-j13_top7_find"] button {
-        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
-        box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+        box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
     }
     div[class*="st-key-j13_top7_find"] button:hover {
-        background: linear-gradient(90deg, #0a4a37 0%, #0d6244 38%, #16bd7e 100%) !important;
+        background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
     }
     div[class*="st-key-j13_top7_find"] button p {
         color: #ffffff !important;
-        font-size: 1.02rem !important;
+        font-size: 1.14rem !important;
         font-weight: 800 !important;
         letter-spacing: .01em !important;
     }
+    /* 「📊 20개 테마」 — 자비스12 「📊 22개 테마」와 같은 붉은 그라데이션 · 같은 크기(2026-11-04) */
+    div[class*="st-key-btn_j13_theme_rank_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important; border-radius: .5rem !important; min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
+    }
+    div[class*="st-key-btn_j13_theme_rank_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-btn_j13_theme_rank_open"] button p {
+        color: #ffffff !important; font-size: 1.14rem !important; font-weight: 800 !important; margin: 0 !important;
+    }
+    /* 「📊 파트별 성적표」 — 자비스12 「📊 파트별 성적표 보기」처럼 화면 폭 보라 띠(2026-11-04) */
+    div[class*="st-key-btn_j13sc_open"] button {
+        width: 100% !important; background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%) !important;
+        border: none !important; border-radius: .5rem !important; box-shadow: 0 2px 10px rgba(124,58,237,.25) !important;
+    }
+    div[class*="st-key-btn_j13sc_open"] button p { color: #ffffff !important; font-weight: 800 !important; }
+    /* 「종목검색」 띠 — 자비스12 처럼 작은 보라 띠(2026-11-04) */
+    .j4-band.j13-search-tag { padding: .45rem .9rem; margin: .1rem 0 .45rem; font-size: .98rem; }
     /* 분야 이름이 길면 옆 칸을 덮어썼다 — 한 줄로 자른다(2026-07-30). */
     .j4-top7-src {
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -3528,9 +3550,8 @@ def _j13sc_table_html(table: dict, blocked: dict) -> str:
 
 def _render_scorecard_section() -> None:
     """📊 파트별 성적표 — 날짜별 목록 밑. 눌러야 열린다."""
-    st.markdown("<div class='j4-section-title'>📊 파트별 성적표</div>", unsafe_allow_html=True)
+    # 2026-11-04 자비스12 형식 — 단추만 차례로 세운다(제목·안내 줄은 뺐다 · 상하님 「왠만한 것 다 찾아서 미국테마 형식을 따라」)
     if not _section_toggle("📊 파트별 성적표 — 코스피와 견줘 보기", _J13SC_OPEN, close_label="파트별 성적표 닫기"):
-        st.caption("저장해 둔 목록대로 샀다면 지금 몇 % 인지, 같은 날 코스피를 샀을 때와 견줍니다. 누를 때만 셉니다.")
         return
     with st.spinner("저장해 둔 목록의 종목 값을 받는 중입니다…"):
         data = _j13sc_load()
@@ -3737,7 +3758,6 @@ def _render_radar_tab(market: dict) -> None:
     # 미국 테마와 동일하게, 테마 설명·종목 1~6위·상세 선택은 순위표의 테마를
     # 눌렀을 때만 한 덩이로 연다. 닫아도 아래 독립 영역은 계속 볼 수 있다.
     if not st.session_state.get("j13_theme_panel_open"):
-        st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
         _render_pullback_finder()
         _render_pullback_detail(market)
         if not guest_mode:
@@ -3899,16 +3919,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     표는 위 '테마 종목 1–6위'와 같은 모양으로 화면에 바로 편다 — 창을 또 눌러
     여는 방식은 없앴다(2026-07-30 사용자 지시: "한 번 더 누르게 하지 마라").
     """
-    st.markdown(
-        "<div class='j4-section-title'>🏆 매수심사결과 높은 순위 7</div>",
-        unsafe_allow_html=True,
-    )
+    # 2026-11-04 자비스12 형식 — 단추만 차례로 세운다(제목·안내 줄은 뺐다 · 상하님 「왠만한 것 다 찾아서 미국테마 형식을 따라」)
     pull_rows = (st.session_state.get("j13_pullback_result") or {}).get("rows") or []
-    st.caption(
-        "지금 화면의 테마 대장주"
-        + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
-        + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
-    )
     # 단추는 글자만큼만 — 화면을 가로지르는 긴 바는 뺐다(2026-07-30 사용자 지시).
     # 열려 있을 때 다시 누르면 닫고, 닫혀 있을 때 누르면 새로 뽑아 연다(같은 지시).
     is_open = bool(st.session_state.get("j13_top7_open"))
@@ -3939,7 +3951,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
     if not st.session_state.get("j13_top7_open"):
-        st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
         return
     result = st.session_state.get("j13_top7_result")
     if result is None:
@@ -4050,7 +4061,6 @@ def _render_pullback_detail(market: dict) -> None:
     picked_row = st.session_state.get("j13_pullback_pick_row")
     picked = st.session_state.get("j13_pullback_pick")
     if not picked_row or not picked:
-        st.caption("위 눌림목 표에서 종목 이름을 누르면 여기에 그 종목 상세가 열립니다.")
         return
     leader = _pullback_as_candidate(
         picked_row, [], mode=st.session_state.get("j13_pullback_mode"))
@@ -4072,14 +4082,8 @@ def _render_my_stock_panel(market: dict) -> None:
     st.divider()
     # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
     # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
-    st.markdown(
-        "<div class='j4-band j4-band-purple'>종목검색 (검색종목 세부사항 보기)</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "들고 있는 종목 이름이나 종목코드를 치면 비슷한 이름까지 찾아 줍니다. "
-        "테마 목록에 없는 종목도 됩니다."
-    )
+    # 2026-11-04 자비스12 형식 — 단추만 차례로 세운다(제목·안내 줄은 뺐다 · 상하님 「왠만한 것 다 찾아서 미국테마 형식을 따라」) — 「종목검색」 작은 보라 띠 하나(자비스12 와 같은 글)
+    st.markdown("<div class='j4-band j4-band-purple j13-search-tag'>종목검색</div>", unsafe_allow_html=True)
     query = st.text_input(
         # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
         # 미국 화면(j3_my_stock_query)과 같은 문구·같은 보라색이다.
@@ -4572,10 +4576,7 @@ def _render_pullback_finder() -> None:
 
     조회량이 있어 버튼을 누를 때만 실행하고, 결과는 화면 세션에 유지한다.
     """
-    st.markdown(
-        "<div class='j4-section-title'>📉 눌림목 종목 찾기 (상승추세 중 조정)</div>",
-        unsafe_allow_html=True,
-    )
+    # 2026-11-04 자비스12 형식 — 단추만 차례로 세운다(제목·안내 줄은 뺐다 · 상하님 「왠만한 것 다 찾아서 미국테마 형식을 따라」) — 설명은 접힌 상자에 그대로 둔다
     # 긴 안내는 접어 둔다 — 첫 화면을 다 먹었다(2026-07-25 사용자 지시).
     with st.expander("눌림목 종목 찾기 설명 보기", expanded=False):
         # 2026-08-07에 이 화면의 조건점수를 상승장·급락과 **같은 방법**으로 처음
@@ -4765,7 +4766,6 @@ def _render_pullback_finder() -> None:
             "지금 자료로 다시 찾으려면 위 **새로 찾기**를 누르십시오."
         )
     if not st.session_state.get("j13_pullback_open"):
-        st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
         return
     result = st.session_state.get("j13_pullback_result")
     if result is None:
