@@ -56,7 +56,10 @@ class ParseTests(unittest.TestCase):
         self.assertIsNone(fn._won_text(""))
 
     def test_fetch_one_puts_it_together(self):
-        whole = {"stockName": "삼성전자", "totalInfos": [{"code": "marketValue", "value": "1,297조 8,739억"}]}
+        whole = {"stockName": "삼성전자", "totalInfos": [{"code": "marketValue", "value": "1,297조 8,739억"},
+                                                       {"code": "highPriceOf52Weeks", "value": "380,000"},
+                                                       {"code": "lowPriceOf52Weeks", "value": "93,500"},
+                                                       {"code": "foreignRate", "value": "46.16%"}]}
         answers = {"finance/annual": ANNUAL, "finance/quarter": QUARTER, "integration": whole,
                    "basic": {"closePrice": "222,000"}}
 
@@ -75,6 +78,8 @@ class ParseTests(unittest.TestCase):
         self.assertEqual("삼성전자", out["name"])
         self.assertEqual(12978739.0, out["mcap"])
         self.assertEqual(222000.0, out["px"])
+        self.assertEqual(380000.0, out["hi52"])
+        self.assertEqual(46.16, out["foreign"])
         self.assertEqual(27.5, out["latest_q"]["debt"])
 
     def test_nothing_from_naver_gives_none(self):
@@ -131,6 +136,16 @@ class CardTests(unittest.TestCase):
                      "분기 실적", "단위 억 원", "네이버 증권", "추정치는 뺌", "2025.12 결산 기준"):
             self.assertIn(word, text)
         self.assertIn("max-width: 600px", fn.CSS)
+
+
+class ExtraCellsTests(unittest.TestCase):
+    def test_52week_and_foreign_show_only_when_there(self):
+        entry = dict(_entry(), hi52=380000.0, lo52=93500.0, foreign=46.16)
+        text = fn.card_html(fn.summary("005930", 228000, path=_file(entry)))
+        for word in ("52주 최고", "380,000원", "지금 -40.0%", "52주 최저", "93,500원", "외국인 비율", "46.2%"):
+            self.assertIn(word, text)
+        plain = fn.card_html(fn.summary("005930", path=_file(_entry())))    # 옛 파일(값 없음)은 줄을 안 그린다
+        self.assertNotIn("52주 최고", plain)
 
 
 class CollectTests(unittest.TestCase):
