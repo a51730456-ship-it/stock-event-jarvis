@@ -871,6 +871,11 @@ import jarvis13_crash_record  # noqa: E402
 _REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
 if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
     jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
+# 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
+import jarvis13_fundamentals  # noqa: E402
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110302
+if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
+    jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
 import jarvis13_skin  # noqa: E402
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
@@ -2651,6 +2656,26 @@ def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
                 st.warning(f"{timeframe} 자료 없음")
 
 
+def _render_fundamentals_box(code: str, metrics: dict | None = None) -> None:
+    """「📑 재무 한눈에 보기」 — 누르면 펴지는 상자(브라우저가 여닫는다 · 서버에 안 묻는다). 못 모은 종목은 한 줄만."""
+    try:
+        price = (metrics or {}).get("current") or (metrics or {}).get("close")
+        info = jarvis13_fundamentals.summary(code, price)
+    except Exception:
+        info = None
+    if not info:
+        st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 "
+                    "없습니다(테마 명부 종목만 주 1회 모읍니다).</div>", unsafe_allow_html=True)
+        return
+    st.markdown(
+        jarvis13_fundamentals.CSS
+        + "<details class='j13fn-box'><summary>📑 재무 한눈에 보기</summary>"
+        + f"<div class='j13fn-name'>{html.escape(str(info.get('name') or code))} · {html.escape(code)} · 재무 한눈에</div>"
+        + jarvis13_fundamentals.card_html(info) + "</details>",
+        unsafe_allow_html=True,
+    )
+
+
 def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
                          stock_key: str, *, panel: str = "theme") -> None:
     """종목 상세 한 벌. 같은 화면을 위(테마 종목)·아래(눌림목 종목) 두 곳에 그린다.
@@ -2682,6 +2707,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"{f'대장주 {detail_rank}위' if detail_rank else '눌림목 선택 종목'} · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
+    # 「📑 재무 한눈에」(2026-11-03 상하님 「재무현황 등도 없고」) — 자비스12 와 같은 자리(종목 이름 밑). 깃허브가 모은
+    # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
+    _render_fundamentals_box(code, metrics)
     # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
     if not auth.is_guest():
         _render_watch_toggle(code, leader.get("name") or code, metrics, panel=panel)

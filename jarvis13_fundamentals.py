@@ -300,6 +300,12 @@ def card_html(info: dict) -> str:
 
 
 CSS = """<style>
+.j13fn-box{margin:.35rem 0 .5rem}
+.j13fn-box>summary{display:inline-block;cursor:pointer;list-style:none;padding:.35rem .9rem;border-radius:15px;
+  border:1px solid #b9965c;background:#062448;color:#eaf5ff;font-weight:800;font-size:.9rem}
+.j13fn-box>summary::-webkit-details-marker{display:none}
+.j13fn-box[open]>summary{margin-bottom:.5rem}
+.j13fn-name{font-weight:800;color:#ffc94f;margin:.2rem 0 .4rem}
 .j13fn{display:grid;gap:10px;color:#e6e6e6}
 .j13fn-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .j13fn-cell{background:#0b1626;border:1px solid #22324a;border-radius:10px;padding:7px 9px;display:grid;gap:2px;min-width:0}
