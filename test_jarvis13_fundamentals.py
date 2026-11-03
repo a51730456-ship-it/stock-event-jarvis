@@ -135,7 +135,9 @@ class CardTests(unittest.TestCase):
         for word in ("시가총액", "1,297.9조 원", "PER", "PBR", "ROE", "영업이익률", "부채비율", "당좌비율", "연간 실적",
                      "분기 실적", "단위 억 원", "네이버 증권", "추정치는 뺌", "2025.12 결산 기준"):
             self.assertIn(word, text)
-        self.assertIn("max-width: 600px", fn.CSS)
+        # 폰 규칙은 mobile_ui 에만 둔다(CLAUDE.md 12) — 칸 수는 화면 폭에 맞춰 저절로(폰 두 칸 · PC 네 칸)
+        self.assertNotIn("@media", fn.CSS)
+        self.assertIn("auto-fit,minmax(135px,1fr)", fn.CSS)
 
 
 class ExtraCellsTests(unittest.TestCase):

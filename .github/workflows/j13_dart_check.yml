@@ -1,0 +1,29 @@
+# 자비스13 「📢 최근 공시」를 실제 OpenDART 로 받아 본다 (2026-11-04 상하님 「DART 하자」).
+# 깃허브 비밀 칸 DART_API_KEY 를 쓴다(값은 기록에 안 남는다). 저장소에는 아무것도 쓰지 않는다.
+name: 자비스13 공시 받기 시험
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - jarvis13_disclosures.py
+      - research/j13_dart_check.py
+      - .github/workflows/j13_dart_check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 공시 받아 보기
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python research/j13_dart_check.py

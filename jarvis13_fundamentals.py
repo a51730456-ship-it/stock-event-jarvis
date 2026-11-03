@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110303
+MODULE_REVISION = 2026110304
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -326,12 +326,12 @@ CSS = """<style>
 .j13fn-box[open]>summary{margin-bottom:.5rem}
 .j13fn-name{font-weight:800;color:#ffc94f;margin:.2rem 0 .4rem}
 .j13fn{display:grid;gap:10px;color:#e6e6e6}
-.j13fn-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.j13fn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:6px}
 .j13fn-cell{background:#0b1626;border:1px solid #22324a;border-radius:10px;padding:7px 9px;display:grid;gap:2px;min-width:0}
 .j13fn-cell b{color:#9fb6c8;font-size:.78rem;font-weight:700}
 .j13fn-cell i{font-style:normal;font-size:1.05rem;font-weight:800;font-variant-numeric:tabular-nums}
 .j13fn-cell small{color:#8b96a8;font-size:.7rem;line-height:1.3}
-.j13fn-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.j13fn-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
 .j13fn-chart{background:#0b1626;border:1px solid #22324a;border-radius:10px;padding:8px;min-width:0;overflow-x:auto}
 .j13fn-ct{display:flex;justify-content:space-between;gap:6px;font-weight:800;font-size:.88rem;margin-bottom:4px}
 .j13fn-ct span span{font-weight:500;font-size:.72rem;color:#9fb6c8;margin-left:6px}
@@ -341,5 +341,4 @@ CSS = """<style>
 .j13fn-t th,.j13fn-t td{text-align:right;padding:2px 3px;white-space:nowrap}
 .j13fn-t th:first-child,.j13fn-t td:first-child{text-align:left;color:#9fb6c8}
 .j13fn-foot{color:#8b96a8;font-size:.74rem;line-height:1.5}
-@media (max-width: 600px){.j13fn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.j13fn-charts{grid-template-columns:1fr}}
 </style>"""
