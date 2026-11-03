@@ -852,7 +852,7 @@ if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
 import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 
-_REQUIRED_J13_WATCH_REVISION = 2026103001
+_REQUIRED_J13_WATCH_REVISION = 2026110301
 if int(getattr(jarvis13_watch, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_REVISION:
     jarvis13_watch = importlib.reload(jarvis13_watch)
 _REQUIRED_J13_WATCH_STORE_REVISION = 2026103001
@@ -5117,11 +5117,11 @@ def _render_watch_page() -> None:
         frames = jarvis13_watch.load_frames([stock["code"] for stock in stocks], j4data.get_daily_frame)
         kospi = jarvis13_market.index_frame("KOSPI")
     cards = [jarvis13_watch.card(stock, frames.get(stock["code"]), kospi) for stock in stocks]
-    # 세 장씩 한 줄 — 폰에서는 줄마다 아래로 쌓여 넣은 차례가 그대로다(칸 하나에 몰아 넣으면 폰에서 차례가 섞인다).
-    for start in range(0, len(cards), 3):
-        columns = st.columns(3, gap="small")
-        for column, item in zip(columns, cards[start:start + 3]):
-            with column:
+    # 카드는 **한 통에 넣은 차례대로** 넣고 자리는 CSS 가 잡는다 — PC 세 칸 · 폰 두 칸(자비스12 관심종목과 같은 짜임 ·
+    # 2026-11-03 화면 옷). 예전 st.columns(3) 은 폰에서 한 줄에 한 장씩 쌓여 화면이 길었다.
+    with st.container(key="j13w_cards"):
+        for item in cards:
+            with st.container(key=f"j13w_item_{item['code']}"):
                 st.markdown(jarvis13_watch.card_html(item), unsafe_allow_html=True)
                 # 단추 둘은 한 줄에 — 세로로 쌓으면 카드마다 단추 자리가 카드 반만큼 먹었다(2026-10-30 화면 확인).
                 with st.container(horizontal=True, gap="small"):

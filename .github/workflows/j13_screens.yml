@@ -10,6 +10,7 @@ on:
       - research/j13_screens.py
       - jarvis13_skin.py
       - pages/12_자비스13.py
+      - jarvis13_watch.py
       - .github/workflows/j13_screens.yml
   workflow_dispatch:
 
@@ -38,6 +39,8 @@ jobs:
         run: |
           mkdir -p db .streamlit
           python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
+          # 관심종목 화면을 카드가 있는 채로 찍으려고 이 실행 안의 임시 DB 에만 셋을 넣는다(지난 날짜로 · 올리지 않는다)
+          python -c "import jarvis13_watch_store as w; w.ensure_tables(); [w.add(c, n) for c, n in (('005930','삼성전자'),('000660','SK하이닉스'),('035420','NAVER'))]; c = w._connection(); c.execute(\"UPDATE jarvis13_watch_stocks SET added_at='2026-10-20T10:00:00'\"); c.commit(); c.close()"
       - name: 앱 띄우기
         run: |
           nohup streamlit run app.py --server.port 8501 --server.headless true > "$RUNNER_TEMP/app.log" 2>&1 &
