@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110302
+MODULE_REVISION = 2026110303
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -115,6 +115,10 @@ def fetch_one(code: str, session=None) -> dict | None:
     infos = {str(item.get("code")): item.get("value") for item in whole.get("totalInfos") or [] if isinstance(item, dict)}
     out["name"] = whole.get("stockName")
     out["mcap"] = _won_text(infos.get("marketValue"))
+    # 증권사 앱 맨 위 칸 셋(2026-11-03 · 같은 integration 자료 — 새로 받는 곳 없음) — 모은 날 기준이라 화면에 그날을 적는다
+    out["hi52"] = _num(infos.get("highPriceOf52Weeks"))
+    out["lo52"] = _num(infos.get("lowPriceOf52Weeks"))
+    out["foreign"] = _num(str(infos.get("foreignRate") or "").replace("%", ""))
     try:
         basic = get("basic") or {}
     except Exception:
@@ -206,6 +210,8 @@ def summary(code: str, price_now=None, *, path: Path = DATA_PATH) -> dict | None
         "pbr": None if (not bps or bps <= 0 or not price) else price / bps, "equity_bad": bps is not None and bps <= 0,
         "roe": latest.get("roe"), "opm": latest.get("opm"), "debt": latest.get("debt"), "quick": latest.get("quick"),
         "dy": (dps / price * 100.0) if (dps is not None and price) else latest.get("dy"),
+        "hi52": _num(entry.get("hi52")), "lo52": _num(entry.get("lo52")), "foreign": _num(entry.get("foreign")),
+        "price": price,
         "annual": [row for row in entry.get("annual") or [] if isinstance(row, list) and len(row) == 4],
         "quarter": [row for row in entry.get("quarter") or [] if isinstance(row, list) and len(row) == 4],
     }
@@ -289,6 +295,19 @@ def card_html(info: dict) -> str:
              "—" if debt is None else f"자기 돈 100에 빚 {debt:.0f}", "#ffb020" if (debt or 0) >= 200 else "#ffffff"),
         cell("당좌비율", _pct(quick) if quick is None else f"{quick:.0f}%", "곧 갚을 빚 100에 곧 쓸 돈"),
     ]
+    # 52주 최고·최저 · 외국인 비율 — 값이 있을 때만 한 줄(없으면 줄 자체를 안 그린다 · 0 으로 안 채움)
+    hi, lo, price, foreign = info.get("hi52"), info.get("lo52"), info.get("price"), info.get("foreign")
+    extra = []
+    if hi:
+        gap = f" · 지금 {price / hi * 100 - 100:+.1f}%" if price else ""
+        extra.append(cell("52주 최고", f"{hi:,.0f}원", "1년 안 가장 높은 값" + gap))
+    if lo:
+        gap = f" · 지금 {price / lo * 100 - 100:+.1f}%" if price else ""
+        extra.append(cell("52주 최저", f"{lo:,.0f}원", "1년 안 가장 낮은 값" + gap))
+    if foreign is not None:
+        extra.append(cell("외국인 비율", f"{foreign:.1f}%", "외국인이 가진 몫(한도 대비 소진율)"))
+    if extra:
+        cells = extra + cells
     foot = [f"{_html.escape(str(info.get('at') or ''))} 모은 재무(네이버 증권 · 추정치는 뺌)"]
     if info.get("latest_at"):
         foot.append(f"지표는 {_html.escape(str(info['latest_at']))} 결산 기준")
