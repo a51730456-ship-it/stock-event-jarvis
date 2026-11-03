@@ -227,9 +227,14 @@ def _warm_j13(page) -> None:
         if not _click_key(page, key):
             _log(f"자비스13 {key} 단추를 못 찾았다")
             continue
+        # 누른 바로 그때는 아직 다시 그리기 전이라 「다 그렸다」로 잘못 본다(2026-11-03 첫 실행 「다 그리기 0초」) — 잠깐 둔다.
+        page.wait_for_timeout(2500)
+        _wait_for(page, f"!!document.querySelector(\"div[class*='st-key-j13_rulebook_table'], [data-testid='stAlert']\")",
+                  limit=180)
         _settle(page)
         _log(f"자비스13 {key} — 다 그리기 {time.time() - at:.0f}초")
         _click_key(page, key)             # 같은 단추를 한 번 더 — 닫는다
+        page.wait_for_timeout(1500)
         _settle(page)
 
 
