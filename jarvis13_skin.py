@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-MODULE_REVISION = 2026110302
+MODULE_REVISION = 2026110303
 TITLE_CLASS = "j13-page-title"
 
 # 표식 + 맨 위 여백 · 숨은 칸 · 단추 자리 — 자비스12 j12-market-top 덩어리와 같은 줄(이름표만 j13).
@@ -77,11 +77,12 @@ body:has(.j13-watch-top) [data-testid="stExpander"] details {
     background: linear-gradient(145deg, #06304f26, #001d3c40) !important;
 }
 /* 글자 — 흰 바탕을 따르던 판에서 어둡게 그려지던 곳을 밝게 */
-body:has(.j13-market-top) [data-testid="stMarkdownContainer"],
+/* 단추 안 글자는 빼고(:not(.stButton *)) — 밑 막대의 숨은 단추 글자가 밝아져 「홈 홈」처럼 두 번 보였다(2026-11-03 사진) */
+body:has(.j13-market-top) [data-testid="stMarkdownContainer"]:not(.stButton *),
 body:has(.j13-market-top) [data-testid="stCaptionContainer"],
-body:has(.j13-market-top) label,
-body:has(.j13-watch-top) [data-testid="stMarkdownContainer"],
-body:has(.j13-watch-top) label { color:#e7edf2; }
+body:has(.j13-market-top) label:not(.stButton *),
+body:has(.j13-watch-top) [data-testid="stMarkdownContainer"]:not(.stButton *),
+body:has(.j13-watch-top) label:not(.stButton *) { color:#e7edf2; }
 body:has(.j13-market-top) [data-testid="stCaptionContainer"] { color:#9fb6c8 !important; }
 body:has(.j13-market-top) h1, body:has(.j13-market-top) h2, body:has(.j13-market-top) h3 { color:#e7edf2 !important; }
 /* 단추는 건드리지 않는다 — 2026-11-03 첫 사진에서 단추 규칙이 밑 막대(홈·시장분석·관심종목)까지 덮어 아이콘이 사라졌다 */
