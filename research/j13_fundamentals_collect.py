@@ -22,53 +22,8 @@ LIMIT = int(os.environ.get("J13_LIMIT") or (30 if DRY else 0)) or None
 SAMPLES = ("005930", "000660", "035420", "373220")      # 삼성전자 · SK하이닉스 · NAVER · LG에너지솔루션
 
 
-def probe(code: str = "005930") -> None:
-    """시험 때 한 종목을 받아 무엇이 왔는지 찍는다(못 받은 까닭을 가리려고)."""
-    import re
-    import traceback
-
-    import requests
-    try:
-        response = requests.get(fn.URL.format(code=code), timeout=15,
-                                headers={"User-Agent": "Mozilla/5.0 (jarvis13-fundamentals)"})
-        charset = re.search(r"charset=([\w-]+)", response.headers.get("content-type", ""), re.I)
-        page = fn._decode(response.content, charset.group(1) if charset else None)
-        print(f"  살핌 {code}: 응답 {response.status_code} · {response.headers.get('content-type')} · {len(page):,}자 · "
-              f"매출액 {'있음' if '매출액' in page else '없음'} · cop_analysis {'있음' if 'cop_analysis' in page else '없음'}",
-              flush=True)
-        try:
-            import pandas as pd, io
-            tables = pd.read_html(io.StringIO(page), match="매출액", flavor="lxml")
-            print(f"  표 {len(tables)}개 · 첫 표 머리 {list(tables[0].columns)[:4]} · 첫 칸 {list(tables[0].iloc[:4, 0])}", flush=True)
-        except Exception:
-            print("  표 읽기 실패: " + traceback.format_exc().splitlines()[-1], flush=True)
-    except Exception:
-        print("  살핌 실패: " + traceback.format_exc().splitlines()[-1], flush=True)
-    # 네이버 모바일 증권 자료 주소(JSON) — 첫 화면에서 표가 빠졌을 때 쓸 길(2026-11-03 첫 시험)
-    for tail in ("finance/annual", "finance/quarter", "integration"):
-        url = f"https://m.stock.naver.com/api/stock/{code}/{tail}"
-        try:
-            response = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0 (jarvis13-fundamentals)"})
-            text = response.text
-            print(f"  살핌 {tail}: 응답 {response.status_code} · {len(text):,}자 · 앞 {text[:900]!r}", flush=True)
-            if tail.startswith("finance") and response.status_code == 200:
-                data = response.json()
-                info = data.get("financeInfo") or {}
-                print(f"    열쇠 {list(data)[:8]} · financeInfo 열쇠 {list(info)[:8]}", flush=True)
-                for row in (info.get("rowList") or [])[:30]:
-                    cols = row.get("columns") or {}
-                    first = next(iter(cols.items()), None)
-                    print(f"    줄 {row.get('title')!r} · 칸 {list(cols)[:8]} · 첫 칸 {first!r}", flush=True)
-                for head in (info.get("trTitleList") or [])[:10]:
-                    print(f"    머리 {head!r}", flush=True)
-        except Exception:
-            print(f"  살핌 {tail} 실패: " + traceback.format_exc().splitlines()[-1], flush=True)
-
-
 def main() -> int:
     started = time.time()
-    if DRY:
-        probe()
     codes = fn.roster_codes()
     if DRY:
         codes = {**{code: code for code in SAMPLES}, **codes}

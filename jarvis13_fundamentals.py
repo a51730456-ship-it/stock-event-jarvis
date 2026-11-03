@@ -1,7 +1,7 @@
 """자비스13 「📑 재무 한눈에」 — 한국 종목 재무 (2026-11-03 상하님 「자비스12 형식을 따라라 · 재무현황 등도 없고」 · 「DART 빼고」).
 
-자비스12 의 「재무 한눈에」(us_fundamentals · 야후)를 한국 쪽으로 옮긴 것이다. 자료는 **네이버 증권 종목 첫 화면의
-「기업실적분석」 표** — 연간 4년 · 분기 6개의 매출액 · 영업이익 · 당기순이익 · ROE · 부채비율 · 당좌비율 · EPS · BPS ·
+자비스12 의 「재무 한눈에」(us_fundamentals · 야후)를 한국 쪽으로 옮긴 것이다. 자료는 **네이버 증권(모바일) 재무 자료** — 처음에는 종목 첫 화면
+「기업실적분석」 표로 하려 했으나 2026-11-03 그 표가 첫 화면에서 빠져 있었다(깃허브 시험). 같은 값 — 연간 4년 · 분기 6개의 매출액 · 영업이익 · 당기순이익 · ROE · 부채비율 · 당좌비율 · EPS · BPS ·
 주당배당금 · 시가배당률(단위 억원 · 원 · %). 증권사 추정치(E 표시 칸)는 **안 쓴다** — 실제로 나온 값만.
 
 **화면은 받으러 가지 않는다** — 깃허브(「자비스13 한국 재무 모으기」 · 주 1회 토요일 아침)가 테마 명부(data/kr_roster.json)
@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import html as _html
-import io
 import json
 import re
 import threading
@@ -20,15 +19,11 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110301
+MODULE_REVISION = 2026110302
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
-URL = "https://finance.naver.com/item/main.naver?code={code}"
 SEOUL = timezone(timedelta(hours=9))
-ROWS = {"매출액": "rev", "영업이익": "op", "당기순이익": "net", "영업이익률": "opm", "ROE(지배주주)": "roe",
-        "ROE": "roe", "부채비율": "debt", "당좌비율": "quick", "EPS(원)": "eps", "BPS(원)": "bps",
-        "주당배당금(원)": "dps", "시가배당률(%)": "dy"}
 _MEMO: dict = {"at": 0.0, "mtime": None, "value": {}}
 _LOCK = threading.Lock()
 
@@ -50,96 +45,82 @@ def _num(text):
         return None
 
 
-def _decode(content: bytes, header_charset: str | None) -> str:
-    for charset in (header_charset, "utf-8", "euc-kr", "cp949"):
-        if not charset:
-            continue
-        try:
-            return content.decode(charset)
-        except (LookupError, UnicodeDecodeError):
-            continue
-    return content.decode("utf-8", errors="replace")
-
-
 def _label(text: str) -> str:
     return re.sub(r"\s+", "", str(text or ""))
 
 
-def parse(page: str) -> dict | None:
-    """네이버 종목 첫 화면 → {"annual": [...], "quarter": [...], "latest": {...}, "mcap", "px", "name"}. 표가 없으면 None."""
-    import pandas as pd
+API = "https://m.stock.naver.com/api/stock/{code}/{tail}"
+JSON_ROWS = {"매출액": "rev", "영업이익": "op", "당기순이익": "net", "영업이익률": "opm", "ROE": "roe", "부채비율": "debt",
+             "당좌비율": "quick", "EPS": "eps", "BPS": "bps", "주당배당금": "dps"}
 
-    try:
-        tables = pd.read_html(io.StringIO(page), match="매출액", flavor="lxml")
-    except (ValueError, ImportError):
+
+def _won_text(text):
+    """'1,297조 8,739억' · '4,078억' → 억원."""
+    text = re.sub(r"\s", "", str(text or ""))
+    if not text:
         return None
-    table = next((t for t in tables if any("매출액" in _label(v) for v in t.iloc[:, 0].astype(str))), None)
-    if table is None:
-        return None
-    columns = list(table.columns)
-    # 머리글 두 줄(「최근 연간 실적」·「최근 분기 실적」 / 결산 달) — 칸마다 (무리, 달, 추정인가)
-    heads = []
-    for col in columns[1:]:
-        parts = [str(part) for part in (col if isinstance(col, tuple) else (col,))]
-        group = "quarter" if any("분기" in part for part in parts) else "annual"
-        stamp = next((m.group(0) for part in parts for m in [re.search(r"\d{4}\.\d{2}", part)] if m), None)
-        estimate = any("(E)" in part.replace(" ", "") for part in parts)
-        heads.append((group, stamp, estimate))
-    values: dict[str, list] = {}
-    for _index, row in table.iterrows():
-        key = ROWS.get(_label(row.iloc[0]))
+    jo = re.search(r"([\d,.]+)조", text)
+    eok = re.search(r"([\d,.]+)억", text)
+    value = (_num(jo.group(1)) or 0) * 10000 if jo else 0
+    value += (_num(eok.group(1)) or 0) if eok else 0
+    return value or None
+
+
+def parse_finance(data: dict, group: str) -> tuple[list, dict, str | None]:
+    """네이버 모바일 재무(JSON) → (줄[[달, 매출, 영업이익, 순이익] …], 마지막 실제 칸 지표, 그 달). 추정치(isConsensus Y)는 뺀다."""
+    info = (data or {}).get("financeInfo") or {}
+    heads = [h for h in info.get("trTitleList") or [] if str(h.get("isConsensus") or "N") != "Y" and h.get("key")]
+    heads.sort(key=lambda h: str(h["key"]))
+    values: dict[str, dict] = {}
+    for row in info.get("rowList") or []:
+        key = JSON_ROWS.get(_label(row.get("title")))
         if key and key not in values:
-            values[key] = [_num(v) for v in list(row.iloc[1:])]
-    if "rev" not in values and "op" not in values:
-        return None
-    out = {"annual": [], "quarter": [], "latest": {}}
-    for place, (group, stamp, estimate) in enumerate(heads):
-        if not stamp or estimate:
-            continue                                    # 추정치는 안 쓴다
-        cell = {key: (series[place] if place < len(series) else None) for key, series in values.items()}
-        if all(cell.get(k) is None for k in ("rev", "op", "net")):
+            values[key] = {k: _num((v or {}).get("value")) for k, v in (row.get("columns") or {}).items()}
+    rows, latest, latest_at = [], {}, None
+    for head in heads:
+        k = str(head["key"])
+        cell = {name: series.get(k) for name, series in values.items()}
+        if all(cell.get(n) is None for n in ("rev", "op", "net")):
             continue
-        label = stamp[2:4] + "." + stamp[5:7]            # '2025.12' → '25.12'
-        out[group].append([label, cell.get("rev"), cell.get("op"), cell.get("net")])
-        if group == "annual":
-            out["latest"] = {k: cell.get(k) for k in ("opm", "roe", "debt", "quick", "eps", "bps", "dps", "dy")}
-            out["latest_at"] = stamp
-    # 분기 쪽 값이 더 새로우면(부채비율 등) 그것을 쓴다 — 연간 값이 없을 때만 채운다
-    for place, (group, stamp, estimate) in enumerate(heads):
-        if group == "quarter" and stamp and not estimate:
-            for key in ("debt", "quick"):
-                series = values.get(key) or []
-                if place < len(series) and series[place] is not None:
-                    out.setdefault("latest_q", {})[key] = series[place]
-    out["annual"], out["quarter"] = out["annual"][-4:], out["quarter"][-6:]
-    match = re.search(r'id="_market_sum"[^>]*>(.*?)</em>', page, re.S)
-    if match:
-        text = re.sub(r"<[^>]+>|\s", "", match.group(1))
-        jo = re.search(r"([\d,]+)조", text)
-        rest = re.search(r"(?:조)?([\d,]+)$", text)
-        eok = (_num(jo.group(1)) or 0) * 10000 if jo else 0
-        if rest and not (jo and rest.group(1) == jo.group(1)):
-            eok += _num(rest.group(1)) or 0
-        out["mcap"] = eok or None                          # 억원
-    price = re.search(r'<p class=["\']no_today["\']>.*?<span class=["\']blind["\']>([\d,]+)</span>', page, re.S)
-    out["px"] = _num(price.group(1)) if price else None
-    name = re.search(r'<div class=["\']wrap_company["\']>\s*<h2>\s*<a[^>]*>([^<]+)</a>', page)
-    out["name"] = name.group(1).strip() if name else None
-    return out
+        rows.append([f"{k[2:4]}.{k[4:6]}", cell.get("rev"), cell.get("op"), cell.get("net")])
+        latest = {n: cell.get(n) for n in ("opm", "roe", "debt", "quick", "eps", "bps", "dps")}
+        latest_at = f"{k[:4]}.{k[4:6]}"
+    return rows[-(4 if group == "annual" else 6):], latest, latest_at
 
 
 def fetch_one(code: str, session=None) -> dict | None:
+    """연간 · 분기 재무와 시총 · 주가 · 이름. 재무를 못 받으면 None(옛 값을 둔다)."""
     import requests
 
     session = session or requests
-    response = session.get(URL.format(code=code), timeout=15, headers={"User-Agent": "Mozilla/5.0 (jarvis13-fundamentals)"})
-    if response.status_code != 200:
+    headers = {"User-Agent": "Mozilla/5.0 (jarvis13-fundamentals)"}
+
+    def get(tail):
+        response = session.get(API.format(code=code, tail=tail), timeout=15, headers=headers)
+        return response.json() if response.status_code == 200 else None
+
+    annual, quarter = get("finance/annual"), get("finance/quarter")
+    if not annual and not quarter:
         return None
-    charset = None
-    match = re.search(r"charset=([\w-]+)", response.headers.get("content-type", ""), re.I)
-    if match:
-        charset = match.group(1)
-    return parse(_decode(response.content, charset))
+    a_rows, a_latest, a_at = parse_finance(annual or {}, "annual")
+    q_rows, q_latest, _q_at = parse_finance(quarter or {}, "quarter")
+    if not a_rows and not q_rows:
+        return None
+    out = {"annual": a_rows, "quarter": q_rows, "latest": a_latest, "latest_at": a_at,
+           "latest_q": {k: q_latest.get(k) for k in ("debt", "quick") if q_latest.get(k) is not None}}
+    try:
+        whole = get("integration") or {}
+    except Exception:
+        whole = {}
+    infos = {str(item.get("code")): item.get("value") for item in whole.get("totalInfos") or [] if isinstance(item, dict)}
+    out["name"] = whole.get("stockName")
+    out["mcap"] = _won_text(infos.get("marketValue"))
+    try:
+        basic = get("basic") or {}
+    except Exception:
+        basic = {}
+    out["px"] = _num(basic.get("closePrice"))
+    return out
 
 
 def roster_codes(path: Path = ROSTER_PATH) -> dict:
@@ -175,7 +156,7 @@ def collect(codes: dict, *, path: Path = DATA_PATH, workers: int = 6, limit: int
             result["at"] = today
             result["name"] = result.get("name") or name
             stocks[code] = result
-    data = {"version": 1, "updated": today, "source": "네이버 증권 기업실적분석", "stocks": stocks}
+    data = {"version": 1, "updated": today, "source": "네이버 증권 재무(모바일)", "stocks": stocks}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return {"asked": len(todo), "got": got, "failed": failed, "total": len(stocks)}
@@ -308,7 +289,7 @@ def card_html(info: dict) -> str:
              "—" if debt is None else f"자기 돈 100에 빚 {debt:.0f}", "#ffb020" if (debt or 0) >= 200 else "#ffffff"),
         cell("당좌비율", _pct(quick) if quick is None else f"{quick:.0f}%", "곧 갚을 빚 100에 곧 쓸 돈"),
     ]
-    foot = [f"{_html.escape(str(info.get('at') or ''))} 모은 재무(네이버 증권 기업실적분석 · 추정치는 뺌)"]
+    foot = [f"{_html.escape(str(info.get('at') or ''))} 모은 재무(네이버 증권 · 추정치는 뺌)"]
     if info.get("latest_at"):
         foot.append(f"지표는 {_html.escape(str(info['latest_at']))} 결산 기준")
     if info.get("rescaled"):
