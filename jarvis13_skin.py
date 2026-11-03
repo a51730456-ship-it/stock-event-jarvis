@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-MODULE_REVISION = 2026110304
+MODULE_REVISION = 2026110305
 TITLE_CLASS = "j13-page-title"
 
 # 표식 + 맨 위 여백 · 숨은 칸 · 단추 자리 — 자비스12 j12-market-top 덩어리와 같은 줄(이름표만 j13).
@@ -85,7 +85,15 @@ body:has(.j13-watch-top) [data-testid="stMarkdownContainer"]:not(.stButton *),
 body:has(.j13-watch-top) label:not(.stButton *) { color:#e7edf2; }
 body:has(.j13-market-top) [data-testid="stCaptionContainer"] { color:#9fb6c8 !important; }
 body:has(.j13-market-top) h1, body:has(.j13-market-top) h2, body:has(.j13-market-top) h3 { color:#e7edf2 !important; }
-/* 단추는 건드리지 않는다 — 2026-11-03 첫 사진에서 단추 규칙이 밑 막대(홈·시장분석·관심종목)까지 덮어 아이콘이 사라졌다 */
+/* 보통 단추 — 흰 바탕에 흐린 글씨로 안 읽히던 것(2026-11-03 사진 「수급 다시 확인」 · 「온라인 자료 새로고침」)을 남색으로.
+   밑 막대(j13b_nav)와 맨 위 띠의 ↻(j3hero_box)는 **빼고** — 처음 판에서 단추 규칙이 밑 막대를 덮어 아이콘이 사라졌다.
+   !important 를 안 쓴다 — 자기 색을 !important 로 가진 단추(「🌏 미국테마 →」 · 「📘 이 테마 설명」 등)는 그대로 둔다. */
+body:has(.j13-market-top) .stButton button:not([class*="st-key-j13b_nav"] *):not(.st-key-j3hero_box *),
+body:has(.j13-watch-top) .stButton button:not([class*="st-key-j13b_nav"] *):not(.st-key-j3hero_box *) {
+    background: linear-gradient(145deg, #0a3a66, #052849);
+    color: #f2f6fa;
+    border: 1px solid #bf9254a8;
+}
 body:has(.j13-market-top) [data-testid="stTextInput"] input,
 body:has(.j13-watch-top) [data-testid="stTextInput"] input {
     background:#06213f !important; color:#e7edf2 !important; border:1px solid #2b3d5a !important;

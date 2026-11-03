@@ -879,7 +879,7 @@ if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUN
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
 import jarvis13_skin  # noqa: E402
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-_REQUIRED_J13_SKIN_REVISION = 2026110304
+_REQUIRED_J13_SKIN_REVISION = 2026110305
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -5205,7 +5205,8 @@ def main() -> None:
         # (파일은 안 고친다). ↻ 단추는 시장분석 띠에만 있다. 못 그려도 아래 화면은 그대로다.
         try:
             st.markdown(hero_banner.css() + hero_banner.html("13").replace(
-                '<p class="j3hero-sub">시장분석</p>', '<p class="j3hero-sub">관심종목 · 한국</p>'), unsafe_allow_html=True)
+                '<p class="j3hero-sub">시장분석</p>', '<p class="j3hero-sub">관심종목 · 한국</p>').replace(
+                '<span class="j3hero-round">↻</span>', ''), unsafe_allow_html=True)   # 이 화면엔 ↻ 단추가 없어 그림도 뺀다
         except Exception:
             pass
         _render_watch_page()
