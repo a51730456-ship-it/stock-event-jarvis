@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-MODULE_REVISION = 2026110301
+MODULE_REVISION = 2026110302
 TITLE_CLASS = "j13-page-title"
 
 # 표식 + 맨 위 여백 · 숨은 칸 · 단추 자리 — 자비스12 j12-market-top 덩어리와 같은 줄(이름표만 j13).
@@ -84,13 +84,7 @@ body:has(.j13-watch-top) [data-testid="stMarkdownContainer"],
 body:has(.j13-watch-top) label { color:#e7edf2; }
 body:has(.j13-market-top) [data-testid="stCaptionContainer"] { color:#9fb6c8 !important; }
 body:has(.j13-market-top) h1, body:has(.j13-market-top) h2, body:has(.j13-market-top) h3 { color:#e7edf2 !important; }
-/* 단추 — 남색 바탕에 금색 테두리(자비스12 단추와 같은 결) */
-body:has(.j13-market-top) .stButton button,
-body:has(.j13-watch-top) .stButton button {
-    background: linear-gradient(145deg, #0a3a66, #052849) !important;
-    color: #f2f6fa !important;
-    border: 1px solid #bf9254a8 !important;
-}
+/* 단추는 건드리지 않는다 — 2026-11-03 첫 사진에서 단추 규칙이 밑 막대(홈·시장분석·관심종목)까지 덮어 아이콘이 사라졌다 */
 body:has(.j13-market-top) [data-testid="stTextInput"] input,
 body:has(.j13-watch-top) [data-testid="stTextInput"] input {
     background:#06213f !important; color:#e7edf2 !important; border:1px solid #2b3d5a !important;
@@ -105,7 +99,14 @@ body:has(.j13-watch-top) .stApp [data-testid="stMarkdownContainer"] div[style*="
 body:has(.j13-market-top) [data-testid="stMarkdownContainer"]>div.j13-page-title{ margin-top:10px!important }
 </style>"""
 
-WATCH_MARK = '<div class="j13-watch-top"></div>'
+# 관심종목 화면 — 맨 위 띠를 숨긴 자리만큼 위 여백을 줄인다(2026-11-03 사진에서 맨 위가 빈 채 약 200px).
+WATCH_MARK = """<div class="j13-watch-top"></div>
+<style>
+body:has(.j13-watch-top) .stMainBlockContainer,
+body:has(.j13-watch-top) .block-container { padding-top:1.2rem!important; }
+body:has(.j13-watch-top) .stElementContainer:has(> [data-testid="stMarkdown"] style:only-child),
+body:has(.j13-watch-top) .stElementContainer:has(> [data-testid="stMarkdown"] .j13-watch-top) { display:none!important; }
+</style>"""
 
 
 def market_css() -> str:
