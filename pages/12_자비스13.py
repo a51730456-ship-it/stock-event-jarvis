@@ -888,7 +888,7 @@ if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
 import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 
-_REQUIRED_J13_WATCH_REVISION = 2026110301
+_REQUIRED_J13_WATCH_REVISION = 2026110402
 if int(getattr(jarvis13_watch, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_REVISION:
     jarvis13_watch = importlib.reload(jarvis13_watch)
 _REQUIRED_J13_WATCH_STORE_REVISION = 2026103001
@@ -5273,17 +5273,19 @@ def _render_watch_page() -> None:
     cards = [jarvis13_watch.card(stock, frames.get(stock["code"]), kospi) for stock in stocks]
     # 카드는 **한 통에 넣은 차례대로** 넣고 자리는 CSS 가 잡는다 — PC 세 칸 · 폰 두 칸(자비스12 관심종목과 같은 짜임 ·
     # 2026-11-03 화면 옷). 예전 st.columns(3) 은 폰에서 한 줄에 한 장씩 쌓여 화면이 길었다.
+    # 2026-11-04 자비스12 카드 모양 — 카드 어디를 눌러도 세부사항(속이 비치는 단추를 카드 위에 겹침) · ✕ 는 카드 오른쪽 위
+    # 동그라미(주인만 · jarvis13_watch.CSS). 성적 자세히는 카드 밑 「📈 넣은 날부터 성적」 표(자비스12 와 같은 자리).
     with st.container(key="j13w_cards"):
         for item in cards:
             with st.container(key=f"j13w_item_{item['code']}"):
                 st.markdown(jarvis13_watch.card_html(item), unsafe_allow_html=True)
-                # 단추 둘은 한 줄에 — 세로로 쌓으면 카드마다 단추 자리가 카드 반만큼 먹었다(2026-10-30 화면 확인).
-                with st.container(horizontal=True, gap="small"):
-                    st.button("🔎 세부사항", key=f"j13w_open_{item['code']}", on_click=_open_watch_detail,
-                              args=(item["code"],))
-                    if not guest:
-                        st.button("✕ 빼기", key=f"j13w_remove_{item['code']}", on_click=_watch_remove,
-                                  args=(item["code"], item["name"], "page"))
+                # 글자는 남긴다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 읽는다
+                st.button("🔎 세부사항", key=f"j13w_open_{item['code']}", on_click=_open_watch_detail,
+                          args=(item["code"],))
+                if not guest:
+                    st.button("✕", key=f"j13w_remove_{item['code']}", on_click=_watch_remove,
+                              args=(item["code"], item["name"], "page"), help=f"{item['name']} 빼기")
+    st.markdown(jarvis13_watch.since_table_html(cards), unsafe_allow_html=True)
     # 오늘 움직인 까닭(2026-10-31) — 카드를 다 그린 **뒤**에 둔다(누를 때만 받으니 카드가 기다리지 않는다 · CLAUDE.md 0-0 ①)
     _render_movers_reason(
         [{"code": item["code"], "name": item["name"], "change_pct": item.get("change_pct"),
