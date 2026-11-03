@@ -928,7 +928,7 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110401
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-_REQUIRED_J13_SKIN_REVISION = 2026110401
+_REQUIRED_J13_SKIN_REVISION = 2026110402
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -2245,20 +2245,22 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
         segments.append(
             f"<line x1='{index * step:.1f}' y1='{_y(first):.1f}' "
             f"x2='{(index + 1) * step:.1f}' y2='{_y(second):.1f}' "
-            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round'/>"
+            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round' vector-effect='non-scaling-stroke'/>"
         )
     fill = up_color if points[-1] >= base else down_color
     area = f"0,{base_y:.1f} " + " ".join(
         f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
     ) + f" {width:.1f},{base_y:.1f}"
     return (
-        f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
+        # preserveAspectRatio none — 칸 폭을 꽉 채워 늘려도 키는 그대로(2026-11-04 · 자비스12 지수 그림과 같다) ·
+        # 선 굵기는 vector-effect 가 지킨다.
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' preserveAspectRatio='none' "
         f"style='display:block; margin:.4rem 0 .1rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
         f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
-        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4'/>"
+        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4' vector-effect='non-scaling-stroke'/>"
         + "".join(segments) + "</svg>"
     )
 

@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 TITLE_CLASS = "j13-page-title"
 
 # 표식 + 맨 위 여백 · 숨은 칸 · 단추 자리 — 자비스12 j12-market-top 덩어리와 같은 줄(이름표만 j13).
@@ -104,6 +104,22 @@ body:has(.j13-market-top) table { color:#e7edf2; }
 /* 맨 밑 판 표시 상자 */
 body:has(.j13-market-top) .stApp [data-testid="stMarkdownContainer"] div[style*="판 "],
 body:has(.j13-watch-top) .stApp [data-testid="stMarkdownContainer"] div[style*="판 "] { background:transparent !important; }
+/* 지수 칸 — 자비스12 「미국 전체시장 판단」 칸과 같은 모양(2026-11-04 상하님 캡처 — 「비교 좀 하면서 해라」).
+   이름표 초록 · 그림이 칸 폭을 꽉 채움 · 「당일」·「일봉 6개월」 글은 그림 **안** 가운데에 옅은 노랑(선이 글 위로 지나감) ·
+   태블릿(601~1200px)은 한 줄에 셋 · PC 는 칸 폭을 고르게. 폰(≤600px)은 mobile_ui 규칙 그대로(CLAUDE.md 12). 값·순서는 그대로. */
+body:has(.j13-market-top) .j4-top-label{color:#44f0a1;font-size:1.15rem}
+body:has(.j13-market-top) .j4-top-cell svg{width:100%!important}
+body:has(.j13-market-top) .j4-idx-now,body:has(.j13-market-top) .j4-idx-more,body:has(.j13-market-top) .j4-idx-solo{position:relative}
+body:has(.j13-market-top) .j4-idx-now>svg,body:has(.j13-market-top) .j4-idx-more>svg,body:has(.j13-market-top) .j4-idx-solo>svg{position:relative;z-index:1}
+body:has(.j13-market-top) .j4-idx-cap{position:absolute;left:0;right:0;top:50%;transform:translateY(-54%);color:rgba(255,209,102,.55);
+  font-size:.7rem;font-weight:800;letter-spacing:-.02em;text-align:center;pointer-events:none;z-index:0;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+body:has(.j13-market-top) .j4-idx-cap-daily{color:rgba(255,209,102,.55)}
+@media (min-width:601px) and (max-width:1200px){
+  body:has(.j13-market-top) .j4-top-cell{flex:1 1 calc(33.333% - .7rem);width:auto;min-width:calc(33.333% - .7rem);max-width:none}
+}
+@media (min-width:1201px){
+  body:has(.j13-market-top) .j4-top-cell{flex:1 1 150px;min-width:150px;max-width:240px}
+}
 .j13-page-title{font-size:16px; font-weight:800; color:#c084fc; margin:.25rem 0 .4rem; letter-spacing:-.01em;}
 body:has(.j13-market-top) [data-testid="stMarkdownContainer"]>div.j13-page-title{ margin-top:10px!important }
 </style>"""
