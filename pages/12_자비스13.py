@@ -871,9 +871,14 @@ import jarvis13_crash_record  # noqa: E402
 _REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
 if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
     jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
+# 「📢 최근 공시」(2026-11-04 상하님 「DART 하자」) — 누를 때만 · 보여 주기만.
+import jarvis13_disclosures  # noqa: E402
+_REQUIRED_J13_DISCLOSURES_REVISION = 2026110401
+if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISCLOSURES_REVISION:
+    jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110303
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110304
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -2656,6 +2661,58 @@ def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
                 st.warning(f"{timeframe} 자료 없음")
 
 
+@st.fragment
+def _render_disclosures_box(code: str, name: str, *, panel: str) -> None:
+    """누르면 30일 공시를 받아 새것부터 보인다(덩이라 여닫아도 이 칸만 다시 그림). 못 받으면 까닭 한 줄 — 옛 결과를 지우지 않는다."""
+    key = f"j13_dart_open_{panel}"
+    if not _section_toggle(f"📢 최근 공시 {jarvis13_disclosures.DAYS}일 — 누르면 받아 옵니다", key, close_label="최근 공시 닫기"):
+        return
+    try:
+        api_key = st.secrets.get("DART_API_KEY")
+    except Exception:
+        api_key = None
+    if not api_key:
+        st.info("OpenDART 인증키(DART_API_KEY)가 설정되지 않아 공시를 받을 수 없습니다.")
+        _section_close(key, "최근 공시 닫기")
+        return
+    import disclosure_data
+
+    memo_key = f"j13_dart_{code}"
+    kept = st.session_state.get(memo_key)
+    if not isinstance(kept, dict) or time.time() - float(kept.get("at") or 0) > 600:
+        with st.spinner("공시를 받는 중입니다…"):
+            result = jarvis13_disclosures.recent(api_key, code, fetch_map=disclosure_data.fetch_dart_corp_code_map,
+                                                 fetch_list=disclosure_data.fetch_recent_dart_disclosures)
+        if result.get("status") in ("정상", "데이터 없음"):
+            kept = {"at": time.time(), "result": result}
+            st.session_state[memo_key] = kept
+        elif isinstance(kept, dict):
+            st.caption(f"새로 받지 못했습니다({html.escape(str(result.get('status')))}) — 앞서 받은 목록을 그대로 둡니다.")
+        else:
+            st.caption(f"공시를 받지 못했습니다 — {html.escape(str(result.get('status')))}. 닫았다 다시 열면 다시 받습니다.")
+            _section_close(key, "최근 공시 닫기")
+            return
+    rows = (kept.get("result") or {}).get("rows") or []
+    if not rows:
+        st.caption(f"최근 {jarvis13_disclosures.DAYS}일 동안 {html.escape(name)} 공시가 없습니다.")
+    else:
+        lines = []
+        for row in rows[:30]:
+            link = html.escape(row["link"], quote=True) if row["link"].startswith("https://") else ""
+            title = html.escape(row["title"])
+            title = f"<a href='{link}' target='_blank' rel='noopener'>{title}</a>" if link else title
+            chip = ("<span style='color:#ffb020;font-weight:800;font-size:.78rem'>[⚠ 살펴볼 공시]</span> "
+                    if row["caution"] else "")
+            lines.append(f"<div style='padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.07)'>"
+                         f"<span class='j4-muted' style='font-size:.8rem'>{html.escape(row['day'])}</span> {chip}{title}</div>")
+        st.markdown("".join(lines), unsafe_allow_html=True)
+        caution_count = sum(1 for row in rows if row["caution"])
+        st.caption(f"금융감독원 전자공시(OpenDART) · 최근 {jarvis13_disclosures.DAYS}일 {len(rows)}건"
+                   + (f" · ⚠ {caution_count}건" if caution_count else "")
+                   + " · [⚠ 살펴볼 공시]는 제목 낱말(유상증자 · 전환사채 · 최대주주 변경 · 횡령 등)로 고른 1차 참고 · 점수·판정에 안 씁니다.")
+    _section_close(key, "최근 공시 닫기")
+
+
 def _render_fundamentals_box(code: str, metrics: dict | None = None) -> None:
     """「📑 재무 한눈에 보기」 — 누르면 펴지는 상자(브라우저가 여닫는다 · 서버에 안 묻는다). 못 모은 종목은 한 줄만."""
     try:
@@ -2710,6 +2767,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     # 「📑 재무 한눈에」(2026-11-03 상하님 「재무현황 등도 없고」) — 자비스12 와 같은 자리(종목 이름 밑). 깃허브가 모은
     # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
     _render_fundamentals_box(code, metrics)
+    # 「📢 최근 공시 30일」(2026-11-04 상하님 「DART 하자」) — 누를 때만 OpenDART 에서 받는다 · 점수·판정에 안 씀.
+    _render_disclosures_box(code, leader.get("name") or code, panel=panel)
     # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
     if not auth.is_guest():
         _render_watch_toggle(code, leader.get("name") or code, metrics, panel=panel)
