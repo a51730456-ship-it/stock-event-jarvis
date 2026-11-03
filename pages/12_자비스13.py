@@ -879,7 +879,7 @@ if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUN
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
 import jarvis13_skin  # noqa: E402
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-_REQUIRED_J13_SKIN_REVISION = 2026110303
+_REQUIRED_J13_SKIN_REVISION = 2026110305
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -3569,6 +3569,10 @@ def _render_radar_tab(market: dict) -> None:
 전 종목이 0점이 됐습니다. 신고가 항목의 범위가 −45~0인 것은 그 때문이고 지금도 같습니다.
             """
         )
+    # 「⚡ 강한 테마 TOP 5」(2026-11-03 · 자비스12 형식) — 바로 밑 표와 같은 순위를 그대로 쓴다(새로 받지 않음).
+    top5 = jarvis13_skin.top5_html(ranking)
+    if top5:
+        st.markdown(top5, unsafe_allow_html=True)
     st.markdown(f"### 오늘의 강한 테마 {len(ranking['rows'])} · 실시간 순위")
     entered, dropped = ranking.get("entered") or [], ranking.get("dropped") or []
     change_text = ""
@@ -5197,6 +5201,14 @@ def main() -> None:
         # 뒤로가기를 붙잡는 표식(자비스12 j12b_backstop)은 **안 넣는다** — 자비스12 에서는 상하님이 따로 시키신 것이고,
         # 자비스13 은 지금처럼 뒤로가기가 자비스12 로 돌아가는 것이 자연스럽다(시키지 않은 동작은 바꾸지 않는다).
         st.markdown(jarvis13_skin.watch_css(), unsafe_allow_html=True)      # 자비스12 와 같은 바탕(2026-11-03)
+        # 맨 위 그림 띠 「JARVIS 13 · 관심종목」(자비스12 홈처럼 · 2026-11-03). 얼린 hero_banner 의 글을 받아 밑 글자만 바꿔 그린다
+        # (파일은 안 고친다). ↻ 단추는 시장분석 띠에만 있다. 못 그려도 아래 화면은 그대로다.
+        try:
+            st.markdown(hero_banner.css() + hero_banner.html("13").replace(
+                '<p class="j3hero-sub">시장분석</p>', '<p class="j3hero-sub">관심종목 · 한국</p>').replace(
+                '<span class="j3hero-round">↻</span>', ''), unsafe_allow_html=True)   # 이 화면엔 ↻ 단추가 없어 그림도 뺀다
+        except Exception:
+            pass
         _render_watch_page()
         _render_j13_bottom_nav("watch")
         return

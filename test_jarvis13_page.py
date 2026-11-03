@@ -1164,3 +1164,36 @@ class PartnerFlowColumnTests(unittest.TestCase):
             any("동반 순매수" in str(node.label) for node in app.checkbox),
             [str(node.label) for node in app.checkbox],
         )
+
+
+class StrongTop5Tests(unittest.TestCase):
+    def test_card_uses_the_same_ranking_first_five_ok_rows(self):
+        import jarvis13_skin
+        ranking = {"rows": [{"ok": True, "name": "반도체", "score": 81.2}, {"ok": False, "name": "빠짐", "score": 99},
+                            {"ok": True, "name": "방산", "score": 70}, {"ok": True, "name": "<b>조선</b>", "score": None},
+                            {"ok": True, "name": "원전", "score": 55}, {"ok": True, "name": "바이오", "score": 50},
+                            {"ok": True, "name": "여섯째", "score": 40}]}
+        text = jarvis13_skin.top5_html(ranking)
+        self.assertIn("강한 테마 TOP 5", text)
+        self.assertIn("81.2", text)
+        self.assertNotIn("빠짐", text)                          # 자료를 못 받은 줄은 뺀다
+        self.assertNotIn("여섯째", text)                        # 다섯까지만
+        self.assertIn("&lt;b&gt;조선", text)                    # 이름은 글자로만
+        self.assertEqual("", jarvis13_skin.top5_html({"rows": []}))
+
+    def test_card_sits_right_above_the_theme_table(self):
+        source = PAGE.read_text(encoding="utf-8")
+        self.assertLess(source.index("jarvis13_skin.top5_html(ranking)"),
+                        source.index('st.markdown(f"### 오늘의 강한 테마 {len(ranking[\'rows\'])} · 실시간 순위")'))
+
+
+class MorningWarmTests(unittest.TestCase):
+    def test_morning_wake_opens_jarvis13_after_jarvis12(self):
+        """2026-11-03 상하님 「2 넣어라」 — 아침 깨우기에 자비스13 도(자비스12 다음)."""
+        warm = (ROOT / "warm_morning.py").read_text(encoding="utf-8")
+        self.assertIn('J13_URL = f"{BASE}/자비스13?guest=1"', warm)
+        main = warm.split("def main()")[1]
+        self.assertLess(main.index("_warm_page(page, name, url, home, market)"), main.index("_warm_j13(page)"))
+        source = PAGE.read_text(encoding="utf-8")
+        for key in ("j13_theme_table", "j13_pullback_breakout", "j13_pullback_crash"):   # 깨우기가 찾는 이름이 화면에 있다
+            self.assertIn(key, source)
