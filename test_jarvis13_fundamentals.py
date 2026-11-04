@@ -229,13 +229,21 @@ class StreetTests(unittest.TestCase):
 
     def test_box_shows_target_gap_and_no_titles(self):
         info = {"consensus": fn.parse_consensus(self.WHOLE), "reports": fn.parse_reports(self.WHOLE), "price": 120700.0,
-                "annual": [], "quarter": []}
-        out = fn.card_html(info)
-        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "2026-11-03 기준",
-                     "점수 · 판정에는 안 들어갑니다"):
+                "foreign": 16.4, "dps": 2000.0, "dy": 1.66, "latest_at": "2025.12", "annual": [], "quarter": []}
+        out = fn.street_html(info)
+        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "11/03 기준",
+                     "점수·판정에는 들어가지 않습니다", "🔍 외국인 · 배당", "16.4%", "주당 2,000원"):
             self.assertIn(text, out)
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
         self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
+        # 2026-11-04 상하님 「왜 재무현황 안에 집어넣었냐」 — 재무 창 안에는 없다
+        self.assertNotIn("증권사 의견", fn.card_html(info))
+
+    def test_page_puts_it_above_the_fundamentals_button(self):
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        block = page[page.index("jarvis13_fundamentals.street_block("):]
+        self.assertLess(block.index("street_block("), block.index("_render_fundamentals_box(code, metrics, panel=panel)"))
+        self.assertNotIn("j3st", fn.STREET_CSS)                                       # 자비스12 이름과 안 섞임
 
     def test_report_dates_from_naver_shape(self):
         # 2026-11-04 실제 모은 값은 「20261030」 모양이었다(처음에는 「030」으로 잘못 나왔다)

@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110406
+MODULE_REVISION = 2026110407
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -237,6 +237,7 @@ def summary(code: str, price_now=None, *, path: Path = DATA_PATH) -> dict | None
         "pbr": None if (not bps or bps <= 0 or not price) else price / bps, "equity_bad": bps is not None and bps <= 0,
         "roe": latest.get("roe"), "opm": latest.get("opm"), "debt": latest.get("debt"), "quick": latest.get("quick"),
         "dy": (dps / price * 100.0) if (dps is not None and price) else latest.get("dy"),
+        "dps": dps,
         "hi52": _num(entry.get("hi52")), "lo52": _num(entry.get("lo52")), "foreign": _num(entry.get("foreign")),
         "price": price,
         "consensus": entry.get("consensus") if isinstance(entry.get("consensus"), dict) else None,
@@ -359,7 +360,7 @@ def card_html(info: dict) -> str:
         foot.append("시가총액·PER·PBR·배당은 지금 주가로 다시 셈")
     return ("<div class='j13fn'><div class='j13fn-grid'>" + "".join(cells) + "</div><div class='j13fn-charts'>"
             + _results_html("연간 실적", info.get("annual") or []) + _results_html("분기 실적", info.get("quarter") or [])
-            + "</div>" + street_html(info) + "<div class='j13fn-foot'>단위 억 원 · 칸 위는 결산한 달 · " + " · ".join(foot) + "</div></div>")
+            + "</div><div class='j13fn-foot'>단위 억 원 · 칸 위는 결산한 달 · " + " · ".join(foot) + "</div></div>")
 
 
 RECOMM_WORDS = ((4.5, "강력 매수"), (3.5, "매수"), (2.5, "중립"), (1.5, "매도"), (0.0, "강력 매도"))
@@ -379,36 +380,87 @@ def _md(day) -> str:
     return f"{int(digits[4:6])}/{int(digits[6:8])}" if len(digits) == 8 else ""
 
 
+def _box(title: str, rows: list, extra: str = "") -> str:
+    body = "".join(f"<div class='j13st-row'><b>{name}</b><span>{value}</span></div>" for name, value in rows)
+    return f"<div class='j13st-box'><div class='j13st-h'>{title}</div>{body}{extra}</div>"
+
+
 def street_html(info: dict) -> str:
-    """👥 증권사 의견 — 투자의견 평균 · 목표주가 평균(지금보다 몇 %) · 최근 리포트 증권사. 자료가 없으면 빈 글(칸을 안 그린다)."""
+    """종목 이름 밑 상자들 — 자비스12 「👥 애널리스트 의견 · 🔍 공매도·내부자·배당」 자리(2026-11-04 상하님 「위치 등 이 형식을 따르지
+    왜 재무현황 안에 집어넣었냐 · 미국테마 형식은 따라서 하라고」). 「📑 재무 한눈에 보기」 단추 **위**에 따로 선다.
+    한국에서 받을 수 있는 것만 — 없는 칸은 안 그린다(지어내지 않는다)."""
+    boxes = []
     consensus = info.get("consensus") or {}
     reports = info.get("reports") or []
-    if not consensus and not reports:
-        return ""
     recomm, target, price = _num(consensus.get("recomm")), _num(consensus.get("target")), _num(info.get("price"))
+    if recomm or target or reports:
+        at = _html.escape(str(consensus.get("at") or ""))
+        parts = [f"<div class='j13st-h'>👥 증권사 의견" + (f" <span class='j13st-dim'>· {at[5:].replace('-', '/')} 기준</span>" if at else "")
+                 + "</div>"]
+        if recomm:
+            place = max(0.0, min(100.0, (recomm - 1.0) / 4.0 * 100.0))
+            parts.append(
+                f"<div class='j13st-row'><b>투자의견</b><span><span class='j13st-hl'>{recomm:.2f}</span> / 5 · "
+                f"<b class='j13st-word'>{recomm_word(recomm)}</b> <span class='j13st-dim'>· 여러 증권사 평균</span></span></div>"
+                f"<div class='j13st-range'><div class='j13st-line'></div><i class='j13st-mk' style='left:{place:.1f}%'></i>"
+                "<span class='j13st-lab' style='left:0'>1 강력 매도</span><span class='j13st-lab' style='left:50%;transform:translateX(-50%)'>3 중립</span>"
+                "<span class='j13st-lab' style='right:0'>5 강력 매수</span></div>")
+        if target:
+            parts.append(f"<div class='j13st-h2'>🎯 목표주가 <span class='j13st-dim'>· 평균 · 1년 뒤 예상</span></div>"
+                         f"<div class='j13st-row'><b>평균</b><span><span class='j13st-hl'>{target:,.0f}원</span>"
+                         + (f" <span class='j13st-dim'>· 지금 {price:,.0f}원</span>" if price else "") + "</span></div>")
+            if price:
+                gap = target / price * 100.0 - 100.0
+                parts.append(f"<div class='j13st-row'><b>평균까지</b><span class='{'j13st-up' if gap >= 0 else 'j13st-dn'}'>"
+                             f"지금보다 {gap:+.0f}%</span></div>")
+        if reports:
+            listed = " · ".join(f"{_html.escape(str(b))} {_html.escape(_md(d))}" for b, d in reports)
+            parts.append(f"<div class='j13st-row'><b>최근 리포트</b><span>{listed}</span></div>")
+        parts.append("<div class='j13st-note'>※ 증권사 의견입니다(네이버 증권 · 주 1회 모음). 자비스 점수·판정에는 들어가지 않습니다.</div>")
+        boxes.append(f"<div class='j13st-box'>{''.join(parts)}</div>")
     rows = []
-    if recomm:
-        place = max(0.0, min(100.0, (recomm - 1.0) / 4.0 * 100.0))
-        rows.append(
-            "<div class='j13st-row'><b>투자의견</b><span><i class='j13st-big'>" + f"{recomm:.2f}" + "</i> / 5 · "
-            + recomm_word(recomm) + "</span></div>"
-            "<div class='j13st-bar'><span style='left:" + f"{place:.0f}" + "%'></span></div>"
-            "<div class='j13st-scale'><span>1 강력 매도</span><span>3 중립</span><span>5 강력 매수</span></div>")
-    if target:
-        gap = ""
-        if price:
-            change = target / price * 100.0 - 100.0
-            tone = "#ff5b5b" if change > 0 else NEG
-            gap = f" · <b style='color:{tone}'>지금보다 {change:+.0f}%</b>"
-        rows.append(f"<div class='j13st-row'><b>목표주가</b><span>평균 <i class='j13st-big'>{target:,.0f}원</i>{gap}</span></div>")
-    if reports:
-        listed = " · ".join(f"{_html.escape(str(b))} {_html.escape(_md(d))}" for b, d in reports)
-        rows.append(f"<div class='j13st-row'><b>최근 리포트</b><span>{listed}</span></div>")
-    at = _html.escape(str(consensus.get("at") or ""))
-    return ("<div class='j13st'><div class='j13st-h'>👥 증권사 의견" + (f"<small> · {at} 기준</small>" if at else "") + "</div>"
-            + "".join(rows)
-            + "<div class='j13st-note'>※ 증권사 의견 평균입니다(네이버 증권 · 주 1회 모음). 자비스 점수 · 판정에는 안 들어갑니다. "
-            "공매도 · 내부자 거래는 받을 곳이 없어(DART 뺌) 적지 않습니다.</div></div>")
+    foreign = _num(info.get("foreign"))
+    if foreign is not None:
+        rows.append(("외국인", f"외국인이 가진 몫 {foreign:.1f}% <span class='j13st-dim'>· 한도 대비 소진율</span>"))
+    dps, dy = _num(info.get("dps")), _num(info.get("dy"))
+    if dps:
+        rows.append(("배당", f"주당 {dps:,.0f}원" + (f" · 지금 주가로 {dy:.2f}%" if dy else "")
+                     + f" <span class='j13st-dim'>· {_html.escape(str(info.get('latest_at') or ''))} 결산</span>"))
+    elif dps == 0 or dy == 0:
+        rows.append(("배당", "지난 결산 배당 없음"))
+    if rows:
+        boxes.append(_box("🔍 외국인 · 배당", rows,
+                          "<div class='j13st-note'>공매도 · 내부자 거래는 받을 곳이 없어(네이버에 없음 · DART 뺌) 적지 않습니다.</div>"))
+    return f"<div class='j13st'>{''.join(boxes)}</div>" if boxes else ""
+
+
+def street_block(code: str, price_now=None, *, path: Path = DATA_PATH) -> str:
+    """화면이 부르는 한 덩이(꾸밈 + 상자). 파일에 없으면 빈 글."""
+    info = summary(code, price_now, path=path)
+    html_text = street_html(info) if info else ""
+    return (STREET_CSS + html_text) if html_text else ""
+
+
+STREET_CSS = """<style>
+.j13st{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px;margin:8px 0 4px}
+.j13st-box{border:1px solid #2b4f80;border-radius:13px;padding:10px 12px 9px;background:rgba(77,127,208,.10);min-width:0}
+.j13st-h{font-size:.95rem;font-weight:900;color:#fff;margin-bottom:5px}
+.j13st-h2{font-size:.88rem;font-weight:900;color:#fff;margin:10px 0 0}
+.j13st-row{display:flex;align-items:baseline;gap:8px;font-size:.82rem;line-height:1.75;color:#e6edf8}
+.j13st-row > b{flex:0 0 66px;color:#8fb4de;font-weight:700}
+.j13st-row > span{min-width:0}
+.j13st-hl{color:#ffd166;font-weight:900}
+.j13st-word{color:#06d6a0;font-weight:900}
+.j13st-up{color:#ff5b5b;font-weight:800}
+.j13st-dn{color:#5aa9ff;font-weight:800}
+.j13st-dim{color:#7f9cc0;font-size:.74rem}
+.j13st-range{position:relative;height:34px;margin:6px 4px 0}
+.j13st-line{position:absolute;left:0;right:0;top:6px;height:4px;border-radius:2px;
+  background:linear-gradient(90deg,#ff6b6b,#ffd166,#06d6a0)}
+.j13st-mk{position:absolute;top:0;width:3px;height:16px;background:#fff;border-radius:2px;transform:translateX(-50%)}
+.j13st-lab{position:absolute;top:20px;font-size:.68rem;color:#8fb4de;white-space:nowrap}
+.j13st-note{font-size:.72rem;color:#8b96a8;margin-top:6px;line-height:1.45}
+</style>"""
 
 
 # 칸 모양은 자비스12 재무 창(us_fundamentals.CARD_CSS)과 같은 값(2026-11-04 상하님 「미국테마와 비교해 봐라」 — 폰에서 두 칸씩
@@ -438,17 +490,6 @@ CSS = """<style>
 .j13fn-foot{color:#8b96a8;font-size:.74rem;line-height:1.5}
 /* 폰처럼 카드가 좁으면 자비스12 폰 배치(mobile_ui 의 j3fn — 두 칸 · 실적 그림 한 칸 가득)와 같게 (2026-11-04 상하님 캡처 — 표가 잘려
    옛 칸 23.12·24.12 만 보였다). 화면 폭 규칙이 아니라 이 카드 폭으로 본다 — PC·태블릿은 카드가 넓어 그대로다(CLAUDE.md 12). */
-.j13st{border:1px solid #1d3a63;border-radius:10px;padding:8px 10px}
-.j13st-h{font-weight:900;font-size:.95rem;margin-bottom:4px}
-.j13st-h small{font-weight:600;color:#8fb4de;font-size:.72rem}
-.j13st-row{display:flex;gap:10px;align-items:baseline;margin:3px 0;font-size:.85rem}
-.j13st-row>b{min-width:5.2em;color:#8fb4de}
-.j13st-big{font-style:normal;font-weight:900;font-size:1.05rem;color:#ffffff}
-.j13st-bar{position:relative;height:8px;border-radius:999px;margin:4px 0 2px;
-  background:linear-gradient(90deg,#5aa9ff 0%,#ffd166 50%,#ff5b5b 100%)}
-.j13st-bar span{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;transform:translateX(-50%)}
-.j13st-scale{display:flex;justify-content:space-between;font-size:.66rem;color:#8b96a8}
-.j13st-note{font-size:.7rem;color:#8b96a8;margin-top:4px;line-height:1.45}
 .j13fn{container-type:inline-size}
 .j13fn-t{table-layout:fixed}
 @container (max-width: 620px){

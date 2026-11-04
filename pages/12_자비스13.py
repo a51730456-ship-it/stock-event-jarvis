@@ -922,7 +922,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110406
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110407
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -2936,6 +2936,14 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     )
     # 「📑 재무 한눈에」(2026-11-03 상하님 「재무현황 등도 없고」) — 자비스12 와 같은 자리(종목 이름 밑). 깃허브가 모은
     # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
+    # 「👥 증권사 의견 · 🔍 외국인 · 배당」 — 자비스12 「애널리스트 의견 · 공매도·내부자·배당」 자리(재무 단추 **위** · 따로 선 상자).
+    # 2026-11-04 상하님 「위치 등 이 형식을 따르지 왜 재무현황 안에 집어넣었냐」. 같은 재무 파일만 읽는다(받으러 안 감).
+    try:
+        street = jarvis13_fundamentals.street_block(code, (metrics or {}).get("current") or (metrics or {}).get("close"))
+    except Exception:
+        street = ""
+    if street:
+        st.markdown(street, unsafe_allow_html=True)
     _render_fundamentals_box(code, metrics, panel=panel)
     # 「📢 최근 공시 30일」(2026-11-04 상하님 「DART 하자」) — 누를 때만 OpenDART 에서 받는다 · 점수·판정에 안 씀.
     _render_disclosures_box(code, leader.get("name") or code, panel=panel)
