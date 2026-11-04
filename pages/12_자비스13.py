@@ -922,7 +922,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110407
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110408
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -2938,8 +2938,13 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     # 파일(data/fundamentals/KR.json)만 읽는다 — 받으러 가지 않으니 눌러도 서버를 안 거치고 곧바로 펴진다.
     # 「👥 증권사 의견 · 🔍 외국인 · 배당」 — 자비스12 「애널리스트 의견 · 공매도·내부자·배당」 자리(재무 단추 **위** · 따로 선 상자).
     # 2026-11-04 상하님 「위치 등 이 형식을 따르지 왜 재무현황 안에 집어넣었냐」. 같은 재무 파일만 읽는다(받으러 안 감).
+    # 그 앞에 「🏢 종목 개요」(자비스12 _overview_html 자리 — 이름 바로 밑). 한국은 있는 것만(앱 테마 · 시가총액 · 네이버 원문 주소).
     try:
-        street = jarvis13_fundamentals.street_block(code, (metrics or {}).get("current") or (metrics or {}).get("close"))
+        price_now = (metrics or {}).get("current") or (metrics or {}).get("close")
+        fund_info = jarvis13_fundamentals.summary(code, price_now)
+        street = jarvis13_fundamentals.overview_html(code, leader.get("name") or code, theme=str(theme_row.get("name") or ""),
+                                                     info=fund_info)
+        street += jarvis13_fundamentals.street_block(code, price_now)
     except Exception:
         street = ""
     if street:

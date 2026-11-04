@@ -255,3 +255,25 @@ class StreetTests(unittest.TestCase):
     def test_recomm_words(self):
         self.assertEqual(["강력 매수", "매수", "중립", "매도", "강력 매도"],
                          [fn.recomm_word(v) for v in (4.8, 4.0, 3.0, 2.0, 1.0)])
+
+
+class OverviewTests(unittest.TestCase):
+    """2026-11-04 상하님 「다른 것도 확인하고 미국테마 형식 따라서 해라」 — 자비스12 「🏢 종목 개요」 자리(있는 것만)."""
+
+    def test_overview_shows_app_themes_first_and_link(self):
+        out = fn.overview_html("096770", "SK이노베이션", theme="2차전지",
+                               themes=["정유", "2차전지", "윤활유", "LPG", "석유화학", "폐배터리", "주유소", "ESS"],
+                               info={"mcap": 204047.0})
+        self.assertIn("🏢 SK이노베이션", out)
+        self.assertLess(out.index("앱 테마 · 2차전지"), out.index("앱 테마 · 정유"))      # 지금 보는 테마가 맨 앞
+        self.assertEqual(6, out.count("j13ov-chip j13ov-t"))
+        self.assertIn("외 2개", out)
+        self.assertIn("coinfo.naver?code=096770", out)
+        self.assertIn("시가총액 20.4조 원", out)
+        self.assertNotIn("j3ov", out)
+
+    def test_page_order_matches_jarvis12(self):
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        block = page[page.index("jarvis13_fundamentals.overview_html("):]
+        self.assertLess(block.index("overview_html("), block.index("street_block("))
+        self.assertLess(block.index("street_block("), block.index("_render_fundamentals_box(code, metrics, panel=panel)"))

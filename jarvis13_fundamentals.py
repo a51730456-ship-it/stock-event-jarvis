@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110407
+MODULE_REVISION = 2026110408
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -432,6 +432,59 @@ def street_html(info: dict) -> str:
         boxes.append(_box("🔍 외국인 · 배당", rows,
                           "<div class='j13st-note'>공매도 · 내부자 거래는 받을 곳이 없어(네이버에 없음 · DART 뺌) 적지 않습니다.</div>"))
     return f"<div class='j13st'>{''.join(boxes)}</div>" if boxes else ""
+
+
+NAVER_COINFO_URL = "https://finance.naver.com/item/coinfo.naver?code={code}"
+OVERVIEW_THEMES = 6
+
+
+def roster_themes(code: str, path: Path = ROSTER_PATH) -> list:
+    """테마 명부에서 이 종목이 든 테마 이름들(없으면 빈 목록)."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return list(((data.get("stocks") or {}).get(str(code or "").strip()) or {}).get("themes") or [])
+
+
+def overview_html(code: str, name: str = "", *, theme: str = "", themes=None, info: dict | None = None) -> str:
+    """세부사항 이름 밑 「🏢 종목 개요」 — 자비스12(us_fundamentals.overview_html) 자리 · 모양(2026-11-04 상하님 「미국테마 형식을
+    따라서 해라」). 한국은 회사 소개 글 · 업종 · 본사 · 직원 자료가 앱에 없어 **지어내지 않고** 있는 것만 — 앱 테마 · 시가총액 ·
+    네이버 기업 개요 원문 주소. 지금 보는 테마를 맨 앞에 둔다."""
+    code = str(code or "").strip()
+    esc = _html.escape
+    names = list(themes if themes is not None else roster_themes(code))
+    if theme and theme in names:
+        names.remove(theme)
+    if theme:
+        names.insert(0, theme)
+    shown, rest = names[:OVERVIEW_THEMES], len(names) - OVERVIEW_THEMES
+    chips = "".join(f"<span class='j13ov-chip j13ov-t'>앱 테마 · {esc(str(n))}</span>" for n in shown)
+    if rest > 0:
+        chips += f"<span class='j13ov-chip'>외 {rest}개</span>"
+    head = [code]
+    mcap = _num((info or {}).get("mcap"))
+    if mcap:
+        head.append(f"시가총액 {_won_cap(mcap)}")
+    url = NAVER_COINFO_URL.format(code=esc(code))
+    return (OVERVIEW_CSS + "<div class='j13ov'>"
+            f"<div class='j13ov-h'><b>🏢 {esc(str(name or (info or {}).get('name') or code))}</b>"
+            f"<span>{esc(' · '.join(head))}</span></div>"
+            + (f"<div class='j13ov-chips'>{chips}</div>" if chips else "")
+            + f"<a class='j13ov-more' href='{url}' target='_blank' rel='noopener noreferrer'>▸ 네이버 증권에서 기업 개요 원문 보기</a>"
+            "</div>")
+
+
+OVERVIEW_CSS = """<style>
+.j13ov{margin:10px 0 4px;border:1px solid #2b4f80;border-radius:13px;padding:10px 12px 9px;background:rgba(77,127,208,.10)}
+.j13ov-h{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
+.j13ov-h b{font-size:1rem;font-weight:900;color:#fff}
+.j13ov-h span{font-size:.78rem;color:#8fb4de}
+.j13ov-chips{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+.j13ov-chip{font-size:.78rem;font-weight:700;padding:1px 9px;border-radius:999px;border:1px solid #2b4f80;color:#cfe0ff}
+.j13ov-chip.j13ov-t{border-color:#7c3aed;background:rgba(124,58,237,.18);color:#e9d5ff}
+a.j13ov-more{display:inline-block;margin-top:2px;font-size:.78rem;font-weight:700;color:#c084fc!important;text-decoration:none!important}
+</style>"""
 
 
 def street_block(code: str, price_now=None, *, path: Path = DATA_PATH) -> str:
