@@ -26,7 +26,7 @@ from pathlib import Path
 
 import jarvis13_home_css as C
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -81,10 +81,16 @@ div[class*="st-key-j13h_wdgo_box"]{position:absolute!important;width:1px!importa
 </style>"""
 
 
+def _flat(block: str) -> str:
+    """줄 앞 들여쓰기를 뗀다 — 덩어리를 한 번에 이어 붙이면 들여쓴 「<style>」 줄을 화면이 코드 글로 읽어 규칙이 글자로
+    찍혔다(2026-11-04 깃허브 사진). 자비스12 는 덩어리를 따로따로 넣어 괜찮았다. 꾸밈 값은 한 글자도 안 바뀐다."""
+    return "\n".join(line.strip() for line in str(block or "").splitlines() if line.strip())
+
+
 def css() -> str:
     """관심종목 꾸밈 한 덩어리 — 자비스12 베낌 + 한국 색."""
-    return ("".join(C.BRIEFING_CSS) + C.BRIEFING_OPEN_CSS + decor_css() + C.BRIEFING_TABLET_CSS
-            + C.BRIEFING_TOUCH_CSS + KR_CSS)
+    return "\n".join(_flat(block) for block in (*C.BRIEFING_CSS, C.BRIEFING_OPEN_CSS, decor_css(), C.BRIEFING_TABLET_CSS,
+                                                C.BRIEFING_TOUCH_CSS, KR_CSS) if block)
 
 
 # ── 그림 ─────────────────────────────────────────────────────────────────────────────────
@@ -191,7 +197,7 @@ def hero_html(stocks: list[dict]) -> str:
             '<div class="j13h-title">JARVIS <b>13</b></div><div class="j13h-sub">한국테마</div></div>'
             '<div class="j13h-head-actions"><span class="j13h-round">↻</span><span class="j13h-live"><i></i>실시간</span></div>'
             f'{scene_html}{orbit_html(stocks)}</div>{pop_html}'
-            + C.J13H_HOME_CSS + C.J13H_CROSS_CSS)
+            + _flat(C.J13H_HOME_CSS) + _flat(C.J13H_CROSS_CSS))
 
 
 # ── 뉴스 ─────────────────────────────────────────────────────────────────────────────────

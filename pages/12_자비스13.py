@@ -897,7 +897,7 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110401
+_REQUIRED_J13_HOME_REVISION = 2026110402
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 

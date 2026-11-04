@@ -30,6 +30,12 @@ class HomeTests(unittest.TestCase):
         self.assertEqual([tool.rename(block) for block in found["_BRIEFING_CSS"]], copied.BRIEFING_CSS)
         self.assertEqual(tool.rename(found["_BRIEFING_OPEN_CSS"]), copied.BRIEFING_OPEN_CSS)
 
+    def test_no_indented_lines_so_css_is_not_shown_as_text(self):
+        # 2026-11-04 깃허브 사진 — 덩어리를 이어 붙이면 들여쓴 「<style>」 줄이 코드 글이 되어 규칙이 화면에 글자로 찍혔다
+        for text in (home.css(), home.hero_html([{"code": "005930", "name": "삼성전자"}])):
+            self.assertEqual([], [line for line in text.splitlines() if line[:1] in (" ", "\t")])
+        self.assertEqual(home.css().count("<style>"), home.css().count("</style>"))
+
     def test_korean_colors(self):
         svg = home.chart([100, 101, 99, 102], 1.0, baseline=True, base=100)
         self.assertIn(home.UP_STROKE, svg)

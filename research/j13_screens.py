@@ -29,11 +29,6 @@ VIEWS = (
     # 2026-11-04 상하님 「파트별 성적표 미국테마대로」 — 성적표를 연 판도 나란히
     ("자비스12", "j12", "?s=market", "div[class*='st-key-picklist_scorecard_US']", "j12_score", "picklist_scorecard_US"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13sc_open']", "j13_score", "btn_j13sc_open"),
-    # 2026-11-04 상하님 「다른 것도 확인하고 미국테마 형식 확인하고 따라서 해라」 — 선택종목 세부사항을 연 판(여섯 장)
-    ("자비스12", "j12", "?s=market", "div[class*='st-key-btn_j12_detail_open_theme']", "j12_detail",
-     "btn_j12_detail_open_theme", 6),
-    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_detail_open_theme']", "j13_detail",
-     "btn_j13_detail_open_theme", 6),
 )
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
 
