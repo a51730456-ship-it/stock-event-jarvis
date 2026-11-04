@@ -113,12 +113,16 @@ jobs:
             sleep 45
             adb exec-out screencap -p > shots/open_90s.png
             adb shell pidof io.github.stockeventjarvis.app > shots/running.txt || echo "꺼짐" > shots/running.txt
+            adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml shots/ui.xml || echo "글자 목록 못 뽑음" > shots/ui.xml
+            adb logcat -d -s JarvisWeb:V chromium:W cr_AwContents:W ActivityManager:W > shots/logcat.txt || true
+            adb shell dumpsys webviewupdate | head -20 > shots/webview.txt || true
       - name: 사진만 따로 갈래(j13-android-check)에 올리기
         if: always()
         run: |
           cd shots
           ls -la
-          cat launcher.txt running.txt || true
+          cat launcher.txt running.txt webview.txt || true
+          tail -60 logcat.txt || true
           git init -q -b j13-android-check
           git config user.name "j13-android"
           git config user.email "j13-android@users.noreply.github.com"

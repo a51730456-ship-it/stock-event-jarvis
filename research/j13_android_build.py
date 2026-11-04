@@ -128,9 +128,13 @@ def _web_activity() -> str:
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -138,6 +142,7 @@ import android.webkit.WebViewClient;
 
 /** 온라인 앱 한 화면을 여는 창. 화면 · 계산은 없다 — 온라인 앱을 그대로 보여 준다. 비밀번호는 넣지 않는다. */
 public abstract class WebActivity extends Activity {{
+    static final String TAG = "JarvisWeb";
     private WebView web;
 
     protected abstract String startUrl();
@@ -168,8 +173,25 @@ public abstract class WebActivity extends Activity {{
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, true);     // 로그인 유지 쿠키(앱 안 작은 창이 심는다)
-        web.setWebChromeClient(new WebChromeClient());
+        web.setBackgroundColor(Color.rgb(6, 14, 34));      // 첫 그림이 뜨기 전 바탕(앱 짙은 남색)
+        web.setWebChromeClient(new WebChromeClient() {{
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {{
+                Log.i(TAG, "화면 " + message.messageLevel() + " " + message.message());
+                return true;
+            }}
+        }});
         web.setWebViewClient(new WebViewClient() {{
+            @Override
+            public void onPageFinished(WebView view, String url) {{
+                Log.i(TAG, "열림 " + url);
+            }}
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {{
+                if (request.isForMainFrame()) Log.w(TAG, "못 엶 " + request.getUrl() + " · " + error.getDescription());
+            }}
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {{
                 Uri uri = request.getUrl();
