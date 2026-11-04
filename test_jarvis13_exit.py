@@ -32,6 +32,15 @@ class ExitButtonTests(unittest.TestCase):
             self.assertIn(text, device)
         self.assertLess(device.index("JarvisApp"), device.index("about:blank"))   # 앱이면 앱을 끝내는 것이 먼저
 
+    def test_x_is_not_a_button_tag_so_the_banner_does_not_collapse(self):
+        # 2026-11-04 로컬 실측 — <button> 이면 띠 칸이 「↻ 겹치기」 규칙(:has(button))에 걸려 38px 로 접혔다
+        for mod, hero, box in ((jarvis12_exit, ".j3b-hero", "j12b_hero_box"), (jarvis13_exit, ".j13h-hero", "j13h_hero_box")):
+            device = mod.device()
+            self.assertNotIn("createElement('button')", device)
+            self.assertIn("setAttribute('role', 'button')", device)
+            self.assertIn(hero, device)                                        # 관심종목 띠에도(상하님 「관심종목 띠에도 넣기」)
+            self.assertIn(box, device)
+
     def test_pages_render_it_and_frozen_banner_untouched(self):
         p12 = (ROOT / "pages" / "11_자비스12.py").read_text(encoding="utf-8")
         p13 = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")

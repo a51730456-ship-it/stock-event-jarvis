@@ -57,7 +57,7 @@ class SectorMapTests(unittest.TestCase):
 
     def test_cell_has_map_strip_breadth_and_zoom(self):
         out = sm.cell_html(_ranking())
-        for text in ("시장 현황", "j13-sector-tile", "자비스 테마 상위 5", "▲ 오름 2", "▼ 내림 1",
+        for text in ("강한 테마 지도", "j13-sector-tile", "자비스 테마 상위 5", "▲ 오름 2", "▼ 내림 1",
                      "자비스가 보는 한국 4종목 기준", "j13sm-tap", "다시 누르면 닫힘"):
             self.assertIn(text, out)
         self.assertEqual(5, out.split("j13sm-pop")[0].count("class='j13-sector-theme'"))   # 상위 5 줄(작은 판)

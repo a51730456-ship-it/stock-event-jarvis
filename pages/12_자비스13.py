@@ -942,7 +942,7 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110402
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
-_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110402
+_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110403
 if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
 import jarvis13_help  # noqa: E402  — 「📘 이 테마 설명」 짧은 글(2026-11-04 저녁 상하님 「너무 길다 · 간단히 · 현실과 맞냐」)
@@ -5914,8 +5914,11 @@ except Exception:
 # 「✕ 자비스 닫기」 — 자비스12 와 같은 단추(jarvis13_exit · 이름 j13 · 2026-11-04 상하님 「완전 창 닫는 것도 하나 만들자」).
 # 얼린 hero_banner 는 안 고친다. JARVIS 13 띠에만 붙는다. 맨 끝에 심는다(틈 안 생기게).
 try:
+    import importlib as _il
     import jarvis13_exit
 
+    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110403:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+        jarvis13_exit = _il.reload(jarvis13_exit)
     jarvis13_exit.render(st)
 except Exception:
     pass

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110403
 MARK = "12"
 NAME = "j12"
 
@@ -30,7 +30,7 @@ div[class*="st-key-j3hero_box"] [data-testid="stElementContainer"]:has(button){r
   border:1px solid transparent;
   background:linear-gradient(rgba(44,8,18,.92),rgba(44,8,18,.92)) padding-box,
              linear-gradient(135deg,#ffb36b,#ff4d6d 55%,#c89550) border-box;
-  box-shadow:0 2px 8px rgba(0,0,0,.45),0 0 0 0 rgba(255,77,109,.0);
+  box-shadow:0 2px 8px rgba(0,0,0,.45),0 0 0 0 rgba(255,77,109,.0);box-sizing:border-box;min-width:0;
   transition:transform .18s ease,box-shadow .25s ease}
 .__N__x-btn svg{width:16px;height:16px;stroke:#ffe1e6;stroke-width:2.6;stroke-linecap:round;
   filter:drop-shadow(0 0 4px rgba(255,90,120,.65))}
@@ -96,16 +96,67 @@ DEVICE = """
       var hero = heroes[i], mark = hero.querySelector('.j3hero-mark b');
       if (!mark || (mark.textContent || '').trim() !== MARK) { continue; }
       if (hero.querySelector('.' + N + 'x-btn')) { continue; }
-      var b = d.createElement('button');
-      b.type = 'button'; b.className = N + 'x-btn';
+      var b = d.createElement('span');
+      b.setAttribute('role', 'button'); b.tabIndex = 0; b.className = N + 'x-btn';
       b.setAttribute('aria-label', '자비스 닫기'); b.title = '자비스 닫기';
       b.innerHTML = SVG;
       b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); ask(); });
+      b.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ask(); } });
       hero.appendChild(b);
     }
   }
-  attach();
-  new MutationObserver(function(){ attach(); }).observe(d.body, {childList: true, subtree: true});
+  // 관심종목 띠에도(2026-11-04 밤 상하님 「관심종목 띠에도 넣기」) — 화면 폭마다 ↻ 크기 · 자리가 달라 숫자를 못박지 않고
+  // 그 자리를 재서 ✕ 를 같은 크기로 두고, ↻ · 실시간(보이는 동그라미 · 겹친 진짜 ↻ 단추)을 그만큼 왼쪽으로 옮긴다.
+  var HOME = {hero: '__HHERO__', pop: '__HPOP__', mark: '__HMARK__', actions: '__HACT__', round: '__HROUND__', box: '__HBOX__'};
+  function placeHome(){
+    var heroes = d.querySelectorAll(HOME.hero);
+    for (var i = 0; i < heroes.length; i++) {
+      var hero = heroes[i];
+      if (hero.classList.contains(HOME.pop)) { continue; }
+      var mark = hero.querySelector(HOME.mark);
+      if (!mark || (mark.textContent || '').trim() !== MARK) { continue; }
+      var acts = hero.querySelector(HOME.actions), round = hero.querySelector(HOME.round);
+      if (!acts || !round) { continue; }
+      var b = hero.querySelector('.' + N + 'x-btn');
+      if (!b) {
+        b = d.createElement('span');
+        b.setAttribute('role', 'button'); b.tabIndex = 0; b.className = N + 'x-btn ' + N + 'x-home';
+        b.setAttribute('aria-label', '자비스 닫기'); b.title = '자비스 닫기';
+        b.innerHTML = SVG;
+        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); ask(); });
+      b.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ask(); } });
+        hero.appendChild(b);
+      }
+      acts.style.removeProperty('right');
+      var cs = window.getComputedStyle(acts);
+      var right = parseFloat(cs.right) || 16, top = parseFloat(cs.top) || 14;
+      var size = round.getBoundingClientRect().width || 38, gap = parseFloat(cs.columnGap || cs.gap) || 8;
+      b.style.setProperty('right', right + 'px', 'important');
+      b.style.setProperty('top', top + 'px', 'important');
+      b.style.setProperty('width', size + 'px', 'important');
+      b.style.setProperty('min-width', size + 'px', 'important');
+      b.style.setProperty('max-width', size + 'px', 'important');
+      b.style.setProperty('min-height', size + 'px', 'important');
+      b.style.setProperty('flex', 'none', 'important');
+      b.style.setProperty('height', size + 'px', 'important');
+      acts.style.setProperty('right', (right + size + gap) + 'px', 'important');
+      var boxEl = d.querySelector('div[class*="st-key-' + HOME.box + '"]');
+      if (boxEl) {
+        var conts = boxEl.querySelectorAll('[data-testid="stElementContainer"]');
+        for (var k = 0; k < conts.length; k++) {
+          var btn = conts[k].querySelector('button');
+          if (!btn || (btn.innerText || '').trim() !== '↻') { continue; }
+          conts[k].style.removeProperty('right');
+          var r = parseFloat(window.getComputedStyle(conts[k]).right);
+          if (!isNaN(r)) { conts[k].style.setProperty('right', (r + size + gap) + 'px', 'important'); }
+        }
+      }
+    }
+  }
+  function all(){ attach(); placeHome(); }
+  all();
+  new MutationObserver(function(){ all(); }).observe(d.body, {childList: true, subtree: true});
+  window.addEventListener('resize', function(){ placeHome(); });
 })();
 """
 
@@ -116,6 +167,8 @@ def css() -> str:
 
 def device() -> str:
     return (DEVICE.replace("__N__", NAME).replace("__MARK__", MARK)
+            .replace("__HHERO__", ".j3b-hero").replace("__HPOP__", "j3b-hero-pop").replace("__HMARK__", ".j3b-title b")
+            .replace("__HACT__", ".j3b-head-actions").replace("__HROUND__", ".j3b-round").replace("__HBOX__", "j12b_hero_box")
             .replace("__SVG__", json.dumps(X_SVG)))
 
 
