@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110409
+MODULE_REVISION = 2026110501
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -636,7 +636,7 @@ def _ana_box(info: dict) -> str:
     if not (recomm or target or reports):
         return ""
     at = _html.escape(str(consensus.get("at") or ""))
-    parts = [f"<div class='j13st-h'>👥 증권사 의견" + (f" <span class='j13st-dim'>· {int(count)}곳</span>" if count else "")
+    parts = [f"<div class='j13st-h'>👥 애널리스트 의견" + (f" <span class='j13st-dim'>· {int(count)}곳</span>" if count else "")
              + (f" <span class='j13st-dim'>· {at[5:].replace('-', '/')} 기준</span>" if at else "") + "</div>"]
     if recomm:
         place = max(0.0, min(100.0, (recomm - 1.0) / 4.0 * 100.0))
@@ -665,8 +665,6 @@ def _ana_box(info: dict) -> str:
 def _own_box(info: dict) -> str:
     rows = []
     foreign = _num(info.get("foreign"))
-    if foreign is not None:
-        rows.append(("외국인", f"외국인이 가진 몫 {foreign:.1f}% <span class='j13st-dim'>· 한도 대비 소진율</span>"))
     ins = info.get("ins") or {}
     if ins:
         up, down = int(ins.get("up") or 0), int(ins.get("down") or 0)
@@ -692,12 +690,15 @@ def _own_box(info: dict) -> str:
         dps, dy = _num(info.get("dps")), _num(info.get("dy"))
         if dps:
             rows.append(("배당", f"주당 {dps:,.0f}원" + (f" · 지금 주가로 {dy:.2f}%" if dy else "")))
+    if foreign is not None:
+        rows.append(("외국인", f"외국인이 가진 몫 {foreign:.1f}% <span class='j13st-dim'>· 한도 대비 소진율</span>"))
     if not rows:
         return ""
+    # 자비스12 차례 — 공매도 · 내부자 · 배당(한국은 공매도를 못 받아 그렇다고 적고, 외국인 몫을 끝에 더한다)
+    rows.insert(0, ("공매도", "<span class='j13st-dim'>못 받음 — 거래소가 로그인한 사람에게만 보여 줌</span>"))
     body = "".join(f"<div class='j13st-row'><b>{name}</b><span>{value}</span></div>" for name, value in rows)
-    return (f"<div class='j13st-box'><div class='j13st-h'>🔍 외국인 · 내부자 · 배당</div>{body}"
-            "<div class='j13st-note'>공매도는 거래소가 로그인해야 보여 줘 못 받습니다. "
-            "내부자 늘림 · 줄임에는 장내 매매 아닌 것(상여 · 상속 등)도 섞입니다.</div></div>")
+    return (f"<div class='j13st-box'><div class='j13st-h'>🔍 공매도 · 내부자 · 배당</div>{body}"
+            "<div class='j13st-note'>내부자 늘림 · 줄임에는 장내 매매 아닌 것(상여 · 상속 등)도 섞입니다.</div></div>")
 
 
 def _shares(value) -> str:

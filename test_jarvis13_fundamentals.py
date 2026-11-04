@@ -228,11 +228,11 @@ class EarnInsiderTests(unittest.TestCase):
                 "ins": {"since": "2026-05-05", "up": 3, "down": 1, "up_sh": 25000.0, "down_sh": 500.0},
                 "divd": {"year": 2025, "dps": 1446.0, "yield": 2.6, "payout": 33.0}, "divdays": ["2026-10-30"]}
         out = fn.street_html(info, frame, today=date(2026, 11, 4))
-        self.assertLess(out.index("📅 실적 발표"), out.index("👥 증권사 의견"))
-        self.assertLess(out.index("👥 증권사 의견"), out.index("🔍 외국인 · 내부자 · 배당"))
+        self.assertLess(out.index("📅 실적 발표"), out.index("👥 애널리스트 의견"))
+        self.assertLess(out.index("👥 애널리스트 의견"), out.index("🔍 공매도 · 내부자 · 배당"))
         for text in ("추정", "26.12 영업이익", "12.0조 원", "26.09", "101,000", "-5.0%", "-4.8%", "· 20곳",
                      "늘림 3번(2.5만 주)", "줄임 1번(500주)", "주당 1,446원", "배당수익률 2.6%", "배당성향 33%",
-                     "최근 배당 결정 10/30", "공매도는", "「예상 대 실제」는 못 적습니다"):
+                     "최근 배당 결정 10/30", "못 받음 — 거래소", "「예상 대 실제」는 못 적습니다"):
             self.assertIn(text, out)
         self.assertNotIn("j3", out.replace("j13", ""))                              # 자비스12 이름과 안 섞임
 
@@ -275,6 +275,12 @@ class EarnInsiderTests(unittest.TestCase):
         self.assertEqual(["2026-10-30"], out["divdays"])
         self.assertEqual((1, 1, 1000.0, 200.0), (out["ins"]["up"], out["ins"]["down"], out["ins"]["up_sh"], out["ins"]["down_sh"]))
         self.assertEqual({"year": 2025, "dps": 1446.0, "yield": 2.6, "payout": 33.0}, out["divd"])
+
+    def test_overview_and_boxes_go_out_separately(self):
+        # 2026-11-05 상하님 「너 사기쳤네」 — 한 번에 내보내면 스트림릿이 상자를 버렸다(그려 보니 0개)
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        self.assertNotIn("street += jarvis13_fundamentals.street_block(", page)
+        self.assertIn("st.markdown(overview, unsafe_allow_html=True)", page)
 
     def test_page_passes_daily_frame(self):
         page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
@@ -346,13 +352,13 @@ class StreetTests(unittest.TestCase):
         info = {"consensus": fn.parse_consensus(self.WHOLE), "reports": fn.parse_reports(self.WHOLE), "price": 120700.0,
                 "foreign": 16.4, "dps": 2000.0, "dy": 1.66, "latest_at": "2025.12", "annual": [], "quarter": []}
         out = fn.street_html(info)
-        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "11/03 기준",
-                     "점수·판정에는 들어가지 않습니다", "🔍 외국인 · 내부자 · 배당", "16.4%", "주당 2,000원"):
+        for text in ("👥 애널리스트 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "11/03 기준",
+                     "점수·판정에는 들어가지 않습니다", "🔍 공매도 · 내부자 · 배당", "16.4%", "주당 2,000원"):
             self.assertIn(text, out)
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
         self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
         # 2026-11-04 상하님 「왜 재무현황 안에 집어넣었냐」 — 재무 창 안에는 없다
-        self.assertNotIn("증권사 의견", fn.card_html(info))
+        self.assertNotIn("애널리스트 의견", fn.card_html(info))
 
     def test_page_puts_it_above_the_fundamentals_button(self):
         page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")

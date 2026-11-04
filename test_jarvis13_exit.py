@@ -52,6 +52,17 @@ class ExitButtonTests(unittest.TestCase):
         self.assertNotIn("jarvis12_exit", p13)
         self.assertNotIn("@media (max-width: 600px)", jarvis12_exit.CSS + jarvis13_exit.CSS)
 
+    def test_v5_app_uses_second_route_and_old_app_dialog_buttons_fit(self):
+        # 2026-11-05 상하님 캡처 — 「새 판 받기」가 찌그러짐 · ✕ 가 안 꺼짐
+        import jarvis12_exit
+        import jarvis13_exit
+        for module in (jarvis12_exit, jarvis13_exit):
+            device = module.device()
+            self.assertIn("jarvisapp://exit", device)
+            self.assertIn("parseInt(ver, 10) >= 5", device)                         # 옛 판에서는 안 간다(오류 화면)
+            self.assertLess(device.index("JarvisApp.exit()"), device.index("jarvisapp://exit"))   # 다리가 먼저
+            self.assertIn("x-row a{flex:1 1 0", module.css())                       # 「새 판 받기」도 「닫기」와 같은 폭
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -132,5 +132,35 @@ def tearDownModule():
 
     jarvis13_flow.uninstall(jarvis4_data)
 
+    def test_crash_table_explains_the_three_drop_columns(self):
+        # 2026-11-05 상하님 캡처 「이게 말이 된다고 생각하나?」 — 자비스12 표 위 「낙폭 칸 셋」 줄이 한국에만 없었다
+        row = {"code": "034020", "name": "두산에너빌리티", "themes": ["풍력에너지"], "together_theme": "풍력에너지",
+               "bucket": "deep", "bucket_label": "고점 대비 -40~-60%", "hold_days": 20, "pullback_rank": 1,
+               "judged_from_high_pct": -58.55, "since_reference_pct": -8.0, "reference_date": "2026-10-20",
+               "now_from_high_pct": -61.85, "partner5": 0, "liquidity_value": 1.0e11, "rule_score": 40.0,
+               "metrics": {"current": 53100.0, "change_pct": 0.0, "from_high_pct": -61.85, "avg_trading_value": 1.0e11}}
+        result = {"ok": True, "rows": [row], "rules": [{"key": "deep", "label": "고점 대비 -40~-60%", "hold_days": 20}],
+                  "bucket_counts": {"deep": 1}, "universe_count": 1, "liquid_count": 1, "scanned_count": 1,
+                  "screened_count": 1, "result_limit": 20}
+        started = []
+        for item in list(page_test._patches()) + [patch("jarvis4_data.find_crash_rebound_stocks", return_value=result)]:
+            item.start()
+            started.append(item)
+        self.addCleanup(lambda: [item.stop() for item in reversed(started)])
+        app = AppTest.from_file(str(page_test.PAGE), default_timeout=120)
+        app.secrets["APP_PASSWORD"] = "test"
+        app.session_state["authenticated"] = True
+        app.run(timeout=120)
+        next(button for button in app.button if button.key == "j13_pullback_crash").click()
+        app.run(timeout=120)
+        self.assertEqual(0, len(app.exception), [e.value for e in app.exception])
+        text = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("<b>낙폭 칸 셋</b>", text)
+        self.assertIn("2026-10-20", text)
+        self.assertIn("종목 스스로의 저점 아님", text)
+        self.assertIn("-58.55%", text)
+        self.assertIn("-8.0%", text)
+
+
 if __name__ == "__main__":
     unittest.main()

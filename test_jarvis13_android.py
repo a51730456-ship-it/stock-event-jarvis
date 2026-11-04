@@ -67,6 +67,27 @@ class AndroidProjectTests(unittest.TestCase):
         self.assertNotIn("push -q -f \"https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git\" master",
                          flow)
 
+    def test_v5_second_exit_route_version_tag_and_new_window_links(self):
+        # 2026-11-05 상하님 「✕ 안 된다 · 창이 안 닫힌다 · 원문 기사 열기 안 된다」
+        java = (self.out / "app" / "src" / "main" / "java" / "io" / "github" / "stockeventjarvis" / "app" / "WebActivity.java").read_text(encoding="utf-8")
+        self.assertIn('" JarvisApp/7"', java)                                       # 판 번호를 화면에 알린다
+        self.assertIn('"jarvisapp".equals(uri.getScheme())', java)                   # 둘째 끄는 길
+        self.assertIn("setSupportMultipleWindows(true)", java)
+        self.assertIn("onCreateWindow", java)                                        # 새 창 링크 → 폰 브라우저
+        self.assertNotIn("assets", {part for f in self.out.rglob("*") for part in f.parts})   # 보내는 판에는 시험 쪽 없음
+
+    def test_check_build_opens_the_test_page_only_when_asked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = build.write_project(Path(tmp), version_code=7, icons=False, check=True)
+            main = (out / "app" / "src" / "main" / "java" / "io" / "github" / "stockeventjarvis" / "app" / "MainActivity.java").read_text(encoding="utf-8")
+            self.assertIn(build.CHECK_URL, main)
+            inner = (out / "app" / "src" / "main" / "assets" / "check_inner.html").read_text(encoding="utf-8")
+            self.assertIn('target="_blank"', inner)
+            self.assertIn("jarvisapp://exit", inner)
+        flow = (ROOT / ".github" / "workflows" / "j13_android.yml").read_text(encoding="utf-8")
+        self.assertIn("bash ./check.sh", flow)
+        self.assertIn("--check", flow)
+
 
 if __name__ == "__main__":
     unittest.main()

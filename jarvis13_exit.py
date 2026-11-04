@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-MODULE_REVISION = 2026110404
+MODULE_REVISION = 2026110501
 MARK = "13"
 NAME = "j13"
 
@@ -45,7 +45,8 @@ div[class*="st-key-j3hero_box"] [data-testid="stElementContainer"]:has(button){r
 .__N__x-t{font-size:1.12rem;font-weight:900;margin:0 0 4px}
 .__N__x-s{font-size:.84rem;color:#9fb6d8;margin:0 0 16px;line-height:1.5}
 .__N__x-row{display:flex;gap:10px}
-.__N__x-row button{flex:1;height:42px;border-radius:12px;font-weight:800;font-size:.95rem;cursor:pointer}
+.__N__x-row button,.__N__x-row a{flex:1 1 0;min-width:0;height:42px;border-radius:12px;font-weight:800;font-size:.95rem;cursor:pointer;
+  box-sizing:border-box;white-space:nowrap}
 .__N__x-stay{background:rgba(255,255,255,.06);color:#dbe8ff;border:1px solid rgba(157,204,255,.35)}
 .__N__x-go{background:linear-gradient(90deg,#ff4d6d,#d61f4b);color:#fff;border:0;box-shadow:0 4px 14px rgba(214,31,75,.45)}
 @media (prefers-reduced-motion: reduce){.__N__x-btn,.__N__x-card,.__N__x-scrim{transition:none!important}}
@@ -60,6 +61,10 @@ DEVICE = """
   function exitNow(){
     try { if (window.JarvisApp && window.JarvisApp.exit) { window.JarvisApp.exit(); return; } } catch (e) {}
     try { if (window.top.JarvisApp && window.top.JarvisApp.exit) { window.top.JarvisApp.exit(); return; } } catch (e) {}
+    // 판 5 앱(이름표 JarvisApp/5 이상) — 다리를 못 찾아도 둘째 길(jarvisapp://exit)로 끈다(2026-11-05 상하님 「창이 안 닫힌다」).
+    // 옛 판에서 이 주소로 가면 화면이 오류 쪽으로 바뀌므로 판 5 이상에서만.
+    var ver = (/JarvisApp\/(\d+)/.exec(navigator.userAgent || '') || [])[1];
+    if (ver && parseInt(ver, 10) >= 5) { try { window.location.href = 'jarvisapp://exit'; return; } catch (e) {} }
     // 끄는 다리가 없다 — 옛 판 앱이거나 인터넷 창이다. 빈 화면으로 보내지 않고(2026-11-04 밤 상하님 「황당하게 남아 있냐」) 까닭과 할 일을 띄운다.
     try { window.top.close(); } catch (e) {}
     window.setTimeout(function(){ tell(); }, 250);
