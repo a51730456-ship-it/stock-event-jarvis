@@ -81,6 +81,46 @@ def gains(rows, frames, kospi, last_day):
     return out, end
 
 
+def fixed_hold(rows, frames, kospi, last_day, kind: str, hold: int) -> list[str]:
+    """규칙대로 판 성적 — 산 날(다음 날 시가)부터 hold 거래일 뒤 종가. 그만큼 안 지난 줄은 뺀다. 코스피도 같은 날 같은 셈."""
+    ix_close = j13vx.series_by_day(kospi, "Close")
+    ix_open = j13vx.series_by_day(kospi, "Open")
+    calendar = [day for day in ix_close if day in ix_open and day <= last_day]
+    got, by_day = [], {}
+    for row in rows:
+        if str(row.get("list_kind") or "") != kind:
+            continue
+        buy = j13vx._num(row.get("buy_open"))
+        code = str(row.get("code") or "").strip()
+        try:
+            listed = date.fromisoformat(str(row.get("trade_date") or "")[:10])
+        except ValueError:
+            continue
+        place = bisect.bisect_right(calendar, listed)
+        if not buy or place + hold >= len(calendar):
+            continue
+        bought, sold = calendar[place], calendar[place + hold]
+        closes = j13vx.series_by_day(frames.get(code), "Close", listed - timedelta(days=10))
+        seen = [value for day, value in closes.items() if day <= sold]
+        if not seen:
+            continue
+        gain = (seen[-1] / buy - 1.0) * 100.0
+        ix_gain = (ix_close[sold] / ix_open[bought] - 1.0) * 100.0
+        got.append((gain, ix_gain))
+        by_day.setdefault(bought, []).append((gain, ix_gain))
+    if not got:
+        return [f"{j13vx.PART_NAMES[kind]} · {hold}거래일 뒤 판 성적 — 아직 {hold}거래일이 지난 줄이 없습니다"]
+    n = len(got)
+    win = sum(1 for g, _ix in got if g > 0)
+    beat = sum(1 for g, ix in got if g > ix)
+    days = sorted(by_day)
+    day_beat = sum(1 for d in days if statistics.mean(g for g, _i in by_day[d]) > by_day[d][0][1])
+    return [f"{j13vx.PART_NAMES[kind]} · 규칙대로 {hold}거래일 뒤 판 성적 — 줄 {n} · 이익 {win / n * 100:.1f}% · "
+            f"평균 {statistics.mean(g for g, _i in got):+.2f}% · 가운데 {statistics.median(g for g, _i in got):+.2f}% · "
+            f"같은 날 코스피 평균 {statistics.mean(i for _g, i in got):+.2f}% · 코스피보다 나은 줄 {beat / n * 100:.1f}% · "
+            f"산 날 {len(days)}일 중 코스피보다 나은 날 {day_beat} ({days[0]} ~ {days[-1]})"]
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     rows, frames, kospi, last_day, codes = load()
@@ -101,6 +141,7 @@ def main() -> int:
         lines.append(f"{j13vx.PART_NAMES[kind]} | {n} | {slot['win'] / n * 100:.1f}% ({slot['win']}) | "
                      f"{slot['sum'] / n:+.2f}% | {median:+.2f}% | {slot['ix_sum'] / n:+.2f}% | "
                      f"{slot['beat'] / n * 100:.1f}% ({slot['beat']}) | {held:.0f}")
+    lines.extend(fixed_hold(usable, frames, kospi, last_day, "crash", 20))
     text = "\n".join(lines) + "\n"
     (OUT / "result.txt").write_text(text, encoding="utf-8")
     print(text, flush=True)
