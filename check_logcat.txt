@@ -1,0 +1,41 @@
+--------- beginning of system
+11-04 18:20:18.523   519   547 I ActivityManager: Start proc 6111:io.github.stockeventjarvis.app/u0a193 for next-top-activity {io.github.stockeventjarvis.app/io.github.stockeventjarvis.app.MainActivity}
+11-04 18:20:18.686   519  2589 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 10193. pid: 6111
+11-04 18:20:18.742   519  2782 W ActivityManager: Receiver with filter android.content.IntentFilter@2e4b9bd already registered for pid 827, callerPackage is com.android.systemui
+11-04 18:20:18.883   519   539 W ActivityManager: setHasOverlayUi called on unknown pid: 3162
+11-04 18:20:18.964   519   547 I ActivityManager: Start proc 6191:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i1 for  {io.github.stockeventjarvis.app/org.chromium.content.app.SandboxedProcessService0:0}
+11-04 18:20:19.017   519   808 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 99001. pid: 6191
+--------- beginning of main
+11-04 18:20:19.417  6111  6111 I JarvisWeb: 화면 LOG check frame JarvisApp=object top=err ua=true
+11-04 18:20:19.425  6111  6111 I JarvisWeb: 열림 file:///android_asset/check.html
+11-04 18:20:27.418  6111  6111 I JarvisWeb: 밖으로 엶 https://example.com/jarvis-link-check
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 175ms so far, now at startProcess: returned from zygote!
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 176ms so far, now at startProcess: done updating battery stats
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 176ms so far, now at startProcess: building log message
+11-04 18:20:28.574   519   547 I ActivityManager: Start proc 6369:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0ai0 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:0}
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 176ms so far, now at startProcess: starting to update pids map
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 176ms so far, now at startProcess: done updating pids map
+11-04 18:20:28.574   519   547 W ActivityManager: Slow operation: 95ms so far, now at startProcess: asking zygote to start proc
+11-04 18:20:28.582   519   547 W ActivityManager: Slow operation: 102ms so far, now at startProcess: returned from zygote!
+11-04 18:20:28.588   519   547 W ActivityManager: Slow operation: 109ms so far, now at startProcess: done updating battery stats
+11-04 18:20:28.588   519   547 W ActivityManager: Slow operation: 109ms so far, now at startProcess: building log message
+11-04 18:20:28.588   519   547 I ActivityManager: Start proc 6380:com.android.chrome:privileged_process0/u0a149 for service {com.android.chrome/org.chromium.content.app.PrivilegedProcessService0}
+11-04 18:20:28.589   519   547 W ActivityManager: Slow operation: 109ms so far, now at startProcess: starting to update pids map
+11-04 18:20:28.589   519   547 W ActivityManager: Slow operation: 110ms so far, now at startProcess: done updating pids map
+11-04 18:20:28.598   519   905 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 90000. pid: 6369
+11-04 18:20:28.678   519   808 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 10149. pid: 6380
+11-04 18:20:39.334   519   547 I ActivityManager: Start proc 6450:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0ai1 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:1}
+11-04 18:20:39.338   519   547 I ActivityManager: Start proc 6459:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2/u0ai2 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:2}
+11-04 18:20:39.349   519   901 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 90001. pid: 6450
+11-04 18:20:39.367   519   901 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 90002. pid: 6459
+11-04 18:20:39.375   519   547 I ActivityManager: Start proc 6482:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3/u0ai3 for  {com.android.chrome/org.chromium.content.app.SandboxedProcessService0:3}
+11-04 18:20:39.386   519   532 I ActivityManager: Killing 6450:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1/u0a149i-8999 (adj 0): isolated not needed
+11-04 18:20:39.399   519   532 I ActivityManager: Killing 6459:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2/u0a149i-8998 (adj 0): isolated not needed
+11-04 18:20:39.404   519   532 I ActivityManager: Flag disabled. Ignoring finishAttachApplication from uid: 90003. pid: 6482
+11-04 18:20:39.427   519   532 I ActivityManager: Killing 6482:com.android.chrome:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3/u0a149i-8997 (adj 0): isolated not needed
+11-04 18:20:39.566  6111  6111 I JarvisWeb: 화면 LOG check tap bridge
+11-04 18:20:39.568  6111  6111 I JarvisWeb: 끝냄
+11-04 18:20:44.784  6111  6111 I JarvisWeb: 화면 LOG check frame JarvisApp=object top=err ua=true
+11-04 18:20:44.784  6111  6111 I JarvisWeb: 열림 file:///android_asset/check.html
+11-04 18:20:52.777  6111  6111 I JarvisWeb: 화면 LOG check tap link
+11-04 18:20:52.778  6111  6111 I JarvisWeb: 끝냄

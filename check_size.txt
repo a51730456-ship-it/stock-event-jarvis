@@ -1,0 +1,2 @@
+Physical size: 320x640
+W=320 H=640

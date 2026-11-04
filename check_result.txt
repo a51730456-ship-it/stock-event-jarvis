@@ -1,0 +1,6 @@
+새 창 링크 → 밖으로 엶: 1
+작은 창 안 다리: check frame JarvisApp=object top=err ua=true
+링크 누른 뒤 맨 앞 화면(브라우저여야):     topResumedActivity=ActivityRecord{f19a44f u0 com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity t10}
+다리 누른 뒤 맨 앞 화면(자비스가 아니어야) · 최근 앱 목록의 자비스 수:     topResumedActivity=ActivityRecord{f19a44f u0 com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity t10} 1 
+둘째 길 누른 뒤 맨 앞 화면 · 최근 앱 목록의 자비스 수:     topResumedActivity=ActivityRecord{f19a44f u0 com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity t10} 1 
+끝냄 기록: 2
