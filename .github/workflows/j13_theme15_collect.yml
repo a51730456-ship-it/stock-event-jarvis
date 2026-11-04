@@ -1,0 +1,56 @@
+# 한국 「상위 테마 5개 · 각 1~3위」 날마다 쌓기 (2026-11-04 상하님 「해라」 · docs/KR_THEME_SPEC.md 3-1-1).
+# data/picklist_theme15/{날짜}.KR.csv 를 쓰고 올린다 — 지우지 않는다(CLAUDE.md 10-1). 비밀번호·열쇠는 쓰지 않는다.
+# 작업 갈래(master-a283cq)에 올리면 시험으로 한 번 돌되 파일은 올리지 않는다(온라인 앱이 바뀌지 않게).
+name: 자비스13 상위 테마 5개 저장
+
+on:
+  schedule:
+    - cron: "20 7 * * 1-5"    # 16:20 KST — 한국장 종가가 확정된 뒤
+  push:
+    branches: [master-a283cq]
+    paths:
+      - jarvis13_theme15.py
+      - research/j13_theme15_collect.py
+      - .github/workflows/j13_theme15_collect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-theme15-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 상위 테마 5개 고르기
+        run: python research/j13_theme15_collect.py
+      - name: 저장소에 올리기 (master 에서만)
+        if: github.ref_name == 'master'
+        run: |
+          git config user.name "j13-theme15-collector"
+          git config user.email "j13-theme15-collector@users.noreply.github.com"
+          git add data/picklist_theme15 || true
+          if git diff --cached --quiet; then
+            echo "새로 쓸 것이 없어 올리지 않습니다"
+            exit 0
+          fi
+          git commit -m "상위 테마 5개 $(TZ=Asia/Seoul date +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            sleep $((i * 10))
+          done
+          echo "올리기 실패" && exit 1
+      - name: 시험 판이면 쓴 것을 보여 주기만
+        if: github.ref_name != 'master'
+        run: ls -la data/picklist_theme15 2>/dev/null && head -5 data/picklist_theme15/*.csv || true

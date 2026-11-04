@@ -21,8 +21,11 @@ CHUNKS = int(os.environ.get("J13_CHUNKS") or 3)
 VIEWS = (
     ("자비스12", "j12", "?s=home", ".j3b-card", "j12_home"),
     ("자비스12", "j12", "?s=market", "div[class*='st-key-j12_theme_table'], .j3-ndd", "j12_market"),
-    ("자비스13", "j13", "", "div[class*='st-key-j13_theme_table']", "j13_market"),
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open'], div[class*='st-key-j13_theme_table']", "j13_market"),
     ("자비스13", "j13", "?s=watch", ".j13w-card, .j13w-empty", "j13_watch"),
+    # 2026-11-04 순위표를 연 판도 나란히(상하님 「강한 테마 20개는 미국테마 디자인을 따라 해라」) — 단추를 눌러 연 뒤 찍는다
+    ("자비스12", "j12", "?s=market", "div[class*='st-key-btn_j12_theme_rank_open']", "j12_rank", "btn_j12_theme_rank_open"),
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open']", "j13_rank", "btn_j13_theme_rank_open"),
 )
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
 
@@ -44,7 +47,8 @@ def _quiet(page, seconds: float = 4.0, limit: float = 120.0) -> None:
 
 
 def shoot(browser, password: str, view, size) -> dict:
-    name, p, tail, ready, tag = view
+    name, p, tail, ready, tag = view[:5]
+    press = view[5] if len(view) > 5 else ""
     label, width, height = size
     page = browser.new_page(viewport={"width": width, "height": height})
     out = {"view": tag, "size": label, "shots": []}
@@ -59,13 +63,30 @@ def shoot(browser, password: str, view, size) -> dict:
         except Exception as exc:
             out["ready_error"] = f"{type(exc).__name__}"[:80]
         _quiet(page)
+        if press:
+            button = page.locator(f'div[class*="st-key-{press}"] button').first
+            button.scroll_into_view_if_needed()
+            button.click()
+            page.wait_for_timeout(2500)
+            _quiet(page)
+            # 연 자리(단추)부터 찍는다 — 안쪽 칸을 그 단추 위치로 굴린다
+            page.evaluate("""(key) => {
+                const el = document.querySelector(`div[class*="st-key-${key}"]`);
+                const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
+                if (el && box) { box.scrollTo(0, el.getBoundingClientRect().top + box.scrollTop - 80); }
+            }""", press)
+            page.wait_for_timeout(900)
         out["seconds"] = round(time.time() - started, 1)
         # 스트림릿은 안쪽 칸이 굴러간다 — 그 칸을 한 화면씩 내리며 찍는다
-        for index in range(CHUNKS):
+        start_y = page.evaluate("""() => {
+            const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
+            return box.scrollTop || 0;
+        }""") if press else 0
+        for index in range(CHUNKS if not press else 3):
             page.evaluate("""(y) => {
                 const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
                 box.scrollTo(0, y); window.scrollTo(0, y);
-            }""", index * (height - 60))
+            }""", start_y + index * (height - 60))
             page.wait_for_timeout(900)
             path = OUT / f"{tag}_{label}_{index + 1}.jpg"
             page.screenshot(path=str(path), type="jpeg", quality=62)

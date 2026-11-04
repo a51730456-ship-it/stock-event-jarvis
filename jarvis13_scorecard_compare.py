@@ -25,19 +25,24 @@ import math
 from datetime import date, timedelta
 
 # 계산이나 돌려주는 값을 바꾸면 올리고 자비스13 의 _REQUIRED_J13_SCORECARD_REVISION 도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026103001
+MODULE_REVISION = 2026110401
 
-PARTS = ("top7", "breakout", "pullback", "crash")
+# 2026-11-04 「상위 테마 5개 (1~3위)」 줄을 맨 앞에 더했다(상하님 「해라」 · 자비스12 와 같은 자리) — 목록은 그날부터 쌓인다
+# (data/picklist_theme15 · docs/KR_THEME_SPEC.md 3-1-1). 쌓인 날이 없으면 「이 기간에는 산 날이 없습니다」가 그대로 나온다.
+PARTS = ("theme15", "top7", "breakout", "pullback", "crash")
 PART_NAMES = {
+    "theme15": "상위 테마 5개 (1~3위)",
     "top7": "매수심사결과 높은 순위 7",
     "breakout": "상승장 (신고가 눌림매수)",
     "pullback": "눌림목 종목 찾기",
     "crash": "급락 후 반등장 (낙폭종목)",
 }
 # 자비스12 성적표와 같은 빛(순위 파랑 · 상승장 초록 · 급락 주황) · 눌림목은 붉은 빛.
-PART_COLORS = {"top7": "#4c9bff", "breakout": "#22b884", "pullback": "#ef5b50", "crash": "#f2a33a"}
+# 상위 테마 5개는 보라(눌림목의 붉은 빛과 갈리게 — 자비스12 는 이 자리가 붉은 빛이지만 한국은 눌림목이 그 색을 먼저 썼다).
+PART_COLORS = {"theme15": "#c084fc", "top7": "#4c9bff", "breakout": "#22b884", "pullback": "#ef5b50", "crash": "#f2a33a"}
 TABS = (
-    ("all", "네 파트 한눈에", PARTS),
+    ("all", "다섯 파트 한눈에", PARTS),
+    ("theme", "상위 테마 5개", ("theme15",)),
     ("pick", "순위 7 · 눌림목", ("top7", "pullback")),
     ("swing", "상승장 · 급락 후 반등장", ("breakout", "crash")),
 )

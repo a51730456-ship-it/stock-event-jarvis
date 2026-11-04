@@ -175,6 +175,9 @@ def visit(browser, name: str, p: str, *, owner: bool, width: int, height: int, t
             page.wait_for_selector('input[type="password"]', timeout=180_000)
             page.locator('input[type="password"]').fill(PASSWORD)
             page.locator(f'div[class*="st-key-{p}_login_submit"] button').click()
+        # 2026-11-04 자비스13 순위표는 자비스12 처럼 기본 닫힘 — 「📊 N개 테마」 단추를 눌러 연 뒤 표를 기다린다
+        if p == "j13" and _wait_box(page, "btn_j13_theme_rank_open") and "닫기" not in (_text(page, "btn_j13_theme_rank_open") or ""):
+            _click(page, "btn_j13_theme_rank_open")
         result["theme_table"] = _wait_box(page, f"{p}_theme_table")
         if result["theme_table"]:
             _settled(page, f"{p}_theme_table")

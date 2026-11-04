@@ -92,8 +92,11 @@ class ScorecardMathTests(unittest.TestCase):
     def test_names_are_the_korean_screen_names(self):
         import picklist_store
 
-        self.assertEqual(("top7", "breakout", "pullback", "crash"), j13vx.PARTS)
+        self.assertEqual(("theme15", "top7", "breakout", "pullback", "crash"), j13vx.PARTS)   # 2026-11-04 상위 테마 5개 더함
         for kind in j13vx.PARTS:
+            if kind == "theme15":     # 날짜별 목록 화면에는 안 나온다 — 따로 쌓는 폴더에서 성적표만 읽는다(jarvis13_theme15)
+                self.assertFalse(picklist_store.should_show(kind, "KR"))
+                continue
             self.assertTrue(picklist_store.should_show(kind, "KR"), kind)
         self.assertNotIn("나스닥", "".join(j13vx.PART_NAMES.values()) + j13vx.INDEX_NAME)
         self.assertIn('div[class*="st-key-j13vx_t_"] button', j13vx.CSS)

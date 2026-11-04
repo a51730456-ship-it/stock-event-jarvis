@@ -165,9 +165,9 @@ class PageTests(unittest.TestCase):
         source = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
         self.assertIn(f"_REQUIRED_J13_FUNDAMENTALS_REVISION = {fn.MODULE_REVISION}", source)
         detail = source.split("def _render_stock_detail(")[1].split("\ndef ")[0]
-        self.assertLess(detail.index("_render_fundamentals_box(code, metrics)"), detail.index("_render_watch_toggle("))
+        self.assertLess(detail.index("_render_fundamentals_box(code, metrics, panel=panel)"), detail.index("_render_watch_toggle("))
         box = source.split("def _render_fundamentals_box(")[1].split("\ndef ")[0]
-        self.assertIn("<details class='j13fn-box'>", box)          # 브라우저가 여닫는다 — 서버에 안 묻는다
+        self.assertIn("class='j13fz-tap'", box)    # 2026-11-04 자비스12 처럼 창 — 숨은 스위치로 브라우저가 여닫는다(서버에 안 묻는다)
         self.assertNotIn("requests", box)                           # 받으러 가지 않는다
 
 

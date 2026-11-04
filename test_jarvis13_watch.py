@@ -218,8 +218,12 @@ class PageTests(unittest.TestCase):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])
         source = page_test.PAGE.read_text(encoding="utf-8")
         body = source[source.index("def _render_watch_page"):source.index("def main()")]
-        self.assertIn("st.container(horizontal=True", body)          # 세부사항 · 빼기 한 줄
-        self.assertIn("j13w-grid", self._text(app))                  # 세 값은 칸 셋에
+        # 2026-11-04 자비스12 카드 — 카드를 누르면 세부사항(겹친 단추) · ✕ 는 카드 위 동그라미 · 성적은 카드 밑 표
+        self.assertIn('div[class*="st-key-j13w_open_"]{position:absolute', __import__("jarvis13_watch").CSS)
+        self.assertIn("jarvis13_watch.since_table_html(cards)", body)
+        text = self._text(app)
+        self.assertIn("📈 넣은 날부터 성적", text)
+        self.assertIn("같은 사이 코스피", text)
 
     def test_removing_inside_the_watch_detail_closes_it_and_says_so_on_top(self):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])

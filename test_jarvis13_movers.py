@@ -140,7 +140,8 @@ class PageTests(unittest.TestCase):
         source = page_test.PAGE.read_text(encoding="utf-8")
         body = source[source.index("def _render_watch_page"):source.index("def main()")]
         self.assertIn('key="j13_movers_watch"', body)
-        self.assertLess(body.index("for start in range(0, len(cards), 3)"), body.index('key="j13_movers_watch"'))
+        # 2026-11-03 카드가 격자(j13w_cards)로 바뀌었다 — 단추는 그 뒤
+        self.assertLess(body.index('st.container(key="j13w_cards")'), body.index('key="j13_movers_watch"'))
 
 
 if __name__ == "__main__":
