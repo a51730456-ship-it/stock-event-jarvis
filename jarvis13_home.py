@@ -33,7 +33,7 @@ REQUIRED_CSS_REVISION = 2026110403
 if int(getattr(C, "MODULE_REVISION", 0)) < REQUIRED_CSS_REVISION:
     C = importlib.reload(C)
 
-MODULE_REVISION = 2026110404
+MODULE_REVISION = 2026110406
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -85,6 +85,8 @@ div[class*="st-key-j13h_wdgo_box"]{position:absolute!important;width:1px!importa
 #j13h-wd-wait{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;
   background:rgba(2,10,28,.72);color:#eaf4ff;font-weight:800;font-size:1rem}
 #j13h-wd-wait span{padding:.7rem 1.1rem;border:1px solid #c89550;border-radius:14px;background:#062448}
+/* 빈 줄 안내 상자 밑 여백 — 다음 줄 제목이 겹치지 않게(로컬 사진 실측 · 카드가 있으면 자비스12 와 같다) */
+.j13h-empty{margin-bottom:18px!important}
 </style>"""
 
 
@@ -294,7 +296,7 @@ def market_news_html(items, state: str) -> str:
 
 # ── 카드 ─────────────────────────────────────────────────────────────────────────────────
 
-def card_html(stock: dict, card: dict, news_items, news_state: str) -> str:
+def card_html(stock: dict, card: dict, news_items, news_state: str, *, compact: bool = False) -> str:
     """카드 한 장 — 자비스12 _render_briefing_card 의 글 그대로(이름 j13h · 한국 자료)."""
     code, name = str(stock["code"]), str(stock.get("name") or stock["code"])
     price, change = card.get("price"), card.get("change_pct")
@@ -311,7 +313,7 @@ def card_html(stock: dict, card: dict, news_items, news_state: str) -> str:
     top = (f'<div class="j13h-card-top"><span class="j13h-logo{kind}">{logo}</span><div>'
            f'<span class="j13h-symbol">{html.escape(name)}</span><span class="j13h-name">{html.escape(code)}</span></div></div>'
            f'<div class="j13h-price">{price_text} <span class="{tone}">{change_text}</span></div>')
-    body = (f'<div class="j13h-card {direction}">' + top
+    body = (f'<div class="j13h-card {direction}{" compact" if compact else ""}">' + top
             + chart(today or card.get("chart"), change, baseline=bool(today), base=card.get("prev_close"))
             + f'<div class="j13h-card-notes">{note_html}</div>{decor_html}</div>')
     six = [float(v) for v in (card.get("chart6m") or []) if v is not None]

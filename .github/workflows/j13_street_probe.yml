@@ -29,8 +29,9 @@ jobs:
       - name: 살피기
         env:
           J13_OUT: ${{ runner.temp }}/j13street
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
         run: |
-          pip install requests
+          pip install -r requirements.txt
           python research/j13_street_probe.py
       - name: 결과만 따로 갈래(j13-street)에 올리기
         run: |

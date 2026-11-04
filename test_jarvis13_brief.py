@@ -42,7 +42,8 @@ class BriefTests(unittest.TestCase):
         # 2026-11-04 상하님 「액셀표나 캡쳐해서 올린 것은 건들이지 마라(이 테마 설명서) · 만화 액셀표」
         self.assertIn("        method_help.render_us_body(st)\n", J12)
         self.assertNotIn("_J12_HELP_POINTS", J12)
-        self.assertIn("            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)\n"
+        # 2026-11-04 상하님 「한국테마 설명이 너무 길다」 — 글만 짧게 접은 jarvis13_help 를 거친다(만화 · 엑셀표는 그대로)
+        self.assertIn("            st.markdown(jarvis13_help.help_html(method_help.KR_TEXT), unsafe_allow_html=True)\n"
                       "            method_help._close_button(st, \"KR\")", J13)
         self.assertNotIn("_J13_HELP_POINTS", J13)
 

@@ -18,7 +18,8 @@ class ExitButtonTests(unittest.TestCase):
             self.assertIn(f".{name}x-btn", css)
             self.assertIn(f"'{name}-exit'", inject)
             other = "j13" if name == "j12" else "j12"
-            self.assertNotIn(other, device + css + inject)                         # 서로 이름이 안 섞인다
+            mixed = (device + css + inject).replace("j13-android/jarvis.apk", "")   # 설치 파일 주소(갈래 이름)는 이름이 아니다
+            self.assertNotIn(other, mixed)                                         # 서로 이름이 안 섞인다
 
     def test_actions_move_left_by_one_button(self):
         css = jarvis12_exit.css()
@@ -26,11 +27,13 @@ class ExitButtonTests(unittest.TestCase):
         self.assertIn("right:156px!important", css)                              # 겹친 ↻ 단추도 같이(110 + 46)
         self.assertIn("right:16px;top:14px", css)                                # ✕ 는 원래 ↻·실시간 자리
 
-    def test_click_asks_first_then_exits_app_or_leaves(self):
+    def test_click_asks_first_then_exits_app_or_says_what_to_do(self):
         device = jarvis12_exit.device()
-        for text in ("자비스를 닫을까요?", "계속 보기", "닫기", "JarvisApp.exit()", "window.top.close()", "about:blank"):
+        for text in ("자비스를 닫을까요?", "계속 보기", "닫기", "JarvisApp.exit()", "window.top.close()",
+                     "앱을 새 판으로 바꿔 주십시오", "새 판 받기", "j13-android/jarvis.apk", "이 창은 직접 닫아 주십시오"):
             self.assertIn(text, device)
-        self.assertLess(device.index("JarvisApp"), device.index("about:blank"))   # 앱이면 앱을 끝내는 것이 먼저
+        self.assertNotIn("about:blank", device)                                   # 빈 화면으로 보내지 않는다(상하님 「황당하게 남아 있냐」)
+        self.assertLess(device.index("JarvisApp.exit()"), device.index("function tell()"))   # 앱이면 끄는 것이 먼저
 
     def test_x_is_not_a_button_tag_so_the_banner_does_not_collapse(self):
         # 2026-11-04 로컬 실측 — <button> 이면 띠 칸이 「↻ 겹치기」 규칙(:has(button))에 걸려 38px 로 접혔다
