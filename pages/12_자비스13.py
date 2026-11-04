@@ -871,6 +871,14 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
+# 종목 수급 — 네이버 모바일 자료로 받기 · 점수에는 안 씀(2026-11-04 상하님 「고쳐라」 → 「1 · 값만 보이게」 · jarvis13_flow).
+# 얼린 jarvis4_data 파일은 그대로 — 실행 중에 받는 곳·읽는 법만 바꿔 끼운다(다시 읽으면 다시 끼운다).
+import jarvis13_flow
+
+_REQUIRED_J13_FLOW_REVISION = 2026110401
+if int(getattr(jarvis13_flow, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_REVISION:
+    jarvis13_flow = importlib.reload(jarvis13_flow)
+jarvis13_flow.install(j4data)
 # 코스피·코스닥 「이번 하락」 한 줄의 값(자비스13 전용 · 2026-10-30). 얼린 jarvis4_data 는 읽기만 한다.
 import jarvis13_market
 
@@ -1075,7 +1083,7 @@ def _market_flow_text(overview: dict) -> str:
         _trend_position(rows.get("KOSPI", {}), "KOSPI"),
         _trend_position(rows.get("KOSDAQ", {}), "KOSDAQ"),
     ]
-    foreign = overview.get("foreign") or {}
+    foreign = jarvis13_flow.for_display(overview.get("foreign"))   # 점수용은 「자료 없음」 · 화면은 실제 값(값만 보여줌)
     if foreign.get("live_ok"):
         amount = foreign.get("live_net5_amount") or 0
         direction = "순매수" if amount > 0 else "순매도" if amount < 0 else "보합"
@@ -1367,6 +1375,7 @@ def _render_market_overview() -> None:
         # 열쇠에 받는 함수의 번호를 같이 넣는다 — 시험이 함수를 바꿔 끼우면 그 판은 따로 받는다(앞 시험 값이 안 넘어온다).
         overview = jarvis13_shared.remember(("market_overview", id(j4data.get_market_overview)), j4data.get_market_overview,
                                             good=lambda value: isinstance(value, dict) and bool(value.get("ok")))
+    overview = jarvis13_flow.mark_display_only(overview)      # 수급 항목 이름에 「점수 안 씀」(값은 카드에 보임)
     st.session_state["j13_market_overview"] = overview
     # 제목은 자비스12 「미국 전체시장 판단」과 같은 모양(보라 · 16px)으로(2026-11-03 화면 옷).
     st.markdown(f"<div class='{jarvis13_skin.TITLE_CLASS}'>한국 전체시장 판단</div>", unsafe_allow_html=True)
@@ -1381,7 +1390,7 @@ def _render_market_overview() -> None:
     phase_color = "#44f0a1" if phase == "정규장" else "#ff9d3b" if "동시호가" in phase or "시간외" in phase else "#ff5b5b"
     rows = overview["rows"]
     kospi, kosdaq, usdkrw = rows.get("KOSPI", {}), rows.get("KOSDAQ", {}), rows.get("USDKRW", {})
-    foreign = overview.get("foreign") or {}
+    foreign = jarvis13_flow.for_display(overview.get("foreign"))   # 점수용은 「자료 없음」 · 화면은 실제 값(값만 보여줌)
     us_prev = overview.get("us_prev") or {}
     if foreign.get("live_ok"):
         flow_cell = _top_metric(

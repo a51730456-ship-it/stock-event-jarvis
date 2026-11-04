@@ -1071,6 +1071,14 @@ class Jarvis13PageTests(unittest.TestCase):
         self.assertIn("60,000원", cells)
 
 
+
+def tearDownModule():
+    """자비스13 화면이 얼린 jarvis4_data 에 끼운 수급 장치(jarvis13_flow)를 뺀다 — 뒤에 도는 자비스4 시험과 섞이지 않게."""
+    import jarvis4_data
+    import jarvis13_flow
+
+    jarvis13_flow.uninstall(jarvis4_data)
+
 if __name__ == "__main__":
     unittest.main()
 
