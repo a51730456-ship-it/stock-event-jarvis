@@ -5281,7 +5281,7 @@ def _render_watch_page() -> None:
                           args=(item["code"],))
                 if not guest:
                     st.button("✕", key=f"j13w_remove_{item['code']}", on_click=_watch_remove,
-                              args=(item["code"], item["name"], "page"), help=f"{item['name']} 빼기")
+                              args=(item["code"], item["name"], "page"))   # help= 은 붙이지 않는다 — 폰에서 단추 둘레가 감춰져 눌리지 않았다(2026-11-04 깃허브 확인)
     st.markdown(jarvis13_watch.since_table_html(cards), unsafe_allow_html=True)
     # 오늘 움직인 까닭(2026-10-31) — 카드를 다 그린 **뒤**에 둔다(누를 때만 받으니 카드가 기다리지 않는다 · CLAUDE.md 0-0 ①)
     _render_movers_reason(
