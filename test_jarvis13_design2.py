@@ -170,7 +170,7 @@ class FixesNov4Tests(unittest.TestCase):
         sys.modules["jarvis3_data"] = fake
         try:
             source = PAGE.read_text(encoding="utf-8")
-            block = source.split("class _ScreenWaitsForUS:")[1].split("\ndef _render_market_overview")[0]
+            block = source.split("class _ScreenWaitsForUS:")[1].split("\n# **1분 자동 갱신 표시는")[0]
             space = {"importlib": importlib}
             exec("class _ScreenWaitsForUS:" + block, space)
             with space["_ScreenWaitsForUS"]():
@@ -190,6 +190,14 @@ class FixesNov4Tests(unittest.TestCase):
         self.assertIn('method_help.cross_link(st, "US")', hero)
         self.assertIn("_J12B_CROSS_CSS", hero)
         self.assertLess(source.index("_J12B_CROSS_CSS = "), source.index("\nmain()"))
+
+
+class FragmentPlacementTests(unittest.TestCase):
+    def test_market_overview_refreshes_every_minute(self):
+        # 1분 자동 갱신 표시가 시장 개요 함수에 붙어 있어야 한다(2026-11-04 class 에 붙어 있던 것을 바로잡음).
+        source = PAGE.read_text(encoding="utf-8")
+        self.assertIn("@st.fragment(run_every=60)\ndef _render_market_overview() -> None:", source)
+        self.assertNotIn("@st.fragment(run_every=60)\nclass ", source)
 
 
 class SharedKeepTests(unittest.TestCase):
