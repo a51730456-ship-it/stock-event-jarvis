@@ -3526,7 +3526,7 @@ div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="pri
 .j13sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .j13sc-head b{font-size:1rem;color:#fff;font-weight:800}
 .j13sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
-.j13sc-row{display:grid;grid-template-columns:22px minmax(0,1fr) clamp(70px,26vw,150px) 50px;align-items:center;gap:8px;
+.j13sc-row{display:grid;grid-template-columns:20px minmax(0,1fr) clamp(64px,18vw,150px) 46px;align-items:center;gap:8px;
   padding:6px 0;border-top:1px solid #16304f}
 .j13sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
 .j13sc-name{font-size:.9rem;font-weight:800;color:#fff;min-width:0}
