@@ -24,6 +24,20 @@ _PAGE_SEOUL = ZoneInfo("Asia/Seoul")
 def _now_seoul() -> datetime:
     return datetime.now(_PAGE_SEOUL)
 
+
+def _kst_text(value, missing: str = "—") -> str:
+    """「2026-11-05T02:35:02+09:00」 같은 기계용 시각 → 「2026-11-05 02:35」(한국 시각). 못 읽으면 받은 글 그대로(2026-11-05 ·
+    상하님 「시각은 한국 시각」 — 화면에 「T」 「+09:00」이 섞여 보였다)."""
+    if not value:
+        return missing
+    try:
+        stamp = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).strip())
+        if stamp.tzinfo is not None:
+            stamp = stamp.astimezone(_PAGE_SEOUL)
+        return stamp.strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return str(value)
+
 import streamlit as st
 
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
@@ -897,7 +911,7 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110406
+_REQUIRED_J13_HOME_REVISION = 2026110501
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 
@@ -917,7 +931,7 @@ if int(getattr(jarvis13_movers, "MODULE_REVISION", 0)) < _REQUIRED_J13_MOVERS_RE
 # 얼린 jarvis4_data 의 옛 승률(66.6% · 국면이 끝나야 아는 날로 잰 값)을 화면에서 대신한다.
 import jarvis13_crash_record  # noqa: E402
 
-_REQUIRED_J13_CRASH_RECORD_REVISION = 2026103101
+_REQUIRED_J13_CRASH_RECORD_REVISION = 2026110501
 if int(getattr(jarvis13_crash_record, "MODULE_REVISION", 0)) < _REQUIRED_J13_CRASH_RECORD_REVISION:
     jarvis13_crash_record = importlib.reload(jarvis13_crash_record)
 # 「📢 최근 공시」(2026-11-04 상하님 「DART 하자」) — 누를 때만 · 보여 주기만.
@@ -927,7 +941,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110409
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110501
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -938,7 +952,7 @@ if int(getattr(jarvis13_charts, "MODULE_REVISION", 0)) < _REQUIRED_J13_CHARTS_RE
     jarvis13_charts = importlib.reload(jarvis13_charts)
 import jarvis13_theme15  # noqa: E402  — 한국 상위 테마 5개 · 1~3위 목록(쌓기만 · 2026-11-04)
 import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 자비스12 형식(2026-11-04 · 얼린 market_signal_ui 는 부르기만)
-_REQUIRED_J13_FLOW_CARD_REVISION = 2026110402
+_REQUIRED_J13_FLOW_CARD_REVISION = 2026110501
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
@@ -1493,7 +1507,7 @@ def _render_market_overview() -> None:
             unsafe_allow_html=True,
         )
     st.caption(
-        f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'} · 1분 자동 갱신 · "
+        f"최근 가용 시세: {_kst_text(overview.get('checked_at'), '시각 확인 불가')} · 1분 자동 갱신 · "
         "네이버·FinanceDataReader 조회이므로 지연될 수 있음"
     )
 
@@ -2945,13 +2959,19 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     # 자리 · 차례(재무 단추 **위** · 따로 선 상자 · 2026-11-04 밤 상하님 「왜 이거 안 넣냐」).
     # 2026-11-04 상하님 「위치 등 이 형식을 따르지 왜 재무현황 안에 집어넣었냐」. 같은 재무 파일만 읽는다(받으러 안 감).
     # 그 앞에 「🏢 종목 개요」(자비스12 _overview_html 자리 — 이름 바로 밑). 한국은 있는 것만(앱 테마 · 시가총액 · 네이버 원문 주소).
+    # 2026-11-05 상하님 폰 캡처 「너 사기쳤네」 — 개요 글 뒤에 상자 덩이(<style> 로 시작)를 붙여 한 번에 내보내니 화면이 상자를 통째로
+    # 버렸다(<style> 다음 줄들이 글 문단이 됨 · 스트림릿으로 그려 보니 상자 0개). 둘을 **따로** 내보낸다.
+    price_now = (metrics or {}).get("current") or (metrics or {}).get("close")
     try:
-        price_now = (metrics or {}).get("current") or (metrics or {}).get("close")
-        fund_info = jarvis13_fundamentals.summary(code, price_now)
-        street = jarvis13_fundamentals.overview_html(code, leader.get("name") or code, theme=str(theme_row.get("name") or ""),
-                                                     info=fund_info)
+        overview = jarvis13_fundamentals.overview_html(code, leader.get("name") or code, theme=str(theme_row.get("name") or ""),
+                                                       info=jarvis13_fundamentals.summary(code, price_now))
+    except Exception:
+        overview = ""
+    if overview:
+        st.markdown(overview, unsafe_allow_html=True)
+    try:
         # 「📅 실적 발표」 앞뒤 주가는 일봉으로 잰다(같은 프로세스 안에 받아 둔 것 · 5분 보관).
-        street += jarvis13_fundamentals.street_block(code, price_now, frame=j4data.get_daily_frame(code))
+        street = jarvis13_fundamentals.street_block(code, price_now, frame=j4data.get_daily_frame(code))
     except Exception:
         street = ""
     if street:
@@ -2959,17 +2979,15 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     _render_fundamentals_box(code, metrics, panel=panel)
     # 「📢 최근 공시 30일」(2026-11-04 상하님 「DART 하자」) — 누를 때만 OpenDART 에서 받는다 · 점수·판정에 안 씀.
     _render_disclosures_box(code, leader.get("name") or code, panel=panel)
-    # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
-    if not auth.is_guest():
-        _render_watch_toggle(code, leader.get("name") or code, metrics, panel=panel)
 
     # 게스트에게는 종목명·가격·차트만 보여 주고, 사용자가 지정한 캡처 영역인
     # 점수/선정 근거·매수 심사·추천 근거는 만들지 않는다.
     if auth.is_guest():
         _render_day_price_row(metrics)
         _render_daily_prices(code, leader.get("name") or code, panel=panel)   # 자비스12 에서 옮김(2026-10-30)
-        _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
         _render_guest_stock_charts(code, panel)
+        # 뉴스는 차트 **다음** — 자비스12 차례(가격 칸 → 차트 → 종목 뉴스 · 2026-11-05 맞춤)
+        _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
         _section_close(f"j13_detail_open_{panel}", "선택종목 세부사항 닫기")
         return
 
@@ -2993,6 +3011,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"<div class='j4-mc-sub j4-muted'>{plan.get('state', '')}</div></div>",
     ]
     st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    # ★ 관심종목에 넣기(2026-10-30 · 5단계) — 주인만. 넣는 순간의 값·코스피를 같이 적는다(「넣은 날부터 성적」).
+    # 자리는 자비스12 처럼 **현재가 줄 바로 밑**(2026-11-05 · 자비스12 _render_selected_live_quote 가 현재가 줄 다음에 단추 둘을 둔다).
+    _render_watch_toggle(code, leader.get("name") or code, metrics, panel=panel)
 
     # 설명서 두 갈래는 **다른 자로 잰다**(2026-08-01). 후보가 자기 배점을 들고 오면
     # 그것을 쓴다. 기존 6개 항목은 '신고가에 가까운가'로 점수를 주기 때문에 낙폭
@@ -3136,12 +3157,13 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
 
     _render_day_price_row(metrics)
     _render_daily_prices(code, leader.get("name") or code, panel=panel)   # 자비스12 에서 옮김(2026-10-30)
-    _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
 
     # 차트 — 자비스12 형식(2026-11-04 상하님 「각 차트 전체 다 확인하고 미국테마 형식처럼 누르면 확대 열리고 닫히고」).
     # 예전 「📈 당일 · 실시간 차트 보기」 · 「📊 일봉 · 주봉 · 월봉 보기」 두 단추를 자비스12 처럼 **한 단추 · 한 판**으로 묶었다.
     # 눌러야 받아 온다(2026-07-30 · 로딩 단축 그대로).
     _render_price_chart_bundle(code, panel)
+    # 뉴스는 차트 **다음** — 자비스12 차례(가격 칸 → 차트 → 종목 뉴스 · 2026-11-05 맞춤)
+    _render_stock_news(code, leader.get("name") or code, panel=panel)     # 자비스12 에서 옮김(2026-10-30)
 
     # **넷 중 둘은 바로 위를 소리 내어 다시 읽는 것이었다**(2026-08-07, 미국테마와
     # 같은 정리). '종목 근거'는 배점표가, '매수 근거'는 매수 심사 카드가 이미
@@ -3967,6 +3989,7 @@ def _render_radar_tab(market: dict) -> None:
     # 자비스3(미국)에 없고 자비스4에만 넣은 승률 보완 장치를 화면에서 바로 보이게 한다
     # (2026-07-22 사용자 질문: "승률 올리려고 뭘 찾았나? 표시는 했나?").
     # 처음엔 접어 둔다 — 폰에서 이 표가 첫 화면을 다 먹었다(2026-07-25 사용자 지시).
+    # 물결표(「1~20일」 「−45~0」)는 「\\~」로 막는다 — 둘이면 스트림릿이 그 사이를 취소선으로 긋는다(2026-11-05 실제로 그려 확인).
     with st.expander("📈 한국테마에만 있는 승률 보완 장치 9가지 (미국테마에 없는 것)", expanded=False):
         st.markdown(
             """
@@ -3980,7 +4003,7 @@ def _render_radar_tab(market: dict) -> None:
 | 6 | **자동 제외 필터** | 스팩·우선주·리츠는 점수와 무관하게 후보에서 뺌 | 대장주 목록에 아예 없음 |
 | 7 | **기관 수급 반전 연동** | 장중 진입 타이밍 참고(점수에는 미반영) | 종목 상세 ⚡단타 참고 신호 |
 | 8 | **약한 테마의 강한 종목 구제** | 국내 테마는 성격이 섞여 있어 테마 평균이 종목 품질을 대표하지 못함. **종목 85점 이상이면 테마 점수와 무관하게 후보** | 종목 상세 '매수 심사 결과' |
-| 9 | **눌림목 자동 탐색** | 52주 신고가 1~20일 전 · 2개 이상 테마 · **신고가 때 점수 75점 이상**. 지금 눌린 점수가 아니라 **고점 때 점수를 역산**해 판정 | 눌림목 종목 찾기 표 |
+| 9 | **눌림목 자동 탐색** | 52주 신고가 1\\~20일 전 · 2개 이상 테마 · **신고가 때 점수 75점 이상**. 지금 눌린 점수가 아니라 **고점 때 점수를 역산**해 판정 | 눌림목 종목 찾기 표 |
 
 **2026-08-07에 배점을 실측으로 다시 짰습니다.** 12년치 2,272종목을 창 2·3·4년씩
 한 달 간격으로 밀며 재 봤더니, 옛 배점 100점 중 **40점이 거꾸로**였습니다.
@@ -3998,8 +4021,8 @@ def _render_radar_tab(market: dict) -> None:
 종목은 107개 창 중 11개에서만 이겼습니다. 그래서 두 항목은 0점으로 뺐습니다.
 계산은 남겨 뒀으니 나중에 다시 재서 되살릴 수 있습니다.
 
-(옛 기록) 국내 대형주 상당수가 52주 고가 대비 −30~−45% 구간이라 미국 기준(−25%~0)에서는
-전 종목이 0점이 됐습니다. 신고가 항목의 범위가 −45~0인 것은 그 때문이고 지금도 같습니다.
+(옛 기록) 국내 대형주 상당수가 52주 고가 대비 −30\\~−45% 구간이라 미국 기준(−25%\\~0)에서는
+전 종목이 0점이 됐습니다. 신고가 항목의 범위가 −45\\~0인 것은 그 때문이고 지금도 같습니다.
             """
         )
     # 「⚡ 강한 테마 TOP 5」 + 「📊 N개 테마」 여닫이 (2026-11-04 상하님 「테마 디자인 숨기기 하고 미국테마 형식대로 해라 ·
@@ -4046,7 +4069,7 @@ def _render_radar_tab(market: dict) -> None:
                 "자동으로 다시 올라옵니다. 어제 상위권이었던 테마는 오늘 등락률이 낮아도 계속 심사합니다."
             )
     if rank_open:
-        st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 네이버 {ranking.get('total_scanned', 0)}개 테마에서 "
+        st.caption(f"테마 계산 시각: {_kst_text(ranking.get('checked_at'))} · 네이버 {ranking.get('total_scanned', 0)}개 테마에서 "
                    "날마다 자동 선정 · 한국 휴장일에는 마지막 거래일 자료")
 
     if st.session_state.get("j13_theme_choice_widget") not in names:
@@ -4710,6 +4733,18 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07,
     # 미국테마와 같은 이름). 오늘 값만 두면 이미 반등한 종목인지 알 수 없다.
     split_drop = bool(not breakout and rows and rows[0].get("judged_from_high_pct") is not None)
+    if split_drop:
+        # 2026-11-05 상하님 캡처 「이게 말이 된다고 생각하나?」(고점 대비 -58.55% · 고점대비현재 -61.85% · 종목저점후 -8.0%) —
+        # 세 값은 맞다(0.4145 × 0.92 = 0.381 → -61.9%). 자비스12 표 위에 있는 「낙폭 칸 셋」 설명 줄이 한국에만 빠져 있었다.
+        _ref = html.escape(str(rows[0].get("reference_date") or "기준일"))
+        st.markdown(
+            "<div style='font-size:.82rem;line-height:1.55;color:#c9d6e8;margin:2px 0 8px'>"
+            f"<b>낙폭 칸 셋</b> — <b>고점 대비</b> = 기준일(<b style='color:#ffd166'>{_ref}</b>) 그날 낙폭 · "
+            "<b>고점대비현재</b> = 오늘 낙폭 · <b>종목저점후</b> = 그 <u>기준일 종가</u>에서 지금까지(종목 스스로의 저점 아님). "
+            "<span style='color:#5aa9ff'>저점후가 마이너스</span>면 기준일 뒤 더 빠져 오늘 낙폭이 그날보다 깊습니다. "
+            "<u>갈래와 점수는 ‘고점 대비’로</u> 정합니다.</div>",
+            unsafe_allow_html=True,
+        )
     # 끝에 「연간 실적」·「분기 실적」 두 칸(2026-11-04 상하님 「캡처 화면처럼 각 파트별로 다 해라」 · 자비스12 와 같은 칸).
     if split_drop:
         widths = [0.55, 1.85, 1.75, 1.25, 1.15, 1.15, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5, 1.75, 1.75]
@@ -5486,10 +5521,14 @@ def _kospi_now():
     return None
 
 
+_J13_GROUP_NAMES = {"selected": "사용자 선정 종목", "extra": "추가 검색 종목"}
+
+
 def _watch_add(code: str, name: str, price, where: str, group: str = "selected") -> None:
     try:
         jarvis13_watch_store.add(code, name, price=price, kospi=_kospi_now(), group=group)
-        st.session_state["j13w_msg"] = (f"{name} 을(를) 관심종목에 넣었습니다.", "ok", where)
+        st.session_state["j13w_msg"] = (
+            f"{name} 을(를) 관심종목 화면의 「{_J13_GROUP_NAMES.get(group, '사용자 선정 종목')}」에 넣었습니다.", "ok", where)
     except ValueError as exc:             # 이미 있거나 자리가 찼다 — 넣지 않는다
         st.session_state["j13w_msg"] = (str(exc), "no", where)
     except Exception as exc:               # 저장고가 막혀도 화면은 살아 있어야 한다
@@ -5524,12 +5563,38 @@ def _render_watch_toggle(code: str, name: str, metrics: dict, *, panel: str) -> 
         st.caption(f"관심종목 저장고를 못 읽었습니다: {_safe_error_text(exc)}")
         return
     if inside:
-        st.button("✓ 관심종목에 있음 · 빼기", key=f"j13w_toggle_{panel}_{code}",
+        group = "selected"
+        try:
+            group = next((row.get("group") for row in jarvis13_watch_store.list_stocks() if row.get("code") == code), "selected")
+        except Exception:
+            pass
+        st.button(f"✓ 「{_J13_GROUP_NAMES.get(group, '사용자 선정 종목')}」에 있음 · 빼기", key=f"j13w_toggle_{panel}_{code}",
                   on_click=_watch_remove, args=(code, name, where))
     else:
-        st.button("★ 관심종목에 넣기", key=f"j13w_toggle_{panel}_{code}",
-                  on_click=_watch_add, args=(code, name, (metrics or {}).get("current"), where))
+        # 2026-11-05 상하님 「추가검색에 넣을지 사용자선정에 넣을지 구분을 해야지 미국테마처럼」 — 자비스12 세부사항의 단추 둘
+        # (_render_watchlist_add_buttons)을 그대로: 한 줄에 둘 · 왼쪽 파랑(사용자 선정) · 오른쪽 금색(추가 검색). 이름만 j13.
+        st.markdown(_J13_WATCH_ADD_CSS, unsafe_allow_html=True)
+        row = st.container(key=f"j13addrow_{panel}_{code}")
+        left, right = row.columns(2)
+        price = (metrics or {}).get("current")
+        left.button("⭐ 사용자 선정에 넣기", key=f"j13add_sel_{panel}_{code}", width="stretch",
+                    on_click=_watch_add, args=(code, name, price, where, "selected"))
+        right.button("🔍 추가 검색에 넣기", key=f"j13add_ext_{panel}_{code}", width="stretch",
+                     on_click=_watch_add, args=(code, name, price, where, "extra"))
     _show_watch_msg(where)
+
+
+# 자비스12 _WATCH_ADD_CSS 를 옮긴 것(이름만 j13 · 자리 바꾸기 단추는 한국 저장고가 줄마다 20개라 없음).
+_J13_WATCH_ADD_CSS = """<style>
+div[class*="st-key-j13addrow_"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;gap:.4rem!important}
+div[class*="st-key-j13addrow_"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 0!important}
+div[class*="st-key-j13add_sel_"] button,div[class*="st-key-j13add_ext_"] button{border-radius:10px!important;font-weight:800!important;letter-spacing:-.03em!important;padding:.3rem .35rem!important;min-height:0!important;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
+div[class*="st-key-j13add_sel_"] button{background:linear-gradient(135deg,#147dd4,#0e3f75)!important;border:1px solid #46b9fc!important;box-shadow:0 3px 12px rgba(7,118,233,.28)!important}
+div[class*="st-key-j13add_ext_"] button{background:linear-gradient(135deg,#b8860b,#6d4f0c)!important;border:1px solid #f8cc70!important;box-shadow:0 3px 12px rgba(248,204,112,.22)!important}
+div[class*="st-key-j13add_sel_"] button p,div[class*="st-key-j13add_ext_"] button p{color:#fff!important;font-weight:800!important;white-space:nowrap;font-size:.8rem!important;line-height:1.25!important}
+@media (max-width:420px){div[class*="st-key-j13add_sel_"] button p,div[class*="st-key-j13add_ext_"] button p{font-size:.72rem!important}}
+div[class*="st-key-j13add_sel_"] button:hover,div[class*="st-key-j13add_ext_"] button:hover{transform:translateY(-1px);filter:brightness(1.12)}
+</style>"""
 
 
 def _open_watch_detail(code: str) -> None:
@@ -5942,7 +6007,7 @@ try:
     import importlib as _il
     import jarvis13_exit
 
-    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110404:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110501:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
         jarvis13_exit = _il.reload(jarvis13_exit)
     jarvis13_exit.render(st)
 except Exception:

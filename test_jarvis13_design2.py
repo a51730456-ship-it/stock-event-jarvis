@@ -89,7 +89,7 @@ class ResultsCellTests(unittest.TestCase):
         source = PAGE.read_text(encoding="utf-8")
         for name in ("def _render_leader_table", "def _render_top_reviewed", "def _render_rulebook_finder",
                      "widths = [0.55, 2.0, 1.4, 1.1, 1.6"):
-            block = source.split(name)[1][:9000]
+            block = source.split(name)[1][:12000]      # 2026-11-05 급락 표 위 「낙폭 칸 셋」 줄이 들어와 칸 이름이 뒤로 밀림
             self.assertIn('"연간 실적", "분기 실적"', block, name)
             self.assertIn("_results_cells(", block, name)
 

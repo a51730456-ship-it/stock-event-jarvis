@@ -23,7 +23,7 @@ import gauge_ui
 import jarvis13_shared
 import market_signal_ui as msu
 
-MODULE_REVISION = 2026110402
+MODULE_REVISION = 2026110501
 OPEN_KEY = "j13_flow_more"
 SHARED_KEY = "kr_flow"
 # run_kr_flow_check 가 남기는 칸 그대로(market_signal_ui) — 옮길 때 이 넷을 같이 옮긴다.
@@ -88,7 +88,8 @@ def render() -> None:
         st.info("수급 자료를 아직 못 받았습니다. 「수급 다시 확인」을 눌러 보십시오.")
         return
 
-    st.markdown(f"<style>{gauge_ui.CSS}{msu._SIGNAL_GAUGE_CSS}</style>" + FOLD_CSS, unsafe_allow_html=True)
+    # 꾸밈 덩이는 **새 줄에서** 연다(2026-11-05 · 「</style><style>」로 붙으면 뒤 덩이가 문단 글로 읽힌다 — 세부사항 상자 0개 사건과 같은 꼴).
+    st.markdown(f"<style>{gauge_ui.CSS}{msu._SIGNAL_GAUGE_CSS}</style>\n" + FOLD_CSS, unsafe_allow_html=True)
     is_open = bool(st.session_state.get(OPEN_KEY))
     if not is_open:
         st.markdown(msu._peek_gauge_html(result, msu._FLOW_VERDICT_STYLE, msu.KR_VERDICT_ORDER, "당일"),

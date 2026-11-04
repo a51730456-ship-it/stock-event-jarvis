@@ -32,6 +32,57 @@ def _wait(page, js: str, limit: float) -> float | None:
     return None
 
 
+def _click(page, key: str) -> bool:
+    return bool(page.evaluate("""(key) => {
+        const b = document.querySelector(`div[class*="st-key-${key}"] button`);
+        if (b) { b.scrollIntoView({block: 'center'}); b.click(); return true; }
+        return false;
+    }""", key))
+
+
+def _detail(browser) -> list[str]:
+    """급락 표 첫 종목 세부사항을 손님으로 열어 상자 셋 · 화면 깨짐을 잰다(2026-11-05 상하님 「너 사기쳤네」 — 온라인에서 확인).
+    손님도 종목 개요 · 상자 셋 · 재무 · 가격 · 차트 · 뉴스는 본다(점수판만 안 봄)."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from j13_screens import AUDIT_JS
+
+    out = []
+    page = browser.new_page(viewport={"width": 412, "height": 915}, device_scale_factor=2)
+    try:
+        page.goto(URL, wait_until="domcontentloaded", timeout=180_000)
+        _wait(page, "!!document.querySelector('div[class*=\"st-key-j13_pullback_crash\"] button')", 240)
+        stamp = page.evaluate("(document.querySelector('.jarvis-build') || {}).textContent || ''").strip()
+        pressed = _click(page, "j13_pullback_crash")
+        table = _wait(page, "!!document.querySelector('div[class*=\"st-key-j13rbf_00\"] button')", 300)
+        first = page.evaluate("(document.querySelector('div[class*=\"st-key-j13rbf_00\"] button') || {}).innerText || ''").strip()
+        opened = _click(page, "j13rbf_00") if table else False
+        boxes = _wait(page, "document.querySelectorAll('.j13st-box').length > 0 || document.querySelectorAll('.j13ov').length > 0", 240)
+        page.wait_for_timeout(2500)
+        try:
+            page.evaluate("document.querySelector('.j13ov').scrollIntoView({block: 'start'})")
+            page.wait_for_timeout(1000)
+        except Exception:
+            pass
+        page.screenshot(path=str(OUT / "phone_detail_1.jpg"), type="jpeg", quality=80)
+        page.evaluate("""() => { const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
+            box.scrollBy(0, 820); }""")
+        page.wait_for_timeout(900)
+        page.screenshot(path=str(OUT / "phone_detail_2.jpg"), type="jpeg", quality=80)
+        audit = page.evaluate(AUDIT_JS)
+        titles = page.evaluate("[...document.querySelectorAll('.j13st-h')].map(e => e.innerText.trim())")
+        out.append(f"[phone 세부사항] 판 {stamp} · 급락 단추 {pressed} · 표 {table and round(table, 1)}초 · 첫 종목 「{first}」 · 열림 {opened} · "
+                   f"상자 {audit.get('boxes')}개 · 개요 {audit.get('overview')}개")
+        out.append("   상자 제목: " + " | ".join(titles))
+        bad = {k: audit.get(k) for k in ("css", "tags", "empty", "del", "code") if audit.get(k)}
+        out.append("   화면 검사: " + ("이상 없음" if not bad and not audit.get("wide") else str(bad) + (" · 옆으로 넘침" if audit.get("wide") else "")))
+    except Exception as exc:
+        out.append(f"[phone 세부사항] 실패 {type(exc).__name__}: {exc}"[:300])
+    finally:
+        page.close()
+    return out
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     lines = []
@@ -57,6 +108,7 @@ def main() -> int:
                 pass
             page.screenshot(path=str(OUT / f"{name}_map.jpg"), type="jpeg", quality=80)
             page.close()
+        lines.extend(_detail(browser))
         browser.close()
     (OUT / "result.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines), flush=True)

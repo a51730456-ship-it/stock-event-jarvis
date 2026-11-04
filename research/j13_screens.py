@@ -30,6 +30,40 @@ VIEWS = (
     ("자비스12", "j12", "?s=market", "div[class*='st-key-picklist_scorecard_US']", "j12_score", "picklist_scorecard_US"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13sc_open']", "j13_score", "btn_j13sc_open"),
 )
+# 2026-11-05 상하님 「너 사기쳤네」 · 「다른 부분도 검토하고 똑똑하게」 — 세부사항까지 실제 자료로 찍는다(폰만 · 시간 아끼기).
+# (화면, 로그인 앞이름, 주소 뒤, 다 그렸다고 볼 표시, 이름표, [(누를 열쇠, 기다릴 표시, 굴려 갈 표시)…])
+DEEP_VIEWS = (
+    ("자비스13", "j13", "?s=watch", ".j13h-card, .j13h-empty", "j13_watchdetail",
+     [("j13h_wdgo_005930", ".j13st-box, .j13ov", "div[class*='st-key-j13add_sel_'], .j13ov")]),
+    ("자비스13", "j13", "", "div[class*='st-key-j13_pullback_crash']", "j13_crash",
+     # 표가 다 그려진 판에만 생기는 맨 아래 「닫기」 단추를 기다린다(위쪽에 원래 있는 알림 상자에 걸리지 않게)
+     [("j13_pullback_crash", "div[class*='st-key-close_j13_pullback_open']",
+       "div[class*='st-key-j13_rulebook_table']"),
+      ("j13rbf_00", ".j13ov, .j13st-box", ".j13ov")]),
+)
+# 화면 안 깨짐 검사 — 꾸밈 글이 글자로 샘 · 취소선 · 코드 상자 · 글자로 보이는 태그 · 빈 값 글자 · 옆으로 넘침 · 상자 셋 수
+AUDIT_JS = """() => {
+  const root = document.querySelector('[data-testid="stMain"]') || document.body;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const css = [], tags = [], empty = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    const el = node.parentElement;
+    if (!el || ['STYLE', 'SCRIPT', 'NOSCRIPT'].includes(el.tagName) || !el.getClientRects().length) continue;
+    const t = node.textContent.trim();
+    if (!t) continue;
+    if (/[.#]?[A-Za-z_][\\w-]*\\s*\\{[^{}]*:[^{}]*\\}|!important/.test(t)) css.push(t.slice(0, 90));
+    if (/<\\/?(div|span|style|b|br|table|td|tr|details|summary|a|p|u|small)\\b[^>]*>/i.test(t)) tags.push(t.slice(0, 90));
+    if (/(^|[^A-Za-z])(None|NaN|nan|undefined|null)([^A-Za-z]|$)/.test(t)) empty.push(t.slice(0, 90));
+  }
+  const vis = (e) => e.getClientRects().length > 0;
+  const del = [...root.querySelectorAll('del, s')].filter(vis).map(e => e.textContent.slice(0, 60));
+  const code = [...root.querySelectorAll('pre, code')].filter(vis).map(e => e.textContent.slice(0, 60));
+  const wide = document.documentElement.scrollWidth > window.innerWidth + 2;
+  return {css: css.slice(0, 8), tags: tags.slice(0, 8), empty: empty.slice(0, 8), del: del.slice(0, 8), code: code.slice(0, 8),
+          wide: wide, width: document.documentElement.scrollWidth,
+          boxes: root.querySelectorAll('.j13st-box').length, overview: root.querySelectorAll('.j13ov').length};
+}"""
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
 
 
@@ -80,12 +114,34 @@ def shoot(browser, password: str, view, size) -> dict:
                 if (el && box) { box.scrollTo(0, el.getBoundingClientRect().top + box.scrollTop - 80); }
             }""", press)
             page.wait_for_timeout(900)
+        for key, wait_for, scroll_to in (view[7] if len(view) > 7 else []):
+            # 숨은 단추(관심종목 「🔎 세부사항」)도 누를 수 있게 브라우저 안에서 누른다
+            page.evaluate("""(key) => {
+                const b = document.querySelector(`div[class*="st-key-${key}"] button`);
+                if (b) { b.click(); }
+            }""", key)
+            try:
+                page.wait_for_selector(wait_for, timeout=300_000, state="attached")
+            except Exception as exc:
+                out.setdefault("step_errors", []).append(f"{key}: {type(exc).__name__}"[:80])
+            page.wait_for_timeout(1500)
+            _quiet(page)
+            page.evaluate("""(sel) => {
+                const el = document.querySelector(sel);
+                const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
+                if (el && box) { box.scrollTo(0, el.getBoundingClientRect().top + box.scrollTop - 70); }
+            }""", scroll_to)
+            page.wait_for_timeout(900)
+        try:
+            out["audit"] = page.evaluate(AUDIT_JS)
+        except Exception as exc:
+            out["audit_error"] = f"{type(exc).__name__}"[:80]
         out["seconds"] = round(time.time() - started, 1)
         # 스트림릿은 안쪽 칸이 굴러간다 — 그 칸을 한 화면씩 내리며 찍는다
         start_y = page.evaluate("""() => {
             const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
             return box.scrollTop || 0;
-        }""") if press else 0
+        }""") if (press or len(view) > 7) else 0
         for index in range(CHUNKS if not press else pressed_chunks):
             page.evaluate("""(y) => {
                 const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
@@ -114,8 +170,25 @@ def main() -> int:
                 run = shoot(browser, password, view, size)
                 runs.append(run)
                 print(json.dumps(run, ensure_ascii=False), flush=True)
+        for name, p, tail, ready, tag, steps in DEEP_VIEWS:
+            run = shoot(browser, password, (name, p, tail, ready, tag, "", 4, steps), SIZES[1])
+            runs.append(run)
+            print(json.dumps(run, ensure_ascii=False), flush=True)
         browser.close()
     (OUT / "screens.json").write_text(json.dumps(runs, ensure_ascii=False, indent=1), encoding="utf-8")
+    lines = []
+    for run in runs:
+        audit = run.get("audit") or {}
+        bad = {k: audit.get(k) for k in ("css", "tags", "empty", "del", "code") if audit.get(k)}
+        if audit.get("wide"):
+            bad["wide"] = audit.get("width")
+        head = f"{run['view']} · {run['size']} · 상자 {audit.get('boxes', '-')} · 개요 {audit.get('overview', '-')}"
+        lines.append(head + (" · 이상 없음" if not bad else " · " + json.dumps(bad, ensure_ascii=False)))
+        for key in ("error", "ready_error", "step_errors", "audit_error"):
+            if run.get(key):
+                lines.append(f"    {key}: {run[key]}")
+    (OUT / "audit.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines), flush=True)
     print(f"\n끝 · 사진 {sum(len(run['shots']) for run in runs)}장", flush=True)
     return 0
 

@@ -275,17 +275,45 @@ class PageTests(unittest.TestCase):
         self.assertIsNone(app.session_state["j13w_msg_now"])           # 다음 판에는 버려져 있다
 
     def test_detail_offers_add_to_the_owner_only(self):
+        # 2026-11-05 상하님 「추가검색에 넣을지 사용자선정에 넣을지 구분을 해야지 미국테마처럼」 — 단추 둘(자비스12 대로)
         app = self._app(details=True)
         keys = {button.key for button in app.button}
-        self.assertIn("j13w_toggle_theme_000660", keys)
-        next(button for button in app.button if button.key == "j13w_toggle_theme_000660").click()
+        self.assertTrue({"j13add_sel_theme_000660", "j13add_ext_theme_000660"} <= keys, keys)
+        next(button for button in app.button if button.key == "j13add_sel_theme_000660").click()
         app.run(timeout=120)
         saved = store.list_stocks()
         self.assertEqual(["000660"], [row["code"] for row in saved])
+        self.assertEqual("selected", saved[0]["group"])
         self.assertIsNotNone(saved[0]["added_price"])           # 넣는 순간의 값을 적는다
         self.assertEqual(2_390.0, saved[0]["kospi_at_add"])     # 그때 코스피도
+        self.assertIn("「사용자 선정 종목」에 넣었습니다", " ".join(str(item.value) for item in app.success))
+        self.assertIn("j13w_toggle_theme_000660", {button.key for button in app.button})       # 넣은 뒤에는 「있음 · 빼기」
         guest = self._app(details=True, guest=True)
-        self.assertNotIn("j13w_toggle_theme_000660", {button.key for button in guest.button})
+        self.assertFalse({"j13add_sel_theme_000660", "j13add_ext_theme_000660"} & {button.key for button in guest.button})
+
+    def test_detail_order_follows_jarvis12(self):
+        # 2026-11-05 — 자비스12 세부사항 차례: 현재가 줄 → 넣기 단추 둘 · 가격 칸 → 차트 → 종목 뉴스
+        source = page_test.PAGE.read_text(encoding="utf-8")
+        detail = source.split("def _render_stock_detail(")[1].split("\ndef ")[0]
+        self.assertLess(detail.index("<div class='j4-metric-row'>"), detail.index("_render_watch_toggle("))
+        owner = detail[detail.index("<div class='j4-metric-row'>"):]
+        self.assertLess(owner.index("_render_price_chart_bundle(code, panel)"), owner.index("_render_stock_news(code"))
+        guest = detail[detail.index("if auth.is_guest():\n        _render_day_price_row"):]
+        self.assertLess(guest.index("_render_guest_stock_charts(code, panel)"), guest.index("_render_stock_news(code"))
+        self.assertLess(guest.index("_render_stock_news(code"), guest.index("return"))
+
+    def test_detail_can_add_to_extra_row(self):
+        app = self._app(details=True)
+        # 2026-11-05 「너 사기쳤네」 — 세부사항에 상자 셋이 실제로 그려지는지(스트림릿 화면 그대로) · 저장소의 한국 재무 파일로
+        boxes = [str(item.value) for item in app.markdown if "j13st-box" in str(item.value)]
+        self.assertTrue(boxes, "상자 덩이가 화면에 없다")
+        self.assertTrue(boxes[0].lstrip().startswith("<style>"))                   # 개요와 붙지 않고 따로 나간다
+        self.assertIn("👥 애널리스트 의견", boxes[0])
+        next(button for button in app.button if button.key == "j13add_ext_theme_000660").click()
+        app.run(timeout=120)
+        self.assertEqual([("000660", "extra")], [(row["code"], row["group"]) for row in store.list_stocks()])
+        self.assertIn("「추가 검색 종목」에 넣었습니다", " ".join(str(item.value) for item in app.success))
+        self.assertTrue(any("「추가 검색 종목」에 있음" in str(button.label) for button in app.button))
 
 
 

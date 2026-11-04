@@ -15291,7 +15291,7 @@ try:
     import importlib as _il
     import jarvis12_exit
 
-    if int(getattr(jarvis12_exit, "MODULE_REVISION", 0)) < 2026110404:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+    if int(getattr(jarvis12_exit, "MODULE_REVISION", 0)) < 2026110501:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
         jarvis12_exit = _il.reload(jarvis12_exit)
     jarvis12_exit.render(st)
 except Exception:

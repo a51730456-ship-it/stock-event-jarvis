@@ -33,7 +33,7 @@ REQUIRED_CSS_REVISION = 2026110403
 if int(getattr(C, "MODULE_REVISION", 0)) < REQUIRED_CSS_REVISION:
     C = importlib.reload(C)
 
-MODULE_REVISION = 2026110406
+MODULE_REVISION = 2026110501
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -206,7 +206,9 @@ def hero_html(stocks: list[dict]) -> str:
             '<div class="j13h-title">JARVIS <b>13</b></div><div class="j13h-sub">한국테마</div></div>'
             '<div class="j13h-head-actions"><span class="j13h-round">↻</span><span class="j13h-live"><i></i>실시간</span></div>'
             f'{scene_html}{orbit_html(stocks)}</div>{pop_html}'
-            + _flat(C.J13H_HOME_CSS) + _flat(C.J13H_CROSS_CSS))
+            # 두 꾸밈 덩이 사이 줄바꿈 — 「</style><style>」로 붙으면 뒤 덩이가 문단 글로 읽힐 수 있다(2026-11-05 · research/j13_render_audit ·
+            # 고치기 전후 그림이 폰 · PC 너비 모두 픽셀까지 같음을 확인).
+            + _flat(C.J13H_HOME_CSS) + "\n" + _flat(C.J13H_CROSS_CSS))
 
 
 # ── 뉴스 ─────────────────────────────────────────────────────────────────────────────────
