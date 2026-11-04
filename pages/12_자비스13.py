@@ -880,7 +880,7 @@ if int(getattr(jarvis13_market, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_RE
 # 파트별 성적표 + 코스피와 견줘 보기(자비스13 전용 · 2026-10-30 · 자비스12 의 성적표 셈을 베낌).
 import jarvis13_scorecard_compare as j13vx
 
-_REQUIRED_J13_SCORECARD_REVISION = 2026110401
+_REQUIRED_J13_SCORECARD_REVISION = 2026110402
 if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
     j13vx = importlib.reload(j13vx)
 # 한국 관심종목(5단계 · 2026-10-30 상하님 「자비스13 관심종목 — 다해라」) — 저장은 미국 저장고와 따로(새 표),
@@ -925,9 +925,13 @@ if int(getattr(jarvis13_charts, "MODULE_REVISION", 0)) < _REQUIRED_J13_CHARTS_RE
     jarvis13_charts = importlib.reload(jarvis13_charts)
 import jarvis13_theme15  # noqa: E402  — 한국 상위 테마 5개 · 1~3위 목록(쌓기만 · 2026-11-04)
 import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 자비스12 형식(2026-11-04 · 얼린 market_signal_ui 는 부르기만)
-_REQUIRED_J13_FLOW_CARD_REVISION = 2026110401
+_REQUIRED_J13_FLOW_CARD_REVISION = 2026110402
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
+import jarvis13_shared  # noqa: E402  — 손님끼리 55초 같이 쓰는 보관(2026-11-04 상하님 「로딩 문제 해결하고」 · 값은 안 바꿈)
+_REQUIRED_J13_SHARED_REVISION = 2026110401
+if int(getattr(jarvis13_shared, "MODULE_REVISION", 0)) < _REQUIRED_J13_SHARED_REVISION:
+    jarvis13_shared = importlib.reload(jarvis13_shared)
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
 _REQUIRED_J13_SKIN_REVISION = 2026110403
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
@@ -1353,8 +1357,12 @@ class _ScreenWaitsForUS:
 
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
+    # 손님끼리 55초 같이 쓴다(jarvis13_shared) — 새 손님마다 네이버에 지수·투자자 수급·대형주 수급을 다시 묻던 것(깃허브 재기
+    # 41757644863 · 새 손님 4.6초). 받은 값 그대로 · 못 받은 판(ok 아님)은 안 담는다.
     with _ScreenWaitsForUS():
-        overview = j4data.get_market_overview()
+        # 열쇠에 받는 함수의 번호를 같이 넣는다 — 시험이 함수를 바꿔 끼우면 그 판은 따로 받는다(앞 시험 값이 안 넘어온다).
+        overview = jarvis13_shared.remember(("market_overview", id(j4data.get_market_overview)), j4data.get_market_overview,
+                                            good=lambda value: isinstance(value, dict) and bool(value.get("ok")))
     st.session_state["j13_market_overview"] = overview
     # 제목은 자비스12 「미국 전체시장 판단」과 같은 모양(보라 · 16px)으로(2026-11-03 화면 옷).
     st.markdown(f"<div class='{jarvis13_skin.TITLE_CLASS}'>한국 전체시장 판단</div>", unsafe_allow_html=True)
@@ -1483,6 +1491,18 @@ def _render_market_overview() -> None:
     )
 
 
+_J13_WHY_CSS = """<style>
+.j13-chips{display:flex;flex-wrap:wrap;gap:6px;margin:.45rem 0 .2rem}
+.j13-chips span{font-size:.8rem;color:#dfe9ff;background:rgba(77,166,255,.10);border:1px solid rgba(77,166,255,.30);
+  border-radius:999px;padding:3px 10px;line-height:1.35}
+.j13-chips b{color:#ffd166;font-weight:900}
+.j13-chips small{color:#8fb4de;font-size:.72rem}
+details.j13-why{margin:.25rem 0 0;font-size:.76rem;color:#8fb4de;line-height:1.55}
+details.j13-why summary{cursor:pointer;color:#c084fc;font-weight:800;list-style:none}
+details.j13-why summary::-webkit-details-marker{display:none}
+</style>"""
+
+
 def _render_kospi_drawdown() -> None:
     """코스피가 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-09 상하님 지적).
 
@@ -1550,14 +1570,16 @@ def _render_kospi_drawdown() -> None:
                 f"{jarvis13_market.md(dist['last_day'])}까지 끝난 장 25거래일) "
                 f"<b style='white-space:nowrap'>{int(dist['count'])}일</b>"
                 + (f" — {days}" if days else "")
-                + "<br><span class='j4-muted'>0.2% 넘게 내리며 거래량이 전날보다 많은 날(큰손이 판 흔적 · 오닐 방식) · "
-                "그 뒤 5% 넘게 오르면 뺌. 미국은 5~6일이면 경고로 보지만, 코스피 12년치로 재 보니 5일 이상이 된 첫날(51번) 뒤 "
-                "20일 코스피 평균 −0.2%(아무 날 +1.1%) · 40일 안 −10% 넘게 빠진 비율 14%(아무 날 13%) · 7일 넘게 쌓인 날 뒤는 "
-                "+1.7% — 경고로 쓰지 않고 점수·판정에 안 씀.</span></div>")
+                # 2026-11-04 상하님 「설명도 좀 줄이고」 — 풀이는 접어 둔다(누르면 펴짐). 숫자는 그대로.
+                + "<details class='j13-why'><summary>왜 경고로 안 쓰나 ▾</summary>"
+                "0.2% 넘게 내리며 거래량이 전날보다 많은 날(큰손이 판 흔적 · 오닐 방식) · 그 뒤 5% 넘게 오르면 뺌. "
+                "코스피 12년치로 재 보니 5일 이상이 된 첫날(51번) 뒤 20일 코스피 평균 −0.2%(아무 날 +1.1%) · "
+                "40일 안 −10% 넘게 빠진 비율 14%(아무 날 13%) · 7일 넘게 쌓인 날 뒤는 +1.7% — "
+                "미국처럼 갈리지 않아 경고로 쓰지 않고 점수·판정에 안 씀.</details></div>")
     except Exception:
         episode_line = kosdaq_line = dist_line = ""
     st.markdown(
-        "<div class='j4-ndd'>"
+        _J13_WHY_CSS + "<div class='j4-ndd'>"
         f"<div class='j4-ndd-head'><b class='j4-ndd-title'>{headline}</b> "
         f"<span class='j4-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
         f"<span class='j4-ndd-state' style='color:{color}'>{label}</span></div>"
@@ -1567,16 +1589,16 @@ def _render_kospi_drawdown() -> None:
         "<div class='j4-ndd-scale'><span>고점 −40%</span>"
         "<span class='j4-ndd-scale-mid'>전고점</span><span>고점 +40%</span></div>"
         + episode_line + kosdaq_line + dist_line +
-        "<div class='j4-ndd-note'><span class='j4-ndd-key'>코스피 12년치</span>로 재 보니 "
-        "가장 나았던 자리는 <span class='j4-ndd-key'>고점 대비 −12~−18%</span>였습니다"
-        "(지수 100번 중 63번 · 앞 6년 55번 → 뒤 6년 77번). "
-        "<span class='j4-ndd-key'>미국의 주력인 −6~−12%는 한국에서 기준선보다 못했습니다</span>"
-        "(종목 49.6번, 아무 종목이나 사면 53.0번). "
-        f"이 화면의 급락 갈래는 <span class='j4-ndd-key'>{abs(entry):.0f}% 아래</span>부터 켜집니다 "
-        "— 눈금이 그 자리입니다. "
-        "얼마나 자주 오나 — −6~−12% 0.8년에 한 번 · −12~−18% 1.4년 · −18~−24% 2.1년 · "
-        "−24% 아래 4.2년."
-        "</div></div>",
+        # 2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」 — 핵심 셋만 색 칩으로 · 숫자 풀이는 접어 둔다(값은 그대로).
+        "<div class='j13-chips'>"
+        "<span>📊 12년치 가장 나은 자리 <b>고점 −12~−18%</b> <small>(100번 중 63번 이익)</small></span>"
+        "<span>⚠️ <b>−6~−12%</b>는 아무 종목보다 못함</span>"
+        f"<span>🎯 급락 갈래 <b>−{abs(entry):.0f}% 아래</b>부터 <small>(눈금 자리)</small></span></div>"
+        "<details class='j13-why'><summary>숫자 자세히 ▾</summary>"
+        "−12~−18% — 지수 100번 중 63번(앞 6년 55번 → 뒤 6년 77번). "
+        "−6~−12% — 종목 49.6번(아무 종목이나 사면 53.0번 · 미국의 주력 자리지만 한국에서는 기준선보다 못했습니다). "
+        "얼마나 자주 오나 — −6~−12% 0.8년에 한 번 · −12~−18% 1.4년 · −18~−24% 2.1년 · −24% 아래 4.2년."
+        "</details></div>",
         unsafe_allow_html=True,
     )
 
@@ -3480,6 +3502,13 @@ _J13VX_PERIOD = "j13vx_period"
 _J13VX_VIEW = "j13vx_view"
 _J13SC_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183), ("1년", 365), ("누계", None))
 _J13SC_LABELS = {"누계": "기록 시작 후 누계"}
+# 📅 기간 고르기 — 자비스12 와 같은 숫자 달력(2026-11-04 상하님 「기준 날짜도 설정하는 것 빠졌고」). 시작일을 누르면 곧바로
+# 종료일 달력 · 장이 쉰 날(코스피 일봉에 없는 날)은 누를 수 없다. 이름은 j13(자비스12 j12sc_ 와 안 섞이게).
+_J13SC_RANGE = "기간 고르기"
+_J13SC_RANGE_START = "j13sc_rng_start"
+_J13SC_RANGE_END = "j13sc_rng_end"
+_J13SC_RANGE_STEP = "j13sc_rng_step"
+_J13SC_RANGE_MONTH = "j13sc_rng_month"
 _J13SC_KEEP = 1800.0          # 30분 — 그 뒤 다시 열면 새로 센다
 _J13SC_CSS = """
 <style>
@@ -3489,6 +3518,22 @@ div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button{min-heigh
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button p{font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"] p{color:#0a1a33!important}
+/* 기간 고르기 달력 — 자비스12 규칙 그대로(j13 이름). 폰에서도 한 줄에 다섯 날. */
+div[class*="st-key-j13sc_cal"]{gap:4px!important}
+div[class*="st-key-j13sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important;flex-wrap:nowrap!important}
+div[class*="st-key-j13sc_cal"] [data-testid="stColumn"]{min-width:0!important;width:auto!important;flex:1 1 0!important}
+div[class*="st-key-j13sc_cal"] button{min-height:0!important;padding:.3rem 0!important;
+  border-radius:8px!important;background:transparent!important;border:1px solid #1d3a63!important}
+div[class*="st-key-j13sc_cal"] button p{font-size:.9rem!important;font-weight:600!important;color:#cfe0f5!important}
+div[class*="st-key-j13sc_cal"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
+div[class*="st-key-j13sc_cal"] button[kind="primary"] p{color:#0a1a33!important}
+div[class*="st-key-j13sc_cal_in_"] button{background:rgba(255,176,32,.18)!important;border-color:rgba(255,176,32,.45)!important}
+div[class*="st-key-j13sc_cal"] button:disabled{opacity:.35}
+div[class*="st-key-j13sc_calf_"] button p{font-size:.84rem!important}
+.j3sc-cal-title{text-align:center;color:#8fb4de;font-size:.78rem;font-weight:600;line-height:1.25}
+.j3sc-cal-title b{display:block;color:#e6eefb;font-size:1rem;font-weight:700}
+.j3sc-cal-week{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;color:#6f93bd;font-size:.76rem;font-weight:600}
+.j3sc-cal-off{text-align:center;color:#3d5a80;font-size:.9rem;padding:.32rem 0;border:1px solid transparent}
 </style>
 """
 
@@ -3561,6 +3606,109 @@ def _j13sc_in_span(rows: list, kospi, last_day, days) -> list:
     return out
 
 
+def _j13sc_in_range(rows: list, kospi, start, end) -> list:
+    """산 날(목록 다음 장)이 고른 시작일~종료일 안인 줄 — 자비스12 기간 고르기와 같은 뜻."""
+    import bisect
+
+    calendar = sorted(j13vx.series_by_day(kospi, "Close"))
+    out = []
+    for row in rows:
+        try:
+            listed = date.fromisoformat(str(row.get("trade_date") or "")[:10])
+        except ValueError:
+            continue
+        place = bisect.bisect_right(calendar, listed)
+        if place < len(calendar) and start <= calendar[place] <= end:
+            out.append(row)
+    return out
+
+
+def _j13sc_range_open(which: str) -> None:
+    st.session_state[_J13SC_RANGE_STEP] = which
+    day = st.session_state.get(_J13SC_RANGE_START if which == "start" else _J13SC_RANGE_END) \
+        or st.session_state.get(_J13SC_RANGE_START)
+    if day:
+        st.session_state[_J13SC_RANGE_MONTH] = (day.year, day.month)
+
+
+def _j13sc_range_pick(day_iso: str) -> None:
+    day = date.fromisoformat(day_iso)
+    if (st.session_state.get(_J13SC_RANGE_STEP) or "start") == "start":
+        st.session_state[_J13SC_RANGE_START] = day
+        end = st.session_state.get(_J13SC_RANGE_END)
+        if end and end < day:
+            st.session_state.pop(_J13SC_RANGE_END, None)
+        st.session_state[_J13SC_RANGE_STEP] = "end"
+    else:
+        st.session_state[_J13SC_RANGE_END] = day
+        st.session_state[_J13SC_RANGE_STEP] = ""
+
+
+def _j13sc_range_month(step: int) -> None:
+    today = date.today()
+    year, month = st.session_state.get(_J13SC_RANGE_MONTH) or (today.year, today.month)
+    month += step
+    year, month = (year - 1, 12) if month < 1 else (year + 1, 1) if month > 12 else (year, month)
+    st.session_state[_J13SC_RANGE_MONTH] = (year, month)
+
+
+def _j13sc_range_picker(first_day, last_day, trading_days: set):
+    """시작일·종료일 두 칸과 그 밑 숫자 달력(자비스12 _render_range_picker 그대로 · 한국장 쉬는 날은 코스피 일봉으로 가림)."""
+    import calendar as _calendar
+
+    state = st.session_state
+    if _J13SC_RANGE_STEP not in state:
+        state[_J13SC_RANGE_STEP] = "start"
+    start, end = state.get(_J13SC_RANGE_START), state.get(_J13SC_RANGE_END)
+    step = state.get(_J13SC_RANGE_STEP) or ""
+    if _J13SC_RANGE_MONTH not in state:
+        state[_J13SC_RANGE_MONTH] = (last_day.year, last_day.month)
+    with st.container(key="j13sc_calf"):
+        fields = st.columns(2)
+        fields[0].button(f"시작일 · {start:%Y.%m.%d}" if start else "시작일 · 누르세요", key="j13sc_calf_start",
+                         width="stretch", type="primary" if step == "start" else "secondary",
+                         on_click=_j13sc_range_open, args=("start",))
+        fields[1].button(f"종료일 · {end:%Y.%m.%d}" if end else "종료일 · 누르세요", key="j13sc_calf_end",
+                         width="stretch", disabled=start is None, type="primary" if step == "end" else "secondary",
+                         on_click=_j13sc_range_open, args=("end",))
+    if step:
+        year, month = state[_J13SC_RANGE_MONTH]
+        with st.container(key="j13sc_cal"):
+            head = st.columns([1, 4, 1])
+            head[0].button("◀", key="j13sc_cal_prev", width="stretch",
+                           disabled=(year, month) <= (first_day.year, first_day.month),
+                           on_click=_j13sc_range_month, args=(-1,))
+            head[1].markdown(f"<div class='j3sc-cal-title'>{'① 시작일' if step == 'start' else '② 종료일'}을 누르세요"
+                             f"<b>{year}년 {month}월</b></div>", unsafe_allow_html=True)
+            head[2].button("▶", key="j13sc_cal_next", width="stretch",
+                           disabled=(year, month) >= (last_day.year, last_day.month),
+                           on_click=_j13sc_range_month, args=(1,))
+            st.markdown("<div class='j3sc-cal-week'><span>월</span><span>화</span><span>수</span>"
+                        "<span>목</span><span>금</span></div>", unsafe_allow_html=True)
+            for week in _calendar.Calendar(firstweekday=0).monthdatescalendar(year, month):
+                days = week[:5]
+                if not any(day.month == month for day in days):
+                    continue
+                cells = st.columns(5)
+                for cell, day in zip(cells, days):
+                    if day.month != month:
+                        cell.markdown("<div class='j3sc-cal-off'>&nbsp;</div>", unsafe_allow_html=True)
+                        continue
+                    usable = (first_day <= day <= last_day and day in trading_days
+                              and not (step == "end" and start and day < start))
+                    if not usable:
+                        cell.markdown(f"<div class='j3sc-cal-off'>{day.day}</div>", unsafe_allow_html=True)
+                        continue
+                    inside = bool(start and end and start < day < end)
+                    cell.button(str(day.day), key=f"j13sc_cal_{'in' if inside else 'd'}_{day.isoformat()}",
+                                width="stretch", type="primary" if day in (start, end) else "secondary",
+                                on_click=_j13sc_range_pick, args=(day.isoformat(),))
+        return None
+    if start and end:
+        return start, end
+    return None
+
+
 def _j13sc_table_html(table: dict, blocked: dict) -> str:
     head = ("<tr><th>파트</th><th>산 줄</th><th>이익 난 확률</th><th>평균 수익</th><th>같은 날 코스피</th>"
             "<th>코스피보다 나음</th><th>못 산 줄</th></tr>")
@@ -3599,34 +3747,55 @@ def _render_scorecard_section() -> None:
         _section_close(_J13SC_OPEN, "파트별 성적표 닫기")
         return
     span = str(st.session_state.get(_J13SC_SPAN) or "누계")
-    if span not in dict(_J13SC_SPANS):
+    if span not in dict(_J13SC_SPANS) and span != _J13SC_RANGE:
         span = "누계"
     st.markdown(_J13SC_CSS + j13vx.CSS, unsafe_allow_html=True)
+    first_saved = min(str(row.get("trade_date") or "")[:10] for row in data["rows"])
     with st.container(key="j13sc_box"):
-        chips = st.columns(len(_J13SC_SPANS))
-        for index, (label, _days) in enumerate(_J13SC_SPANS):
-            chips[index].button(_J13SC_LABELS.get(label, label), key=f"j13sc_span_{index}", width="stretch",
+        chip_list = list(_J13SC_SPANS) + [(_J13SC_RANGE, None)]
+        chips = st.columns(len(chip_list))
+        for index, (label, _days) in enumerate(chip_list):
+            chips[index].button("📅 기간 고르기" if label == _J13SC_RANGE else _J13SC_LABELS.get(label, label),
+                                key=f"j13sc_span_{index}", width="stretch",
                                 type="primary" if label == span else "secondary",
                                 on_click=_j13sc_pick, args=(_J13SC_SPAN, label))
-        chosen = _j13sc_in_span(data["rows"], kospi, last_day, dict(_J13SC_SPANS)[span])
+        end_day = last_day
+        if span == _J13SC_RANGE:
+            trading = set(j13vx.series_by_day(kospi, "Close"))
+            try:
+                first_day = date.fromisoformat(first_saved)
+            except ValueError:
+                first_day = last_day
+            picked = _j13sc_range_picker(first_day, last_day, trading)
+            if not picked:
+                _section_close(_J13SC_OPEN, "파트별 성적표 닫기")
+                return
+            end_day = picked[1]
+            chosen = _j13sc_in_range(data["rows"], kospi, picked[0], picked[1])
+        else:
+            chosen = _j13sc_in_span(data["rows"], kospi, last_day, dict(_J13SC_SPANS)[span])
         rows, blocked_rows = j13vx.split_unfillable(chosen, data["frames"])
         blocked = {}
         for row in blocked_rows:
             blocked[str(row.get("list_kind"))] = blocked.get(str(row.get("list_kind")), 0) + 1
-        table = j13vx.part_table(rows, data["frames"], kospi, last_day=last_day)
+        table = j13vx.part_table(rows, data["frames"], kospi, last_day=end_day)
         st.markdown(_j13sc_table_html(table, blocked), unsafe_allow_html=True)
-        first_saved = min(str(row.get("trade_date") or "")[:10] for row in data["rows"])
         missing = data.get("codes", 0) - len(data.get("frames") or {})
+        # 설명은 짧게 · 숫자에 색(2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」). 긴 풀이는 「셈 방법」에 접어 둔다.
         st.markdown(
-            "<div class='j13sc-note'>"
-            "산 날 = 목록을 찍은 다음 장 · 산 값 = 그날 시가(저장된 매수금액) · "
-            f"지금 값 = <b>{last_day.month}월 {last_day.day}일 종가</b>(장중에는 그 앞 장) · "
-            "코스피도 같은 날 시가에 샀다고 쳤습니다. "
-            "<b>다음 날 시가가 상한가에 붙은 줄은 못 산 것으로 빼고</b> 「못 산 줄」에 셉니다. "
-            f"세기 시작 {jarvis13_market.md(first_saved)}(저장 시작) · 거래비용·세금은 안 넣었습니다."
-            + (f" 값을 못 받은 종목 {missing}개는 빼고 셌습니다." if missing > 0 else "")
-            + "</div>", unsafe_allow_html=True)
-        _render_j13_compare(rows, data, last_day)
+            "<div class='j13sc-key'>"
+            "<span>📥 산 값 = 목록 <b>다음 날 시가</b></span>"
+            f"<span>📌 지금 값 = <b>{end_day.month}/{end_day.day} 종가</b></span>"
+            "<span>⚖️ 코스피도 <b>같은 날</b> 샀다고 침</span>"
+            f"<span>🗓 기록 시작 <b>{jarvis13_market.md(first_saved)}</b></span></div>",
+            unsafe_allow_html=True)
+        with st.expander("셈 방법 자세히", expanded=False):
+            st.markdown(
+                "<div class='j13sc-note'>다음 날 시가가 <b>상한가</b>에 붙은 줄은 못 산 것으로 빼고 「못 산 줄」에 셉니다. "
+                "거래비용·세금은 안 넣었습니다."
+                + (f" 값을 못 받은 종목 {missing}개는 빼고 셌습니다." if missing > 0 else "")
+                + "</div>", unsafe_allow_html=True)
+        _render_j13_compare(rows, data, end_day)
     _section_close(_J13SC_OPEN, "파트별 성적표 닫기")
 
 
@@ -3639,17 +3808,23 @@ def _render_j13_compare(rows: list, data: dict, last_day) -> None:
     period = str(st.session_state.get(_J13VX_PERIOD) or "d")
     period = period if period in dict(j13vx.PERIODS) else "d"
     view = str(st.session_state.get(_J13VX_VIEW) or "line")
-    view = view if view in dict(j13vx.VIEWS) else "line"
+    # 「코스피보다 더·덜」은 테마 비교표에만 있다(자비스12 와 같다) — 다른 탭에서는 선으로 그린다.
+    views = list(j13vx.VIEWS) + (list(j13vx.THEME_EXTRA_VIEWS) if tab == "themes" else [])
+    view = view if view in dict(views) else "line"
     with st.container(key="j13vx_rowtabs"):
         for column, (key, label, _parts) in zip(st.columns(len(j13vx.TABS)), j13vx.TABS):
             column.button(label, key=f"j13vx_t_{key}", width="stretch", type="primary" if key == tab else "secondary",
                           on_click=_j13sc_pick, args=(_J13VX_TAB, key))
-    options = ([(_J13VX_PERIOD, key, label, f"j13vx_p_{key}", key == period) for key, label in j13vx.PERIODS]
-               + [(_J13VX_VIEW, key, label, f"j13vx_v_{key}", key == view) for key, label in j13vx.VIEWS])
-    with st.container(key="j13vx_rowopts"):
-        for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
-            column.button(label, key=widget_key, width="stretch", type="primary" if chosen else "secondary",
-                          on_click=_j13sc_pick, args=(state_key, key))
+    period_buttons = [(_J13VX_PERIOD, key, label, f"j13vx_p_{key}", key == period) for key, label in j13vx.PERIODS]
+    view_buttons = [(_J13VX_VIEW, key, label, f"j13vx_v_{key}", key == view) for key, label in views]
+    # 테마 비교표는 보기 단추가 셋이라 두 줄(자비스12 와 같다 · 폰에서 단추가 너무 좁아지지 않게).
+    button_rows = ([("j13vx_rowopts", period_buttons), ("j13vx_rowviews", view_buttons)] if tab == "themes"
+                   else [("j13vx_rowopts", period_buttons + view_buttons)])
+    for row_key, options in button_rows:
+        with st.container(key=row_key):
+            for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
+                column.button(label, key=widget_key, width="stretch", type="primary" if chosen else "secondary",
+                              on_click=_j13sc_pick, args=(state_key, key))
     try:
         result = j13vx.compute(rows, data["frames"], data["kospi"], last_day=last_day)
     except Exception as exc:
@@ -3659,15 +3834,31 @@ def _render_j13_compare(rows: list, data: dict, last_day) -> None:
     if not result.get("parts"):
         st.markdown("<div class='j3vx-note'>이 기간에는 코스피와 견줄 것이 없습니다.</div>", unsafe_allow_html=True)
         return
+    if tab == "themes":
+        # 테마 비교표 — 「상위 테마 5개」 줄을 테마로 나눈 그림 + 이 기간 테마별 표(자비스12 와 같은 차례).
+        names = {str(row.get("code") or ""): str(row.get("name") or "") for row in rows}
+        chart, note = j13vx.theme_chart_html(result, period, view, names)
+        if not chart:
+            st.markdown("<div class='j3vx-note'>📭 이 기간에는 「상위 테마 5개」에 든 테마가 아직 없습니다 — "
+                        "<b>2026-11-04</b> 부터 날마다 쌓입니다.</div>", unsafe_allow_html=True)
+            return
+        say = {"line": "선 끝 = 그 테마 1~3위를 산 날마다 샀다면 지금 몇 %",
+               "bar": "막대 = 그날 산 1~3위가 지금 몇 %",
+               "rel": "0(회색 띠) = 코스피와 같음 · 위는 더 벎 · 아래는 덜 벎"}[view]
+        st.markdown(chart + j13vx.theme_table_html(result, names)
+                    + f"<div class='j13sc-key'><span>📈 <b>{html.escape(say)}</b></span></div>"
+                    + (f"<div class='j3vx-note'>{html.escape(note)}</div>" if note else ""),
+                    unsafe_allow_html=True)
+        return
     if view == "bar":
         chart, note = j13vx.bar_chart_html(result, tab, period)
     else:
         chart, note = j13vx.line_chart_html(result, tab, period), ""
+    say = ("막대 = 그날 산 것이 지금 몇 %" if view == "bar" else "선 = 그날까지 산 것을 다 들고 있으면 몇 %")
     st.markdown(
         j13vx.cards_html(result, tab) + j13vx.legend_html(tab, result) + chart
         + (f"<div class='j3vx-note'>{html.escape(note)}</div>" if note else "")
-        + "<div class='j3vx-note'>쌓인 수익(선) — 그날까지 산 것을 모두 들고 있다면 몇 % 인가. "
-          "산 날마다(막대) — 그날 산 것이 마지막 날까지 몇 % 인가. 코스피는 그 파트가 <b>산 날에만</b> 같은 돈으로 샀다고 칩니다.</div>",
+        + f"<div class='j13sc-key'><span>📈 <b>{say}</b></span><span>⚖️ 코스피는 <b>산 날에만</b> 같은 돈</span></div>",
         unsafe_allow_html=True)
     stocks = j13vx.stocks_html(result, tab, first=(result.get("days") or [""])[0], last=result.get("last") or "")
     if stocks:

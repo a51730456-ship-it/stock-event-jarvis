@@ -25,7 +25,7 @@ import math
 from datetime import date, timedelta
 
 # 계산이나 돌려주는 값을 바꾸면 올리고 자비스13 의 _REQUIRED_J13_SCORECARD_REVISION 도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 
 # 2026-11-04 「상위 테마 5개 (1~3위)」 줄을 맨 앞에 더했다(상하님 「해라」 · 자비스12 와 같은 자리) — 목록은 그날부터 쌓인다
 # (data/picklist_theme15 · docs/KR_THEME_SPEC.md 3-1-1). 쌓인 날이 없으면 「이 기간에는 산 날이 없습니다」가 그대로 나온다.
@@ -43,12 +43,16 @@ PART_COLORS = {"theme15": "#c084fc", "top7": "#4c9bff", "breakout": "#22b884", "
 TABS = (
     ("all", "다섯 파트 한눈에", PARTS),
     ("theme", "상위 테마 5개", ("theme15",)),
+    # 2026-11-04 상하님 「파트별 성적표 미국테마대로 · 테마 비교표도 빠졌고」 — 자비스12 와 같은 자리. 「상위 테마 5개」 줄을 테마로 나눈다.
+    ("themes", "테마 비교표", ()),
     ("pick", "순위 7 · 눌림목", ("top7", "pullback")),
     ("swing", "상승장 · 급락 후 반등장", ("breakout", "crash")),
 )
 TAB_PARTS = {key: parts for key, _label, parts in TABS}
 PERIODS = (("d", "일별"), ("w", "주별"), ("m", "월별"))
 VIEWS = (("line", "쌓인 수익 (선)"), ("bar", "산 날마다 (막대)"))
+# 테마 비교표에만 하나 더 — 코스피보다 몇 % 더·덜(자비스12 「나스닥보다 더·덜」과 같은 셈).
+THEME_EXTRA_VIEWS = (("rel", "코스피보다 더·덜"),)
 # 코스피 띠 — 굵고 옅게(자비스12 의 나스닥 띠와 같은 모양 · 상하님 「두껍게 투명도가 있게」).
 INDEX_NAME = "코스피"
 INDEX_COLOR = "rgba(170,182,204,.42)"
@@ -136,7 +140,8 @@ def compute(rows, frames: dict, index_frame, *, last_day: date | None = None) ->
             listed = date.fromisoformat(str(row.get("trade_date") or "")[:10])
         except ValueError:
             continue
-        listed_rows.append((kind, listed, code, buy, str(row.get("name") or code)))
+        listed_rows.append((kind, listed, code, buy, str(row.get("name") or code),
+                            str(row.get("origin") or row.get("theme_name") or "").strip()))
     if not listed_rows:
         return empty
     since = min(item[1] for item in listed_rows)
@@ -147,12 +152,12 @@ def compute(rows, frames: dict, index_frame, *, last_day: date | None = None) ->
         return empty
 
     picked = []
-    for kind, listed, code, buy, name in listed_rows:
+    for kind, listed, code, buy, name, origin in listed_rows:
         # 목록을 찍은 날 **다음 거래일**이 산 날이다(저장된 매수금액 = 그날 시가).
         place = bisect.bisect_right(calendar, listed)
         if place >= len(calendar):
             continue                    # 아직 안 산 줄(다음 장이 안 열렸다)
-        picked.append((kind, calendar[place], code, buy, name))
+        picked.append((kind, calendar[place], code, buy, name, origin))
     if not picked:
         return empty
     first = min(item[1] for item in picked)
@@ -182,7 +187,7 @@ def compute(rows, frames: dict, index_frame, *, last_day: date | None = None) ->
         if not mine:
             continue
         cohorts = {}
-        for _kind, bought, code, buy, name in mine:
+        for _kind, bought, code, buy, name, _origin in mine:
             cohorts.setdefault(bought, []).append((code, buy, name))
         stack, bars, per_stock = [], [], {}
         for bought in sorted(cohorts):
@@ -237,8 +242,63 @@ def compute(rows, frames: dict, index_frame, *, last_day: date | None = None) ->
             series.append(None if not held_days
                           else round((sum(ix_c[place] / value for value in held_days) / len(held_days) - 1.0) * 100.0, 2))
         index_lines[key] = series
+    themes = _theme_rows(picked, closes, column, index, count, ix_c, ix_open)
     return {"days": [day.isoformat() for day in days], "last": days[-1].isoformat(),
-            "parts": parts, "index": index_lines, "rows": sum(p["rows"] for p in parts.values())}
+            "parts": parts, "index": index_lines, "themes": themes, "rows": sum(p["rows"] for p in parts.values())}
+
+
+def _theme_rows(picked, closes, column, index, count, ix_c, ix_open) -> list:
+    """테마 비교표 — 「상위 테마 5개」 줄을 **테마(origin)로 나눠** 같은 셈(자비스12 jarvis12_scorecard_compare.compute 의
+    테마 부분 그대로 · 나스닥 → 코스피). 산 것마다 같은 돈 · 선 끝 = 그 테마 평균. 차례는 이익 난 확률, 같으면 평균."""
+    import numpy as np
+
+    themes, by_theme = [], {}
+    for kind, bought, code, buy, _name, origin in picked:
+        if kind == "theme15" and origin:
+            by_theme.setdefault(origin, []).append((bought, code, buy))
+    for origin, items in by_theme.items():
+        series_list, gains, per_stock, per_day = [], [], {}, {}
+        rel_list, rel_gains, beat = [], [], 0
+        for bought, code, buy in items:
+            ratio = closes[:, column[code]] / buy
+            ratio[:index[bought]] = np.nan
+            if np.isnan(ratio[-1]):
+                continue                # 끝날 값을 못 잰 줄 — 세지 않는다(0으로 채우지 않는다)
+            series_list.append(ratio)
+            gain = (ratio[-1] - 1.0) * 100.0
+            gains.append(gain)
+            per_stock.setdefault(code, []).append(gain)
+            ix_gain = (ix_c[-1] / ix_open[bought] - 1.0) * 100.0
+            slot = per_day.setdefault(bought, [[], ix_gain])
+            slot[0].append(gain)
+            ix_ratio = ix_c / ix_open[bought]
+            ix_ratio[:index[bought]] = np.nan
+            rel_list.append(ratio - ix_ratio)
+            rel_gains.append(gain - ix_gain)
+            beat += 1 if gain > ix_gain else 0
+        if not gains:
+            continue
+        matrix = np.vstack(series_list)
+        active = ~np.isnan(matrix)
+        held = active.sum(axis=0)
+        total = np.where(active, matrix, 0.0).sum(axis=0)
+        cum = [None if held[place] == 0 else round((total[place] / held[place] - 1.0) * 100.0, 2)
+               for place in range(count)]
+        rel_total = np.where(active, np.vstack(rel_list), 0.0).sum(axis=0)
+        rel_cum = [None if held[place] == 0 else round(rel_total[place] / held[place] * 100.0, 2)
+                   for place in range(count)]
+        best_code, best_gains = max(per_stock.items(), key=lambda kv: sum(kv[1]) / len(kv[1]))
+        themes.append({
+            "name": origin, "cum": cum,
+            "cohorts": [[day.isoformat(), round(sum(g) / len(g), 2), round(ix, 2), len(g)]
+                        for day, (g, ix) in sorted(per_day.items())],
+            "seen": len(gains), "win": sum(1 for g in gains if g > 0),
+            "final": round(sum(gains) / len(gains), 2),
+            "top": [best_code, round(sum(best_gains) / len(best_gains), 1)],
+            "rel": rel_cum, "rel_final": round(sum(rel_gains) / len(rel_gains), 2), "beat": beat,
+        })
+    themes.sort(key=lambda row: (-(row["win"] / row["seen"]), -row["final"]))
+    return themes
 
 
 def part_table(rows, frames: dict, index_frame, *, last_day: date | None = None) -> dict:
@@ -361,14 +421,14 @@ def _nice_range(values: list, parts: int = 4) -> tuple:
     return low, high, ticks
 
 
-def _frame(svg_body: str, ticks: list, low: float, high: float, labels: list) -> str:
+def _frame(svg_body: str, ticks: list, low: float, high: float, labels: list, extra: str = "") -> str:
     """눈금(글자)은 그림 밖 HTML 로 — 그림은 가로로 늘려 그려도 글자는 안 찌그러진다."""
     span = (high - low) or 1.0
     y_labels = "".join(
         f"<span style='top:{(high - tick) / span * 100:.2f}%'>{tick:+g}%</span>" for tick in ticks)
     x_labels = "".join(
         f"<span style='left:{left:.2f}%'>{html.escape(text)}</span>" for left, text in labels)
-    return (f"<div class='j3vx-plot'><div class='j3vx-y'>{y_labels}</div>"
+    return (f"<div class='j3vx-plot {extra}'><div class='j3vx-y'>{y_labels}</div>"
             f"<div class='j3vx-area'><svg viewBox='0 0 1000 400' preserveAspectRatio='none' "
             f"class='j3vx-svg'>{svg_body}</svg><div class='j3vx-x'>{x_labels}</div></div></div>")
 
@@ -539,6 +599,170 @@ def legend_html(tab: str, data: dict) -> str:
     return "<div class='j3vx-legend'>" + "".join(items) + "</div>"
 
 
+# ── 테마 비교표 그림 (자비스12 theme_chart_html 그대로 · 나스닥 → 코스피 · 이름은 j13vx) ──────────────────────────────
+# 비교용 점선(자비스12 의 빅테크10 · 반도체 등)은 넣지 않았다 — 한국에는 상하님이 고르신 비교용 테마가 없다(지어 넣지 않는다).
+THEME_MAX = 10
+THEME_COLORS = ("#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#c77dff", "#f78fb3", "#ff9f43", "#a3e635",
+                "#38bdf8", "#fb7185")
+THEME_DAILY_BAR_KEEP = 10
+THEME_TICK_PARTS = 8
+
+
+def _top_html(row: dict) -> str:
+    """이름 옆 「(종목 +5.1%)」 — 그 테마에서 산 1~3위 중 가장 많이 번 종목(산 날 평균)."""
+    top = row.get("top")
+    if not top or top[1] is None:
+        return ""
+    value = top[1]
+    text = f"{value:+.0f}%" if abs(value) >= 10 else f"{value:+.1f}%"
+    return f"<em class='j3vx-ttop'>({html.escape(str(top[0]))} {text})</em>"
+
+
+def theme_chart_html(data: dict, period: str, view: str, names: dict | None = None) -> tuple:
+    """(범례·그림 한 장 — 코스피 띠 하나 + 테마 줄들, 덧붙일 말). names = {종목코드: 이름}(괄호 안을 이름으로)."""
+    themes = list((data or {}).get("themes") or [])[:THEME_MAX]
+    days = (data or {}).get("days") or []
+    index_line = ((data or {}).get("index") or {}).get("theme") or []
+    if not themes or not days or not index_line:
+        return "", ""
+    if names:
+        themes = [dict(row, top=[names.get(row["top"][0], row["top"][0]), row["top"][1]]) if row.get("top") else row
+                  for row in themes]
+    rel = view == "rel"
+    if rel:
+        themes = [dict(row, cum=row["rel"], final=row["rel_final"]) for row in themes]
+        index_line = [0.0 if v is not None else None for v in index_line]
+    colors = {row["name"]: THEME_COLORS[i % len(THEME_COLORS)] for i, row in enumerate(themes)}
+    place = {row["name"]: i for i, row in enumerate(themes)}
+    ix_final = next((v for v in reversed(index_line) if v is not None), None)
+    taps = "".join(f"<input type='checkbox' id='j13vx-tk-{i}' class='j3vx-tk'>" for i in range(len(themes)))
+    legend = [(f"<span><i class='j3vx-band'></i>{INDEX_NAME} = 0</span>" if rel else
+               f"<span><i class='j3vx-band'></i>{INDEX_NAME} <b style='color:{tone(ix_final)}'>{fmt(ix_final)}</b></span>")]
+    for row in themes:
+        count_text = (f"{row['seen']}번 중 {row['beat']}번 {INDEX_NAME}보다 나음" if rel
+                      else f"{row['seen']}번 중 {row['win']}번 이익")
+        legend.append(f"<label for='j13vx-tk-{place[row['name']]}' class='j3vx-tchip j3vx-tc{place[row['name']]}'>"
+                      f"<i style='border-top:3px solid {colors[row['name']]}'></i>{html.escape(row['name'])} "
+                      f"<b style='color:{tone(row['final'])}'>{fmt(row['final'])}</b>"
+                      f"<small>{count_text}</small>{'' if rel else _top_html(row)}</label>")
+    legend_html = (taps + "<div class='j3vx-legend j3vx-tlegend'>" + "".join(legend) + "</div>"
+                   "<div class='j3vx-thint'>👆 이름을 누르면 그 테마만 굵게 · 다시 누르면 풀림"
+                   + ("" if rel else " · 괄호 = 그 테마에서 가장 많이 번 종목") + "</div>")
+    note = ""
+    if view == "bar":
+        many = len({d[:4] for d in days}) > 1
+        groups = {row["name"]: bar_groups(row["cohorts"], period, many) for row in themes}
+        ix_days: dict = {}
+        for row in themes:
+            for day, _gain, ix, _n in row["cohorts"]:
+                ix_days[day] = ix
+        ix_groups = bar_groups([[day, ix, ix, 1] for day, ix in sorted(ix_days.items())], period, many)
+        keys = sorted(ix_groups)
+        if period == "d" and len(keys) > THEME_DAILY_BAR_KEEP:
+            note = f"일별 막대는 최근 {THEME_DAILY_BAR_KEEP}일만 그립니다."
+            keys = keys[-THEME_DAILY_BAR_KEEP:]
+        if not keys:
+            return "", ""
+        labels = [ix_groups[key][0] for key in keys]
+        values = [ix_groups[key][2] for key in keys] + [g[key][1] for g in groups.values() for key in keys if key in g]
+        low, high, ticks = _nice_range(values, parts=THEME_TICK_PARTS)
+        slot = 1000.0 / len(keys)
+        width = slot * 0.84 / (1 + len(themes))
+
+        def y(value):
+            return (high - value) / ((high - low) or 1.0) * 400.0
+
+        body = [_grid(ticks, y)]
+        for column, key in enumerate(keys):
+            left = column * slot + slot * 0.08
+            entries = [(INDEX_NAME, INDEX_COLOR, ix_groups[key][2], "")]
+            entries += [(row["name"], colors[row["name"]], (groups[row["name"]].get(key) or (None, None))[1],
+                         f" class='j3vx-tl j3vx-tl{place[row['name']]}'") for row in themes]
+            for lane, (name, color, value, mark) in enumerate(entries):
+                if value is None:
+                    continue
+                top, bottom = sorted((y(value), y(0.0)))
+                body.append(f"<rect{mark} x='{left + lane * width:.1f}' y='{top:.1f}' width='{width:.1f}' "
+                            f"height='{max(bottom - top, 1.5):.1f}' fill='{color}'>"
+                            f"<title>{html.escape(labels[column])} · {html.escape(name)} {fmt(value)}</title></rect>")
+        chart = _frame("".join(body), ticks, low, high,
+                       _x_labels(len(keys), labels, lambda c: (c + 0.5) * slot / 10.0), "j3vx-tplot")
+        return _theme_zoom(legend_html, chart, themes, colors, ix_final, rel), note
+    ix_points = line_points(days, index_line, period)
+    points = {row["name"]: line_points(days, row["cum"], period) for row in themes}
+    count = len(ix_points)
+    values = [v for _l, v in ix_points] + [v for pts in points.values() for _l, v in pts]
+    low, high, ticks = _nice_range(values, parts=THEME_TICK_PARTS)
+
+    def x(i):
+        return 500.0 if count == 1 else i * 1000.0 / (count - 1)
+
+    def y(value):
+        return (high - value) / ((high - low) or 1.0) * 400.0
+
+    def runs(pts):
+        return " ".join(f"{x(i):.1f},{y(v):.1f}" for i, (_l, v) in enumerate(pts) if v is not None)
+
+    body = [_grid(ticks, y),
+            f"<polyline points='{runs(ix_points)}' fill='none' stroke='{INDEX_COLOR}' stroke-width='{INDEX_WIDTH}' "
+            "stroke-linecap='round' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"]
+    for row in reversed(themes):
+        color = colors[row["name"]]
+        line = runs(points[row["name"]])
+        if not line:
+            continue
+        mark = f"j3vx-tl j3vx-tl{place[row['name']]}"
+        body.append(f"<polyline class='{mark}' points='{line}' fill='none' stroke='{color}' stroke-width='1.8' "
+                    "stroke-linejoin='round' vector-effect='non-scaling-stroke'/>")
+        dots = line.split()
+        if period != "d" or len(dots) <= 3:
+            body.append(f"<path class='{mark} j3vx-tdot' d='{''.join('M' + p + 'h0' for p in dots)}' "
+                        f"stroke='{color}' stroke-width='6' stroke-linecap='round' fill='none' "
+                        "vector-effect='non-scaling-stroke'/>")
+    chart = _frame("".join(body), ticks, low, high,
+                   _x_labels(count, [label for label, _v in ix_points], lambda i: x(i) / 10.0), "j3vx-tplot")
+    return _theme_zoom(legend_html, chart, themes, colors, ix_final, rel), note
+
+
+def _theme_zoom(legend_html: str, chart: str, picked: list, colors: dict, ix_final, rel: bool) -> str:
+    """그림을 누르면 화면 가득 — 자비스12 와 같은 장치(숨은 스위치 · 서버에 안 묻는다 · 세운 화면은 눕힌다)."""
+    place = {row["name"]: i for i, row in enumerate(picked)}
+    names = [f"<span><i class='j3vx-band'></i>{INDEX_NAME} = 0</span>" if rel else
+             f"<span><i class='j3vx-band'></i>{INDEX_NAME} <b style='color:{tone(ix_final)}'>{fmt(ix_final)}</b></span>"]
+    names += [f"<span class='j3vx-zc{place[row['name']]}'><i style='border-top:3px solid {colors[row['name']]}'></i>"
+              f"{html.escape(row['name'])} <b style='color:{tone(row['final'])}'>{fmt(row['final'])}</b>"
+              f"{'' if rel else _top_html(row)}</span>" for row in picked]
+    return (
+        "<input type='checkbox' id='j13vx-zoom' class='j3vx-ztap'>" + legend_html
+        + f"<label for='j13vx-zoom' class='j3vx-zcell'>{chart}"
+        "<span class='j3vx-zhint'>🔍 그림을 누르면 크게</span></label>"
+        "<label for='j13vx-zoom' class='j3vx-zscrim' aria-hidden='true'></label>"
+        "<label for='j13vx-zoom' class='j3vx-zpop'><div class='j3vx-zin'>"
+        f"<span class='j3vx-ztitle'>테마 비교표 · {INDEX_NAME}와 상위 테마 5개에 든 테마(1~3위를 샀다면)</span>"
+        f"<div class='j3vx-zbody'>{chart}<div class='j3vx-legend j3vx-zlegend'>{''.join(names)}</div></div>"
+        "<span class='j3vx-zclose'>다시 누르면 닫힘</span></div></label>")
+
+
+def theme_table_html(data: dict, names: dict | None = None) -> str:
+    """이 기간 테마별 표 — 테마 · 산 줄 · 이익 난 확률 · 평균 · 코스피보다 나음(자비스12 「이 기간 테마별」과 같은 차례)."""
+    themes = list((data or {}).get("themes") or [])
+    if not themes:
+        return ""
+    lines = []
+    for row in themes:
+        top = row.get("top") or ["", None]
+        top_name = (names or {}).get(top[0], top[0])
+        lines.append(
+            f"<tr><td>{html.escape(row['name'])}</td><td>{row['seen']}</td>"
+            f"<td><b>{row['win'] / row['seen'] * 100:.0f}%</b></td>"
+            f"<td style='color:{tone(row['final'])};font-weight:800'>{fmt(row['final'])}</td>"
+            f"<td>{row['beat'] / row['seen'] * 100:.0f}%</td>"
+            f"<td><small>{html.escape(str(top_name))} {fmt(top[1])}</small></td></tr>")
+    head = (f"<tr><th>테마</th><th>산 줄</th><th>이익 확률</th><th>평균</th><th>{INDEX_NAME}보다 나음</th>"
+            "<th>가장 많이 번 종목</th></tr>")
+    return ("<div class='j13sc-wrap'><table class='j13sc-tbl j13sc-themes'>" + head + "".join(lines) + "</table></div>")
+
+
 def stocks_html(data: dict, tab: str, *, first: str = "", last: str = "") -> str:
     """「이 기간에 산 종목」 — 종목별로 묶어 잘 된 5 · 안 된 3, 나머지는 「다 보기」."""
     blocks = []
@@ -639,6 +863,62 @@ div[class*="st-key-j13vx_v_"] button[kind="primary"] p{color:#fff!important}
 .j3vx-more summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#c084fc;padding:4px 0;list-style:none}
 .j3vx-more summary::-webkit-details-marker{display:none}
 .j3vx-more[open] summary{margin-bottom:4px}
+/* 테마 비교표(자비스12 그대로) — 이름 누르면 그 테마만 굵게 · 그림 누르면 화면 가득. 스위치 id 는 j13vx. */
+.j3vx-tlegend small{color:#8fb4de;font-size:.7rem;margin-right:2px}
+.j3vx-tlegend b{font-weight:800;margin-left:2px}
+.j3vx-tk,.j3vx-ztap{position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0}
+.j3vx-tchip{display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 8px;margin:0 -8px;white-space:nowrap;
+  border:1px solid transparent;border-radius:999px;transition:background-color .15s ease,border-color .15s ease}
+.j3vx-thint{font-size:.72rem;color:#ffd166;margin:-2px 0 6px}
+.j3vx-ttop{font-style:normal;font-size:.68rem;font-weight:600;color:#8fb4de;margin-left:3px;white-space:nowrap}
+.j3vx-tl{opacity:.85;transition:opacity .2s ease}
+.j3vx-tk:checked ~ * .j3vx-tl{opacity:.12}
+#j13vx-tk-0:checked ~ * .j3vx-tl0{opacity:1}#j13vx-tk-0:checked ~ * polyline.j3vx-tl0{stroke-width:3.6px}#j13vx-tk-0:checked ~ .j3vx-tlegend .j3vx-tc0{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-0:checked ~ .j3vx-zpop .j3vx-zc0{opacity:1}
+#j13vx-tk-1:checked ~ * .j3vx-tl1{opacity:1}#j13vx-tk-1:checked ~ * polyline.j3vx-tl1{stroke-width:3.6px}#j13vx-tk-1:checked ~ .j3vx-tlegend .j3vx-tc1{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-1:checked ~ .j3vx-zpop .j3vx-zc1{opacity:1}
+#j13vx-tk-2:checked ~ * .j3vx-tl2{opacity:1}#j13vx-tk-2:checked ~ * polyline.j3vx-tl2{stroke-width:3.6px}#j13vx-tk-2:checked ~ .j3vx-tlegend .j3vx-tc2{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-2:checked ~ .j3vx-zpop .j3vx-zc2{opacity:1}
+#j13vx-tk-3:checked ~ * .j3vx-tl3{opacity:1}#j13vx-tk-3:checked ~ * polyline.j3vx-tl3{stroke-width:3.6px}#j13vx-tk-3:checked ~ .j3vx-tlegend .j3vx-tc3{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-3:checked ~ .j3vx-zpop .j3vx-zc3{opacity:1}
+#j13vx-tk-4:checked ~ * .j3vx-tl4{opacity:1}#j13vx-tk-4:checked ~ * polyline.j3vx-tl4{stroke-width:3.6px}#j13vx-tk-4:checked ~ .j3vx-tlegend .j3vx-tc4{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-4:checked ~ .j3vx-zpop .j3vx-zc4{opacity:1}
+#j13vx-tk-5:checked ~ * .j3vx-tl5{opacity:1}#j13vx-tk-5:checked ~ * polyline.j3vx-tl5{stroke-width:3.6px}#j13vx-tk-5:checked ~ .j3vx-tlegend .j3vx-tc5{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-5:checked ~ .j3vx-zpop .j3vx-zc5{opacity:1}
+#j13vx-tk-6:checked ~ * .j3vx-tl6{opacity:1}#j13vx-tk-6:checked ~ * polyline.j3vx-tl6{stroke-width:3.6px}#j13vx-tk-6:checked ~ .j3vx-tlegend .j3vx-tc6{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-6:checked ~ .j3vx-zpop .j3vx-zc6{opacity:1}
+#j13vx-tk-7:checked ~ * .j3vx-tl7{opacity:1}#j13vx-tk-7:checked ~ * polyline.j3vx-tl7{stroke-width:3.6px}#j13vx-tk-7:checked ~ .j3vx-tlegend .j3vx-tc7{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-7:checked ~ .j3vx-zpop .j3vx-zc7{opacity:1}
+#j13vx-tk-8:checked ~ * .j3vx-tl8{opacity:1}#j13vx-tk-8:checked ~ * polyline.j3vx-tl8{stroke-width:3.6px}#j13vx-tk-8:checked ~ .j3vx-tlegend .j3vx-tc8{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-8:checked ~ .j3vx-zpop .j3vx-zc8{opacity:1}
+#j13vx-tk-9:checked ~ * .j3vx-tl9{opacity:1}#j13vx-tk-9:checked ~ * polyline.j3vx-tl9{stroke-width:3.6px}#j13vx-tk-9:checked ~ .j3vx-tlegend .j3vx-tc9{border-color:#c084fc;background:rgba(192,132,252,.16)}#j13vx-tk-9:checked ~ .j3vx-zpop .j3vx-zc9{opacity:1}
+.j3vx-tplot{height:380px}
+label.j3vx-zcell{display:block;cursor:zoom-in}
+.j3vx-zhint{display:block;text-align:right;font-size:.72rem;color:#8fb4de;margin-top:0}
+.j3vx-zscrim{position:fixed;inset:0;z-index:2147483646;cursor:zoom-out;background:rgba(1,8,22,.84);
+  opacity:0;visibility:hidden;transition:opacity .3s ease,visibility 0s linear .56s}
+.j3vx-zpop{position:fixed;left:50%;top:50%;z-index:2147483647;cursor:zoom-out;
+  width:min(calc(100vw - 16px),1280px);height:min(calc(100dvh - 16px),860px);box-sizing:border-box;
+  padding:12px 14px 8px;border-radius:22px;background:#0d2344;border:1px solid rgba(157,204,255,.45);
+  box-shadow:0 18px 50px rgba(0,0,0,.6);display:flex;flex-direction:column;
+  opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-50%) scale(.55);
+  transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),visibility 0s linear .56s}
+.j3vx-ztap:checked ~ .j3vx-zscrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}
+.j3vx-ztap:checked ~ .j3vx-zpop{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,-50%) scale(1);
+  transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s}
+.j3vx-zin{display:flex;flex-direction:column;gap:4px;flex:1 1 auto;min-height:0;
+  content-visibility:hidden;transition:content-visibility 0s linear .56s allow-discrete}
+.j3vx-ztap:checked ~ .j3vx-zpop .j3vx-zin{content-visibility:visible;transition-delay:0s}
+.j3vx-ztitle{color:#9dccff;font-size:1rem;font-weight:800}
+.j3vx-zbody{display:flex;align-items:stretch;gap:10px;flex:1 1 auto;min-height:0}
+.j3vx-zlegend{flex:0 0 auto;max-width:34%;display:flex;flex-direction:column;flex-wrap:nowrap;gap:3px;
+  margin:0;font-size:.74rem;overflow:hidden}
+.j3vx-zlegend span{white-space:nowrap}
+.j3vx-tk:checked ~ .j3vx-zpop .j3vx-zlegend span[class*="j3vx-zc"]{opacity:.35}
+.j3vx-zpop .j3vx-plot.j3vx-tplot{flex:1 1 auto;height:auto!important;min-height:0;min-width:0}
+.j3vx-zclose{align-self:center;font-size:.74rem;color:#8fb4de}
+@media (orientation: portrait){
+  .j3vx-zpop{width:calc(100dvh - 76px);height:calc(100vw - 16px);top:calc(50% - 30px);
+    transform:translate(-50%,-50%) rotate(90deg) scale(.55)}
+  .j3vx-ztap:checked ~ .j3vx-zpop{transform:translate(-50%,-50%) rotate(90deg) scale(1)}
+}
+@media (prefers-reduced-motion: reduce){.j3vx-zpop,.j3vx-zscrim{transition:none!important}}
+/* 설명 글 — 짧게 · 숫자에 색(2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」) */
+.j13sc-key{display:flex;flex-wrap:wrap;gap:6px 8px;margin:4px 0 8px}
+.j13sc-key span{font-size:.74rem;color:#dfe9ff;background:rgba(77,166,255,.10);border:1px solid rgba(77,166,255,.28);
+  border-radius:999px;padding:2px 9px}
+.j13sc-key b{color:#ffd166}
 /* 성적표 표 — 파트마다 한 줄 */
 .j13sc-tbl{width:100%;border-collapse:collapse;font-size:.86rem;margin:4px 0 8px}
 .j13sc-tbl th{color:#8fb4de;font-weight:700;text-align:right;padding:5px 6px;border-bottom:1px solid #1d3a63;white-space:nowrap}

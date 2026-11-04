@@ -1966,7 +1966,7 @@ import jarvis12_picklist_ui
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026110401
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_J12_CRASH_REVISION = 2026102206
@@ -7306,13 +7306,19 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 f"<b>{html.escape(str(data.get('sold') or ''))} 종가</b>에 판 것으로 견줬습니다. "
                 "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
+                # 2026-11-04 상하님 「설명도 좀 줄이고」 — 급락 셈 풀이는 접어 둔다(셈은 그대로).
+                "<details class='j12-why'><summary>급락 후 반등장 셈 ▾</summary>날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 "
+                "20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 "
+                "시작하는 기간은 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.</details>")
     elif used.get("days"):
         note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
                 "종목은 세지 않습니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
+                # 2026-11-04 상하님 「설명도 좀 줄이고」 — 급락 셈 풀이는 접어 둔다(셈은 그대로).
+                "<details class='j12-why'><summary>급락 후 반등장 셈 ▾</summary>날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 "
+                "20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 "
+                "시작하는 기간은 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.</details>")
     else:
         note = "이 기간에는 아직 잴 것이 없습니다."
     base = hit("_all", span)
@@ -7485,35 +7491,37 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         # **테마 비교표** — 「상위 테마 5개」 줄을 테마로 나눈 그림. 위 「이 기간 테마별」 표와 같은 기준 · 같은
         # 차례 · 선 끝 값 = 표의 평균(2026-10-07 상하님 — "표의 기준을 맞추는 게 맞는 듯" · 빅테크10 「빼기」).
         chart, extra = vx.theme_chart_html(data, period, view)
-        what = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 1~3위가 <b>{html.escape(last)} 종가</b>까지 몇 % 인가."
-                if view == "bar" else
-                f"선 하나 = 그 테마 1~3위를 산 날마다, 같은 날 같은 돈으로 나스닥 종합을 샀을 때보다 <b>{html.escape(last)} "
-                "종가</b>까지 몇 % 더(+)·덜(−) 벌었나. 0(회색 띠)이 나스닥과 똑같다는 뜻입니다. 시장 전체가 같이 오르내린 "
-                "몫이 빠져, 한 테마가 뜰 때 어느 테마가 빠지는지가 잘 보입니다."
-                if view == "rel" else
-                f"선 하나 = 그 테마가 「상위 테마 5개」에 든 날마다 1~3위를 다음 거래일 시가에 같은 돈으로 샀다면 "
-                f"<b>{html.escape(last)} 종가</b>까지 몇 % 인가(선 끝 = 위 표의 평균).")
+        # 2026-11-04 상하님 「미국테마도 설명 부분을 이해 가기 쉽게 · 설명도 좀 줄이고 색깔도」 — 핵심만 칩으로, 풀이는 접어 둔다.
+        what = {"bar": "막대 = 그날 산 1~3위가 지금 몇 %",
+                "rel": "0(회색 띠) = 나스닥과 같음 · 위 = 더 벎 · 아래 = 덜 벎"}.get(
+            view, "선 끝 = 그 테마 1~3위를 산 날마다 샀다면 지금 몇 %")
         body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
                 + (chart or "<div class='j3vx-note'>이 기간에는 「상위 테마 5개」에 든 테마가 없습니다.</div>")
-                + f"<div class='j3vx-note'>{what} "
-                + ("" if view == "rel" else "나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. ")
+                + f"<div class='j12sc-key'><span>📈 <b>{html.escape(what)}</b></span>"
+                + f"<span>📌 지금 = <b>{html.escape(last)} 종가</b></span>"
+                + "<span>⚖️ 나스닥도 <b>같은 날 같은 돈</b></span></div>"
+                + "<details class='j12-why'><summary>셈 방법 자세히 ▾</summary>"
+                + "「상위 테마 5개」에 든 날마다 그 테마 1~3위를 다음 거래일 시가에 같은 돈으로 샀다고 칩니다(선 끝 = 위 표의 평균). "
                 + "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). "
-                + ("" if view == "bar" else "점선 셋(빅테크10 흰색 · 로봇·자동화 진분홍 · 반도체 초록)과 점 찍힌 선(SK하이닉스 "
-                   "주황)은 비교용입니다 — 앱이 산 적이 없어, 테마는 그 종목들을 같은 돈으로 나눠 들었다면, SK하이닉스는 "
-                   "그 종목만 들었다면(기간 첫날 앞 종가부터)으로 그립니다. ")
-                + extra + "</div></div>")
+                + ("" if view == "bar" else "점선(빅테크10 흰색 · 로봇·자동화 진분홍 · 반도체 초록)과 점 선(SK하이닉스 주황)은 "
+                   "비교용입니다 — 앱이 산 적이 없어, 그 종목들을 같은 돈으로 나눠 들었다면(기간 첫날 앞 종가부터)으로 그립니다. ")
+                + extra + "</details></div>")
         st.markdown(body, unsafe_allow_html=True)
         return
+    # 2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」 — 핵심 칩 · 풀이는 접어 둔다(값·셈은 그대로).
+    crash_why = ("<details class='j12-why'><summary>급락 후 반등장 셈 ▾</summary>날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 "
+                 "20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 "
+                 "시작하는 기간은 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.</details>")
     if view == "bar":
         chart, extra = vx.bar_chart_html(data, tab, period)
-        note = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 것이 <b>{html.escape(last)} 종가</b>까지 "
-                "몇 % 인가. 회색은 같은 날 나스닥 종합을 샀다면입니다. " + extra)
+        note = (f"<div class='j12sc-key'><span>📊 <b>막대 = 그날 산 것이 지금 몇 %</b></span>"
+                f"<span>📌 지금 = <b>{html.escape(last)} 종가</b></span><span>⚪ 회색 = 같은 날 나스닥</span></div>"
+                + (f"<div>{extra}</div>" if extra else ""))
     else:
         chart = vx.line_chart_html(data, tab, period)
-        note = (f"{html.escape(first)} ~ {html.escape(last)} · 저장된 목록을 <b>날마다 같은 돈으로</b> 다음 거래일 "
-                f"시가에 샀다고 치고 {html.escape(last)} 종가까지 견준 것입니다. 나스닥 종합도 같은 날 같은 돈으로 "
-                "샀다고 친 것입니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 20종목 중 「수상하게 빠짐」이 아닌 점수 위 10개</b>를 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
+        note = (f"<div class='j12sc-key'><span>📈 <b>선 = 그날까지 산 것을 다 들고 있으면 몇 %</b></span>"
+                f"<span>📅 {html.escape(first)} ~ <b>{html.escape(last)}</b></span>"
+                "<span>⚖️ 나스닥도 <b>같은 날 같은 돈</b></span></div>" + crash_why)
     # 한 상자(j3vx-body)로 싼다 — 이 화면은 글 상자 바로 밑 칸의 위아래 여백을 지운다(10873 줄
     # 규칙). 싸지 않으면 그림 밑 날짜 글자가 아래 설명 글을 덮었다(2026-10-07 노트북 실측).
     body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
