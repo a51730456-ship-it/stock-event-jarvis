@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110405
+MODULE_REVISION = 2026110406
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -373,6 +373,12 @@ def recomm_word(value) -> str:
     return "—"
 
 
+def _md(day) -> str:
+    """리포트 날짜 「20261030」 · 「2026-10-30」 → 「10/30」. 못 읽으면 빈 글(지어내지 않는다)."""
+    digits = re.sub(r"\D", "", str(day or ""))
+    return f"{int(digits[4:6])}/{int(digits[6:8])}" if len(digits) == 8 else ""
+
+
 def street_html(info: dict) -> str:
     """👥 증권사 의견 — 투자의견 평균 · 목표주가 평균(지금보다 몇 %) · 최근 리포트 증권사. 자료가 없으면 빈 글(칸을 안 그린다)."""
     consensus = info.get("consensus") or {}
@@ -396,7 +402,7 @@ def street_html(info: dict) -> str:
             gap = f" · <b style='color:{tone}'>지금보다 {change:+.0f}%</b>"
         rows.append(f"<div class='j13st-row'><b>목표주가</b><span>평균 <i class='j13st-big'>{target:,.0f}원</i>{gap}</span></div>")
     if reports:
-        listed = " · ".join(f"{_html.escape(str(b))} {_html.escape(str(d)[5:].replace('-', '/'))}" for b, d in reports)
+        listed = " · ".join(f"{_html.escape(str(b))} {_html.escape(_md(d))}" for b, d in reports)
         rows.append(f"<div class='j13st-row'><b>최근 리포트</b><span>{listed}</span></div>")
     at = _html.escape(str(consensus.get("at") or ""))
     return ("<div class='j13st'><div class='j13st-h'>👥 증권사 의견" + (f"<small> · {at} 기준</small>" if at else "") + "</div>"

@@ -922,7 +922,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110405
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110406
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.

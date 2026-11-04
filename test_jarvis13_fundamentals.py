@@ -237,6 +237,13 @@ class StreetTests(unittest.TestCase):
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
         self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
 
+    def test_report_dates_from_naver_shape(self):
+        # 2026-11-04 실제 모은 값은 「20261030」 모양이었다(처음에는 「030」으로 잘못 나왔다)
+        out = fn.street_html({"reports": [["하나증권", "20261030"], ["KB증권", "2026-10-09"], ["X", "날짜없음"]]})
+        self.assertIn("하나증권 10/30", out)
+        self.assertIn("KB증권 10/9", out)
+        self.assertNotIn("030", out.replace("10/30", ""))
+
     def test_recomm_words(self):
         self.assertEqual(["강력 매수", "매수", "중립", "매도", "강력 매도"],
                          [fn.recomm_word(v) for v in (4.8, 4.0, 3.0, 2.0, 1.0)])
