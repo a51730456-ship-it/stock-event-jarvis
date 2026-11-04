@@ -63,7 +63,7 @@ DEVICE = """
     try { if (window.top.JarvisApp && window.top.JarvisApp.exit) { window.top.JarvisApp.exit(); return; } } catch (e) {}
     // 판 5 앱(이름표 JarvisApp/5 이상) — 다리를 못 찾아도 둘째 길(jarvisapp://exit)로 끈다(2026-11-05 상하님 「창이 안 닫힌다」).
     // 옛 판에서 이 주소로 가면 화면이 오류 쪽으로 바뀌므로 판 5 이상에서만.
-    var ver = (/JarvisApp\/(\d+)/.exec(navigator.userAgent || '') || [])[1];
+    var ver = (/JarvisApp\\/(\\d+)/.exec(navigator.userAgent || '') || [])[1];
     if (ver && parseInt(ver, 10) >= 5) { try { window.location.href = 'jarvisapp://exit'; return; } catch (e) {} }
     // 끄는 다리가 없다 — 옛 판 앱이거나 인터넷 창이다. 빈 화면으로 보내지 않고(2026-11-04 밤 상하님 「황당하게 남아 있냐」) 까닭과 할 일을 띄운다.
     try { window.top.close(); } catch (e) {}
@@ -77,7 +77,8 @@ DEVICE = """
       + "<div class='" + N + "x-ico'>" + SVG + "</div>"
       + (app
         ? "<p class='" + N + "x-t'>앱을 새 판으로 바꿔 주십시오</p><p class='" + N + "x-s'>지금 앱은 옛 판이라 ✕ 로 꺼지지 않습니다.<br>"
-          + "아래 「새 판 받기」로 받아, 지금 앱을 지우고 새로 까시면 ✕ 를 누를 때 앱이 완전히 꺼집니다.</p>"
+          + "① 아래 「새 판 받기」로 받습니다<br>② 바탕화면 「자비스」 아이콘을 길게 눌러 지웁니다<br>③ 받은 jarvis.apk 를 눌러 깝니다<br>"
+          + "<b>이번 한 번만</b> — 다음 판부터는 지우지 않고 덮어 깔립니다.</p>"
           + "<div class='" + N + "x-row'><button type='button' class='" + N + "x-stay'>닫기</button>"
           + "<a class='" + N + "x-go' style='display:flex;align-items:center;justify-content:center;text-decoration:none' href='https://github.com/a51730456-ship-it/stock-event-jarvis/raw/j13-android/jarvis.apk' target='_blank' rel='noopener'>새 판 받기</a></div>"
         : "<p class='" + N + "x-t'>이 창은 직접 닫아 주십시오</p><p class='" + N + "x-s'>인터넷 창(크롬 등)은 브라우저 규칙상 화면이 스스로 닫을 수 없습니다.<br>"

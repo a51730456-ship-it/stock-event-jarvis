@@ -11,7 +11,7 @@ from __future__ import annotations
 import html
 import pathlib
 
-MODULE_REVISION = 2026103101
+MODULE_REVISION = 2026110501
 
 ROOT = pathlib.Path(__file__).resolve().parent
 RUN = 41017206848                        # 국면 12번 · 세 기간 숫자를 잰 실행
@@ -110,7 +110,10 @@ def record_html() -> str:
     )
 
 
-CSS = """<style>
+# 앞에 줄바꿈 — record_html() 은 설명 문장(「…<br>」) 바로 뒤에 붙는다. 꾸밈이 줄 가운데서 열리면 스트림릿이 뒤 글을 문단으로 읽는다
+# (2026-11-05 · 세부사항 상자 0개 사건과 같은 꼴 · research/j13_render_audit).
+CSS = """
+<style>
 table.j13-crash-eps{border-collapse:collapse;margin:.35rem 0 .2rem;font-size:.82rem;font-variant-numeric:tabular-nums}
 table.j13-crash-eps th,table.j13-crash-eps td{border:1px solid rgba(255,255,255,.12);padding:.2rem .45rem;text-align:center;
   white-space:nowrap}

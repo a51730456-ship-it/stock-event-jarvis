@@ -291,6 +291,17 @@ class PageTests(unittest.TestCase):
         guest = self._app(details=True, guest=True)
         self.assertFalse({"j13add_sel_theme_000660", "j13add_ext_theme_000660"} & {button.key for button in guest.button})
 
+    def test_detail_order_follows_jarvis12(self):
+        # 2026-11-05 — 자비스12 세부사항 차례: 현재가 줄 → 넣기 단추 둘 · 가격 칸 → 차트 → 종목 뉴스
+        source = page_test.PAGE.read_text(encoding="utf-8")
+        detail = source.split("def _render_stock_detail(")[1].split("\ndef ")[0]
+        self.assertLess(detail.index("<div class='j4-metric-row'>"), detail.index("_render_watch_toggle("))
+        owner = detail[detail.index("<div class='j4-metric-row'>"):]
+        self.assertLess(owner.index("_render_price_chart_bundle(code, panel)"), owner.index("_render_stock_news(code"))
+        guest = detail[detail.index("if auth.is_guest():\n        _render_day_price_row"):]
+        self.assertLess(guest.index("_render_guest_stock_charts(code, panel)"), guest.index("_render_stock_news(code"))
+        self.assertLess(guest.index("_render_stock_news(code"), guest.index("return"))
+
     def test_detail_can_add_to_extra_row(self):
         app = self._app(details=True)
         # 2026-11-05 「너 사기쳤네」 — 세부사항에 상자 셋이 실제로 그려지는지(스트림릿 화면 그대로) · 저장소의 한국 재무 파일로

@@ -39,27 +39,69 @@ jobs:
           pip install pillow
           python research/j13_android_build.py "$RUNNER_TEMP/jarvis"
           python research/j13_android_build.py "$RUNNER_TEMP/jarvischeck" --check
-      - name: 서명 열쇠(이 실행에서만)
+      # 서명 열쇠를 **고정**한다(2026-11-05 — 판마다 새 열쇠라 새 판을 깔 때마다 앱을 지워야 했다 · 상하님 「새 판 받기 안 된다」).
+      # 열쇠 파일은 따로 갈래(j13-android-key)에 두고, 깃허브 비밀 값(DART_API_KEY)에서 만든 암호로 잠근다 — 암호는 어디에도 안 찍힌다.
+      # 열쇠 갈래가 없을 때만 새로 만든다(덮어쓰지 않는다). 비밀 값이 바뀌어 못 열면 멈춘다(말없이 새 열쇠로 바꾸면 또 지워야 한다).
+      - name: 서명 열쇠(고정)
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
         run: |
-          PASS="$(python -c 'import secrets; print(secrets.token_hex(16))')"
+          set -e
+          if [ -z "$DART_API_KEY" ]; then echo "깃허브 비밀 값이 없어 서명 열쇠를 열 수 없음" && exit 1; fi
+          PASS="$(python -c 'import hashlib, os; print(hashlib.sha256(("jarvis-android-signing/v1:" + os.environ["DART_API_KEY"]).encode()).hexdigest())')"
           echo "::add-mask::$PASS"
           echo "JARVIS_KEY_PASS=$PASS" >> "$GITHUB_ENV"
-          echo "JARVIS_KEYSTORE=$RUNNER_TEMP/jarvis.jks" >> "$GITHUB_ENV"
-          keytool -genkeypair -keystore "$RUNNER_TEMP/jarvis.jks" -alias jarvis -keyalg RSA -keysize 2048 \
-            -validity 10000 -storepass "$PASS" -keypass "$PASS" -dname "CN=Jarvis"
+          echo "JARVIS_KEYSTORE=$RUNNER_TEMP/jarvis.p12" >> "$GITHUB_ENV"
+          if git fetch -q origin j13-android-key 2>/dev/null; then
+            git show origin/j13-android-key:jarvis-release.p12 > "$RUNNER_TEMP/jarvis.p12"
+            keytool -list -keystore "$RUNNER_TEMP/jarvis.p12" -storetype PKCS12 -storepass "$PASS" -alias jarvis > /dev/null \
+              || { echo "고정 열쇠를 못 엶 — 비밀 값이 바뀌었으면 j13-android-key 갈래를 지우고 다시 돌린다(그때 한 번 앱을 지우고 깔아야 함)"; exit 1; }
+            echo "고정 열쇠로 서명"
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/jarvis.p12" -storetype PKCS12 -alias jarvis -keyalg RSA -keysize 3072 \
+              -validity 20000 -storepass "$PASS" -keypass "$PASS" -dname "CN=Jarvis"
+            mkdir -p "$RUNNER_TEMP/keybranch"
+            cp "$RUNNER_TEMP/jarvis.p12" "$RUNNER_TEMP/keybranch/jarvis-release.p12"
+            printf '%s\n' "자비스 안드로이드 서명 열쇠(잠김). 암호는 깃허브 비밀 값에서만 만든다 — 이 갈래를 지우면 다음 판부터 앱을 한 번 지우고 깔아야 한다." \
+              > "$RUNNER_TEMP/keybranch/README.txt"
+            cd "$RUNNER_TEMP/keybranch"
+            git init -q -b j13-android-key
+            git config user.name "j13-android"
+            git config user.email "j13-android@users.noreply.github.com"
+            git add .
+            git commit -q -m "자비스 안드로이드 서명 열쇠(잠김) $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')"
+            git push -q "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-android-key
+            echo "고정 열쇠를 새로 만들어 j13-android-key 에 둠"
+          fi
       - name: 설치 파일 만들기
         working-directory: ${{ runner.temp }}/jarvis
         run: gradle --no-daemon assembleRelease
       - name: 가상 폰 시험판 만들기(✕ · 새 창 링크를 실제로 눌러 보는 판 · 상하님께는 안 감)
         working-directory: ${{ runner.temp }}/jarvischeck
         run: gradle --no-daemon assembleRelease
-      - name: 만든 것 확인
+      - name: 만든 것 확인 · 앞 판과 서명 견주기
         run: |
           APK="$RUNNER_TEMP/jarvis/app/build/outputs/apk/release/app-release.apk"
           ls -la "$APK"
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$BT/apksigner" verify --print-certs "$APK" | head -3
           "$BT/aapt2" dump badging "$APK" | grep -E "^package|launchable-activity|application-label" || true
+          # 지금 올라 있는 앞 판을 받아 서명 지문을 견준다 — 같아야 지우지 않고 덮어 깔린다(2026-11-05)
+          mkdir -p "$RUNNER_TEMP/prev"
+          if curl -sfL -o "$RUNNER_TEMP/prev/prev.apk" "https://github.com/${GITHUB_REPOSITORY}/raw/j13-android/jarvis.apk"; then
+            NEW_FP="$("$BT/apksigner" verify --print-certs "$APK" | grep -m1 'SHA-256' | awk '{print $NF}')"
+            OLD_FP="$("$BT/apksigner" verify --print-certs "$RUNNER_TEMP/prev/prev.apk" | grep -m1 'SHA-256' | awk '{print $NF}')"
+            echo "앞 판 서명 ${OLD_FP:0:16}… · 새 판 서명 ${NEW_FP:0:16}…"
+            if [ "$NEW_FP" = "$OLD_FP" ]; then echo "서명 같음 — 덮어 깔림" | tee "$RUNNER_TEMP/prev/sign.txt"; else echo "서명 다름 — 앞 판을 지우고 깔아야 함" | tee "$RUNNER_TEMP/prev/sign.txt"; fi
+          else
+            echo "앞 판 없음" | tee "$RUNNER_TEMP/prev/sign.txt"
+          fi
+      - name: 앞 판 넘기기(가상 폰에서 덮어 깔기 시험)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-prev-apk
+          path: ${{ runner.temp }}/prev
+          if-no-files-found: ignore
       - name: 가상 폰 확인용으로 넘기기
         uses: actions/upload-artifact@v4
         with:
@@ -81,6 +123,7 @@ jobs:
           2. 받은 jarvis.apk 를 누릅니다 → 「출처를 알 수 없는 앱」 허용 → 설치.
           3. 바탕화면 「자비스」 아이콘 → 미국테마. 맨 위 「🌏 한국테마 →」 → 한국테마.
           4. 처음 한 번 비밀번호를 칩니다(로그인은 앱 안에 남습니다).
+          ※ 판 5 이하를 깔아 두셨으면 그 앱을 한 번 지우고 까십시오(서명이 바뀜). 그다음 판부터는 지우지 않고 그냥 까시면 덮어 깔립니다.
           EOF
           git init -q -b j13-android
           git config user.name "j13-android"
@@ -104,6 +147,11 @@ jobs:
         with:
           name: jarvis-check-apk
           path: apkcheck
+      - uses: actions/download-artifact@v4
+        with:
+          name: jarvis-prev-apk
+          path: apkprev
+        continue-on-error: true
       - name: 가상 폰 켤 준비
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -145,6 +193,20 @@ jobs:
           } > shots/check_result.txt
           cat shots/check_result.txt
           SH
+      - name: 덮어 깔기 시험 순서 쓰기
+        run: |
+          cat > update_check.sh <<'SH'
+          # 앞 판을 먼저 깔고, 그 위에 새 판을 지우지 않고 덮어 깔아 본다(서명이 같아야 됨)
+          if [ -f apkprev/prev.apk ]; then
+            adb install apkprev/prev.apk > shots/update_prev.txt 2>&1 || true
+            if adb install -r apk/app-release.apk > shots/update_new.txt 2>&1; then echo "덮어 깔기 됨" > shots/update_result.txt; else echo "덮어 깔기 안 됨: $(tail -1 shots/update_new.txt)" > shots/update_result.txt; fi
+            adb uninstall io.github.stockeventjarvis.app > /dev/null 2>&1 || true
+          else
+            echo "앞 판 없음" > shots/update_result.txt
+          fi
+          cat apkprev/sign.txt >> shots/update_result.txt 2>/dev/null || true
+          cat shots/update_result.txt
+          SH
       - name: 깔고 열어 사진 찍기
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -153,6 +215,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
+            bash ./update_check.sh
             adb install -r apk/app-release.apk
             adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER io.github.stockeventjarvis.app > shots/launcher.txt
             adb shell am start -W -n io.github.stockeventjarvis.app/.MainActivity
@@ -170,7 +233,7 @@ jobs:
         run: |
           cd shots
           ls -la
-          cat launcher.txt running.txt webview.txt check_result.txt || true
+          cat launcher.txt running.txt webview.txt check_result.txt update_result.txt || true
           tail -60 logcat.txt || true
           git init -q -b j13-android-check
           git config user.name "j13-android"
