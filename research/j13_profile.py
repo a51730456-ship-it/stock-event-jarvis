@@ -18,7 +18,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
-PAGE = ROOT / "pages" / "12_자비스13.py"
+# 잴 화면 — 기본은 자비스13. 2026-11-04 상하님 「로딩 미국테마와 비교해서」 — J13_PROFILE_PAGE=11_자비스12 로 자비스12 도 같은 방법으로 잰다
+# (화면마다 따로 켠 파이썬에서 재야 첫 손님끼리 견줄 수 있다 — 깃허브 설정이 두 번 따로 부른다).
+PAGE = ROOT / "pages" / (os.environ.get("J13_PROFILE_PAGE", "12_자비스13").strip() + ".py")
 OURS = ("jarvis", "pages", "market_signal", "kr_intraday", "naver_", "kis_", "regime_gauge", "fear_greed",
         "us_index", "gauge_ui", "hero_banner", "picklist", "database")
 
@@ -55,7 +57,7 @@ def main() -> int:
     first_app, first = _run("① 처음(첫 손님)")
     _app, second = _run("② 같은 손님 다시", first_app)
     _app, third = _run("③ 새 손님(같은 서버)")
-    print(f"\n요약 — 첫 손님 {first:.1f}초 · 같은 손님 다시 {second:.1f}초 · 새 손님 {third:.1f}초", flush=True)
+    print(f"\n요약({PAGE.stem}) — 첫 손님 {first:.1f}초 · 같은 손님 다시 {second:.1f}초 · 새 손님 {third:.1f}초", flush=True)
     return 0
 
 
