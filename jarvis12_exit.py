@@ -8,7 +8,7 @@
 
 누르면 확인 창(「자비스를 닫을까요?」) → 「닫기」:
   1) 설치한 안드로이드 앱(research/j13_android_build.py · JarvisApp 다리)이면 앱을 완전히 끝낸다.
-  2) 아니면 창 닫기를 시도하고, 브라우저가 막으면(사람이 연 탭은 페이지가 못 닫는다) 빈 화면(about:blank)으로 빠져나간다.
+  2) 아니면 창 닫기를 시도하고, 브라우저가 막으면(사람이 연 탭은 페이지가 못 닫는다) 까닭과 할 일을 띄운다(옛 판 앱이면 「새 판 받기」 · 인터넷 창이면 「직접 닫아 주십시오」 · 2026-11-04 밤 상하님 「황당하게 남아 있냐」).
 값 · 점수 · 로그인은 건드리지 않는다.
 """
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 
-MODULE_REVISION = 2026110403
+MODULE_REVISION = 2026110404
 MARK = "12"
 NAME = "j12"
 
@@ -67,11 +67,27 @@ DEVICE = """
   function exitNow(){
     try { if (window.JarvisApp && window.JarvisApp.exit) { window.JarvisApp.exit(); return; } } catch (e) {}
     try { if (window.top.JarvisApp && window.top.JarvisApp.exit) { window.top.JarvisApp.exit(); return; } } catch (e) {}
+    // 끄는 다리가 없다 — 옛 판 앱이거나 인터넷 창이다. 빈 화면으로 보내지 않고(2026-11-04 밤 상하님 「황당하게 남아 있냐」) 까닭과 할 일을 띄운다.
     try { window.top.close(); } catch (e) {}
-    try { window.close(); } catch (e) {}
-    window.setTimeout(function(){
-      try { window.top.location.replace('about:blank'); } catch (e) { window.location.replace('about:blank'); }
-    }, 260);
+    window.setTimeout(function(){ tell(); }, 250);
+  }
+  function tell(){
+    var app = /; wv\\)/.test(navigator.userAgent || '') || /JarvisApp/.test(navigator.userAgent || '');
+    var s = d.createElement('div');
+    s.className = N + 'x-scrim ' + N + 'x-on';
+    s.innerHTML = "<div class='" + N + "x-card' role='dialog' aria-modal='true'>"
+      + "<div class='" + N + "x-ico'>" + SVG + "</div>"
+      + (app
+        ? "<p class='" + N + "x-t'>앱을 새 판으로 바꿔 주십시오</p><p class='" + N + "x-s'>지금 앱은 옛 판이라 ✕ 로 꺼지지 않습니다.<br>"
+          + "아래 「새 판 받기」로 받아, 지금 앱을 지우고 새로 까시면 ✕ 를 누를 때 앱이 완전히 꺼집니다.</p>"
+          + "<div class='" + N + "x-row'><button type='button' class='" + N + "x-stay'>닫기</button>"
+          + "<a class='" + N + "x-go' style='display:flex;align-items:center;justify-content:center;text-decoration:none' href='https://github.com/a51730456-ship-it/stock-event-jarvis/raw/j13-android/jarvis.apk' target='_blank' rel='noopener'>새 판 받기</a></div>"
+        : "<p class='" + N + "x-t'>이 창은 직접 닫아 주십시오</p><p class='" + N + "x-s'>인터넷 창(크롬 등)은 브라우저 규칙상 화면이 스스로 닫을 수 없습니다.<br>"
+          + "탭의 ✕ 나 휴대폰 뒤로가기로 닫아 주십시오. 설치한 자비스 앱에서는 ✕ 로 바로 꺼집니다.</p>"
+          + "<div class='" + N + "x-row'><button type='button' class='" + N + "x-stay'>알겠습니다</button></div>")
+      + "</div>";
+    s.addEventListener('click', function(ev){ if (ev.target === s || (ev.target.className || '').indexOf('x-stay') >= 0) { s.remove(); } });
+    d.body.appendChild(s);
   }
   function ask(){
     if (d.querySelector('.' + N + 'x-scrim')) { return; }

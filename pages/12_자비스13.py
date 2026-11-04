@@ -897,14 +897,14 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110404
+_REQUIRED_J13_HOME_REVISION = 2026110406
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 
 _REQUIRED_J13_WATCH_REVISION = 2026110402
 if int(getattr(jarvis13_watch, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_REVISION:
     jarvis13_watch = importlib.reload(jarvis13_watch)
-_REQUIRED_J13_WATCH_STORE_REVISION = 2026103001
+_REQUIRED_J13_WATCH_STORE_REVISION = 2026110401
 if int(getattr(jarvis13_watch_store, "MODULE_REVISION", 0)) < _REQUIRED_J13_WATCH_STORE_REVISION:
     jarvis13_watch_store = importlib.reload(jarvis13_watch_store)
 # 오늘 움직인 까닭(2026-10-31 · 상하님 「다 넣어라」 ③) — 같은 날 뉴스 제목 고르기. 받는 일은 news_data · 누를 때만.
@@ -5484,9 +5484,9 @@ def _kospi_now():
     return None
 
 
-def _watch_add(code: str, name: str, price, where: str) -> None:
+def _watch_add(code: str, name: str, price, where: str, group: str = "selected") -> None:
     try:
-        jarvis13_watch_store.add(code, name, price=price, kospi=_kospi_now())
+        jarvis13_watch_store.add(code, name, price=price, kospi=_kospi_now(), group=group)
         st.session_state["j13w_msg"] = (f"{name} 을(를) 관심종목에 넣었습니다.", "ok", where)
     except ValueError as exc:             # 이미 있거나 자리가 찼다 — 넣지 않는다
         st.session_state["j13w_msg"] = (str(exc), "no", where)
@@ -5610,20 +5610,21 @@ def _j13h_news_keys() -> tuple:
         return None, None
 
 
-def _render_j13h_manage(guest: bool) -> None:
-    """「종목 검색 후 추가」 칸 + 「+」 — 자비스12 _render_briefing_manage 와 같은 흐름(찾고 → 맞는지 확인 → 넣기 · 주인만)."""
-    found_key = "j13h_search_found_selected"
-    with st.container(key="j13h_search_row_sel"):
+def _render_j13h_manage(guest: bool, group: str = "selected") -> None:
+    """「종목 검색 후 추가」 칸 + 「+」 — 자비스12 _render_briefing_manage 와 같은 흐름(찾고 → 맞는지 확인 → 넣기 · 주인만).
+    group — 「selected」 사용자 선정 종목 · 「extra」 추가 검색 종목(자비스12 와 같은 두 줄 · 열쇠에 줄 이름을 붙여 안 겹치게)."""
+    found_key = f"j13h_search_found_{group}"
+    with st.container(key="j13h_search_row_sel" if group == "selected" else "j13h_search_row"):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
-            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가", key="j13h_search_selected",
+            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가", key=f"j13h_search_{group}",
                                   label_visibility="collapsed", disabled=guest)
         with plus_col:
-            add_clicked = st.button("+", key="j13h_manage_toggle_selected", disabled=guest)
+            add_clicked = st.button("+", key=f"j13h_manage_toggle_{group}", disabled=guest)
     if add_clicked:
         st.session_state.pop(found_key, None)
         if not str(query or "").strip():
-            st.session_state["j13h_search_message"] = "추가할 종목 이름이나 종목코드를 먼저 넣으십시오."
+            st.session_state[f"j13h_search_message_{group}"] = "추가할 종목 이름이나 종목코드를 먼저 넣으십시오."
         else:
             with st.spinner("한국 종목 명부에서 찾는 중입니다…"):
                 found = j4data.search_stocks(query)
@@ -5631,19 +5632,19 @@ def _render_j13h_manage(guest: bool) -> None:
             if rows:
                 st.session_state[found_key] = rows[:5]
             else:
-                st.session_state["j13h_search_message"] = "그 이름으로는 한국 종목을 찾지 못했습니다."
+                st.session_state[f"j13h_search_message_{group}"] = "그 이름으로는 한국 종목을 찾지 못했습니다."
     found = st.session_state.get(found_key) or []
     if found:
-        with st.container(key="j13h_search_confirm_selected"):
+        with st.container(key=f"j13h_search_confirm_{group}"):
             labels = {f"{row['name']} · {row['code']}": row for row in found}
             names = list(labels)
             picked = names[0]
             if len(names) > 1:
-                picked = st.radio("찾은 종목 가운데 고르십시오", names, key="j13h_search_pick_selected")
+                picked = st.radio("찾은 종목 가운데 고르십시오", names, key=f"j13h_search_pick_{group}")
             else:
                 st.markdown(f"<div class='j13h-found'>{html.escape(picked)}</div>", unsafe_allow_html=True)
             yes_col, no_col = st.columns(2)
-            if yes_col.button("이 종목이 맞습니다 · 추가", key="j13h_search_ok_selected", type="primary"):
+            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j13h_search_ok_{group}", type="primary"):
                 chosen = labels[picked]
                 price = None
                 try:
@@ -5652,15 +5653,44 @@ def _render_j13h_manage(guest: bool) -> None:
                         price = float(frame["Close"].dropna().iloc[-1])
                 except Exception:
                     price = None
-                _watch_add(chosen["code"], chosen["name"], price, "page")
+                _watch_add(chosen["code"], chosen["name"], price, "page", group=group)
                 st.session_state.pop(found_key, None)
                 st.rerun()
-            if no_col.button("아닙니다 · 취소", key="j13h_search_cancel_selected"):
+            if no_col.button("아닙니다 · 취소", key=f"j13h_search_cancel_{group}"):
                 st.session_state.pop(found_key, None)
                 st.rerun()
-    message = st.session_state.pop("j13h_search_message", "")
+    message = st.session_state.pop(f"j13h_search_message_{group}", "")
     if message:
         st.caption(message)
+
+
+def _render_j13h_grid(rows: list, group: str, frames: dict, intraday: dict, *, nokey: bool, guest: bool) -> None:
+    """카드 묶음 한 줄 — 자비스12 _render_briefing_grid · _render_briefing_card 와 같은 짜임(열쇠 j13h_{줄}_{자리} · × 는 한 번 더 확인).
+    추가 검색 종목은 자비스12 처럼 작은 카드(compact)."""
+    confirm = st.session_state.get("j13h_delete_confirm")
+    with st.container(key="j13h_grid_selected" if group == "selected" else "j13h_grid_extra1"):
+        for position, stock in enumerate(rows, start=1):
+            news = jarvis13_home.cached_news(stock["name"])
+            state = "nokey" if nokey else ("pending" if news is None else "ok")
+            card = jarvis13_home.card_data(frames.get(stock["code"]), intraday.get(stock["code"]))
+            with st.container(key=f"j13h_{group}_{position}"):
+                st.markdown(jarvis13_home.card_html(stock, card, news, state, compact=(group == "extra")),
+                            unsafe_allow_html=True)
+                if guest:
+                    continue
+                slot = f"{group}_{position}"
+                if confirm == slot:
+                    left, right = st.columns(2)
+                    if left.button("삭제 확인", key=f"j13h_del_yes_{slot}"):
+                        _watch_remove(stock["code"], stock["name"], "page")
+                        st.session_state.pop("j13h_delete_confirm", None)
+                        st.rerun()
+                    if right.button("취소", key=f"j13h_del_no_{slot}"):
+                        st.session_state.pop("j13h_delete_confirm", None)
+                        st.rerun()
+                elif st.button("×", key=f"j13h_del_{slot}"):
+                    st.session_state["j13h_delete_confirm"] = slot
+                    st.rerun()
 
 
 def _render_watch_page() -> None:
@@ -5696,47 +5726,40 @@ def _render_watch_page() -> None:
     market_items = jarvis13_home.cached_news(_J13H_MARKET_QUERY)
     st.markdown(jarvis13_home.market_news_html(
         market_items, "nokey" if nokey else ("pending" if market_items is None else "ok")), unsafe_allow_html=True)
-    with st.container(key="j13h_extra_header_sel"):
-        heading_col, search_col = st.columns([4, 6], gap="small")
-        with heading_col:
-            st.markdown('<div class="j13h-section"><span class="j13h-section-icon"></span> 사용자 선정 종목</div>',
-                        unsafe_allow_html=True)
-        with search_col:
-            _render_j13h_manage(guest)
-    _show_watch_msg("page")
-    if not stocks:
-        st.markdown("<div class='j13h-empty'>아직 넣은 종목이 없습니다 — "
-                    + ("위 「종목 검색 후 추가」에서 찾아 넣으십시오." if not guest else "주인이 넣은 종목이 여기에 보입니다.")
-                    + "</div>", unsafe_allow_html=True)
-    else:
-        codes = [stock["code"] for stock in stocks]
-        # 시세는 카드를 그리기 **바로 앞**에서 한꺼번에(위 띠 · 뉴스 · 검색은 먼저 뜬다 · 자비스12 와 같은 차례).
-        frames = jarvis13_watch.load_frames(codes, j4data.get_daily_frame)
-        intraday = jarvis13_home.load_intraday(codes, j4data.get_intraday_chart)
+    # 두 줄 — 「사용자 선정 종목」 · 「추가 검색 종목」(2026-11-04 밤 상하님 「두 가지로 해야지 · 미국테마 보고 따라 하라니깐」).
+    # 자비스12 와 같은 차례: 제목+검색 → 카드 → 제목+검색 → 작은 카드(compact). 시세는 첫 카드 바로 앞에서 두 줄 것을 한꺼번에 받는다.
+    selected = [stock for stock in stocks if stock.get("group", "selected") != "extra"]
+    extra = [stock for stock in stocks if stock.get("group") == "extra"]
+    codes = [stock["code"] for stock in stocks]
+    loaded: dict = {}
+
+    def _data():
+        if not loaded:
+            loaded["frames"] = jarvis13_watch.load_frames(codes, j4data.get_daily_frame)
+            loaded["intraday"] = jarvis13_home.load_intraday(codes, j4data.get_intraday_chart)
+        return loaded["frames"], loaded["intraday"]
+
+    for group, title, icon_class, rows in (("selected", "사용자 선정 종목", "j13h-section", selected),
+                                           ("extra", "추가 검색 종목", "j13h-section search", extra)):
+        with st.container(key="j13h_extra_header_sel" if group == "selected" else "j13h_extra_header"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown(f'<div class="{icon_class}"><span class="j13h-section-icon"></span> {title}</div>',
+                            unsafe_allow_html=True)
+            with search_col:
+                _render_j13h_manage(guest, group)
+        if group == "selected":
+            _show_watch_msg("page")
+        if not rows:
+            st.markdown("<div class='j13h-empty'>아직 넣은 종목이 없습니다 — "
+                        + ("위 「종목 검색 후 추가」에서 찾아 넣으십시오." if not guest else "주인이 넣은 종목이 여기에 보입니다.")
+                        + "</div>", unsafe_allow_html=True)
+            continue
+        frames, intraday = _data()
+        _render_j13h_grid(rows, group, frames, intraday, nokey=nokey, guest=guest)
+    if stocks:
+        frames, _intraday = _data()
         kospi = jarvis13_market.index_frame("KOSPI")
-        confirm = st.session_state.get("j13h_delete_confirm")
-        with st.container(key="j13h_grid_selected"):
-            for position, stock in enumerate(stocks, start=1):
-                news = jarvis13_home.cached_news(stock["name"])
-                state = "nokey" if nokey else ("pending" if news is None else "ok")
-                card = jarvis13_home.card_data(frames.get(stock["code"]), intraday.get(stock["code"]))
-                with st.container(key=f"j13h_selected_{position}"):
-                    st.markdown(jarvis13_home.card_html(stock, card, news, state), unsafe_allow_html=True)
-                    if guest:
-                        continue
-                    slot = f"selected_{position}"
-                    if confirm == slot:
-                        left, right = st.columns(2)
-                        if left.button("삭제 확인", key=f"j13h_del_yes_{slot}"):
-                            _watch_remove(stock["code"], stock["name"], "page")
-                            st.session_state.pop("j13h_delete_confirm", None)
-                            st.rerun()
-                        if right.button("취소", key=f"j13h_del_no_{slot}"):
-                            st.session_state.pop("j13h_delete_confirm", None)
-                            st.rerun()
-                    elif st.button("×", key=f"j13h_del_{slot}"):
-                        st.session_state["j13h_delete_confirm"] = slot
-                        st.rerun()
         items = [jarvis13_watch.card(stock, frames.get(stock["code"]), kospi) for stock in stocks]
         st.markdown(jarvis13_watch.since_table_html(items), unsafe_allow_html=True)
         _render_movers_reason(
@@ -5917,7 +5940,7 @@ try:
     import importlib as _il
     import jarvis13_exit
 
-    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110403:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110404:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
         jarvis13_exit = _il.reload(jarvis13_exit)
     jarvis13_exit.render(st)
 except Exception:

@@ -19,9 +19,12 @@ import db_runtime
 from database import DB_PATH
 
 # 반환 키나 함수가 바뀌면 올리고 화면의 요구 번호도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026103001
+MODULE_REVISION = 2026110401
 
-LIMIT = 20                          # 미국 「추가 검색 종목」 한도와 같다
+LIMIT = 20                          # 미국 「추가 검색 종목」 한도와 같다 — 줄마다(사용자 선정 · 추가 검색)
+# 두 줄(2026-11-04 밤 상하님 「사용자선정종목과 추가검색종목 두 가지로 해야지 · 미국테마 보고 따라 하라니깐」).
+# 칸(grp)을 **더하기만** 한다 — 있던 줄은 그대로 「사용자 선정」(지우거나 초기화하지 않는다 · CLAUDE.md 2).
+GROUPS = ("selected", "extra")
 _SEOUL = ZoneInfo("Asia/Seoul")
 _LOCK = threading.Lock()
 _READY = False
@@ -59,6 +62,12 @@ def ensure_tables() -> None:
                 code TEXT PRIMARY KEY, stock_name TEXT NOT NULL, position INTEGER NOT NULL,
                 added_at TEXT NOT NULL, added_price REAL, kospi_at_add REAL, target_price REAL,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+            columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(jarvis13_watch_stocks)").fetchall()}
+            if "grp" not in columns:
+                try:
+                    conn.execute("ALTER TABLE jarvis13_watch_stocks ADD COLUMN grp TEXT NOT NULL DEFAULT 'selected'")
+                except Exception:
+                    pass                    # 다른 판이 먼저 더했으면 그대로 간다
             conn.commit()
             _forget()
             _READY = True
@@ -81,7 +90,16 @@ def _row(row) -> dict:
 
     return {"code": row["code"], "name": row["stock_name"], "position": int(row["position"]),
             "added_at": row["added_at"], "added_price": num("added_price"),
-            "kospi_at_add": num("kospi_at_add"), "target_price": num("target_price")}
+            "kospi_at_add": num("kospi_at_add"), "target_price": num("target_price"),
+            "group": _group(row)}
+
+
+def _group(row) -> str:
+    try:
+        value = str(row["grp"] or "selected")
+    except (IndexError, KeyError):
+        value = "selected"
+    return value if value in GROUPS else "selected"
 
 
 def list_stocks() -> list[dict]:
@@ -94,7 +112,7 @@ def list_stocks() -> list[dict]:
     conn = _connection()
     try:
         rows = [_row(row) for row in conn.execute(
-            "SELECT code,stock_name,position,added_at,added_price,kospi_at_add,target_price "
+            "SELECT code,stock_name,position,added_at,added_price,kospi_at_add,target_price,grp "
             "FROM jarvis13_watch_stocks ORDER BY position, added_at").fetchall()]
     finally:
         conn.close()
@@ -112,30 +130,32 @@ def has(code) -> bool:
     return any(item["code"] == code for item in list_stocks())
 
 
-def add(code, name, *, price=None, kospi=None) -> dict:
-    """넣는다 — 이미 있거나 자리가 차면 ValueError(넣지 않는다). 넣은 그 순간의 값·코스피를 같이 적는다."""
+def add(code, name, *, price=None, kospi=None, group: str = "selected") -> dict:
+    """넣는다 — 이미 있거나 그 줄 자리가 차면 ValueError(넣지 않는다). 넣은 그 순간의 값·코스피를 같이 적는다.
+    group — 「selected」 사용자 선정 종목 · 「extra」 추가 검색 종목(한 종목은 한 줄에만)."""
     code = clean_code(code)
     name = (str(name or "").strip() or code)[:100]
+    group = group if group in GROUPS else "selected"
     ensure_tables()
     conn = _connection()
     try:
-        rows = conn.execute("SELECT code, position FROM jarvis13_watch_stocks").fetchall()
+        rows = conn.execute("SELECT code, position, grp FROM jarvis13_watch_stocks").fetchall()
         if any(row["code"] == code for row in rows):
             raise ValueError(f"{name} 은(는) 이미 관심종목에 있습니다.")
-        if len(rows) >= LIMIT:
-            raise ValueError(f"관심종목은 {LIMIT}개까지입니다. 하나를 빼고 넣으십시오.")
+        if sum(1 for row in rows if _group(row) == group) >= LIMIT:
+            raise ValueError(f"이 줄은 {LIMIT}개까지입니다. 하나를 빼고 넣으십시오.")
         position = max((int(row["position"]) for row in rows), default=0) + 1
         now = _now()
         conn.execute(
             "INSERT INTO jarvis13_watch_stocks (code,stock_name,position,added_at,added_price,kospi_at_add,"
-            "target_price,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (code, name, position, now, _num(price), _num(kospi), None, now, now))
+            "target_price,created_at,updated_at,grp) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (code, name, position, now, _num(price), _num(kospi), None, now, now, group))
         conn.commit()
     finally:
         conn.close()
     _forget()
     return {"code": code, "name": name, "position": position, "added_at": now,
-            "added_price": _num(price), "kospi_at_add": _num(kospi), "target_price": None}
+            "added_price": _num(price), "kospi_at_add": _num(kospi), "target_price": None, "group": group}
 
 
 def remove(code) -> bool:

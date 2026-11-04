@@ -135,8 +135,8 @@ class CardTests(unittest.TestCase):
 class PageTests(unittest.TestCase):
     def _app(self, *, page=None, guest=False, stocks=(), details=False):
         _temp_store(self)
-        for code, name, price, kospi in stocks:
-            store.add(code, name, price=price, kospi=kospi)
+        for code, name, price, kospi, *group in stocks:
+            store.add(code, name, price=price, kospi=kospi, group=(group or ["selected"])[0])
         started = []
         extra = [patch("jarvis4_data.get_daily_frame", return_value=_frame()),
                  patch("jarvis13_market.index_frame", return_value=_frame(2_000, 10))]
@@ -243,6 +243,28 @@ class PageTests(unittest.TestCase):
         self.assertEqual([], store.list_stocks())
         self.assertIn("뺐습니다", " ".join(str(item.value) for item in app.success))   # 세부사항이 닫혀도 알림은 뜬다
         self.assertNotIn("j13w_toggle_watch_005930", {button.key for button in app.button})
+
+    def test_two_rows_like_jarvis12_selected_and_extra(self):
+        # 2026-11-04 밤 상하님 「사용자선정종목과 추가검색종목 두 가지로 해야지 · 미국테마 보고 따라 하라니깐」
+        app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300),
+                                              ("000660", "SK하이닉스", 200_000, 2_300, "extra")])
+        self.assertEqual({"005930": "selected", "000660": "extra"},
+                         {row["code"]: row["group"] for row in store.list_stocks()})
+        text = self._text(app)
+        self.assertIn("사용자 선정 종목", text)
+        self.assertIn("추가 검색 종목", text)
+        self.assertIn(" compact", text)                                        # 추가 검색 종목은 작은 카드(자비스12 와 같다)
+        keys = {button.key for button in app.button}
+        self.assertTrue({"j13h_del_selected_1", "j13h_del_extra_1", "j13h_manage_toggle_selected",
+                         "j13h_manage_toggle_extra"} <= keys, keys)
+        self.assertIn("j13h_search_extra", {box.key for box in app.text_input})
+
+    def test_old_rows_without_group_stay_selected(self):
+        _temp_store(self)
+        store.add("005930", "삼성전자", price=100, kospi=2000)
+        self.assertEqual("selected", store.list_stocks()[0]["group"])
+        with self.assertRaises(ValueError):
+            store.add("005930", "삼성전자", group="extra")                       # 한 종목은 한 줄에만
 
     def test_a_message_lives_for_one_run_only(self):
         app = self._app(page="watch")
