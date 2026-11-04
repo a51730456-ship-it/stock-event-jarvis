@@ -1,0 +1,43 @@
+# 한국테마 설명서가 현실과 맞나 — 2026-08-09 부터 쌓인 목록의 실제 성적(파트별 성적표와 같은 셈) (2026-11-04 상하님 「현실과 맞냐?」).
+# 보기만 한다. 결과는 따로 갈래(j13-reality)에만 올린다 — master 그대로.
+name: 자비스13 설명서 현실 확인
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_reality_check.py
+      - .github/workflows/j13_reality.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-reality
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 실제 성적 세기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13reality
+        run: python research/j13_reality_check.py
+      - name: 결과만 따로 갈래(j13-reality)에 올리기
+        run: |
+          cd "$RUNNER_TEMP/j13reality"
+          git init -q -b j13-reality
+          git config user.name "j13-reality"
+          git config user.email "j13-reality@users.noreply.github.com"
+          git add .
+          git commit -q -m "설명서 현실 확인 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-reality
