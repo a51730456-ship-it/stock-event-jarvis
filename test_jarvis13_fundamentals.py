@@ -171,6 +171,114 @@ class PageTests(unittest.TestCase):
         self.assertNotIn("requests", box)                           # 받으러 가지 않는다
 
 
+class EarnInsiderTests(unittest.TestCase):
+    """2026-11-04 밤 상하님 「왜 이거 안 넣냐 말 좀 들어라」 — 자비스12 「📅 실적 발표 · 👥 애널리스트 의견 · 🔍 공매도·내부자·배당」
+    셋을 같은 자리 · 같은 차례로. 한국에서 받을 수 있는 것만(DART · 네이버 · 와이즈리포트), 못 받는 것은 그렇다고 적는다."""
+
+    QUARTER = {"financeInfo": {"trTitleList": [{"key": "202606", "isConsensus": "N"}, {"key": "202609", "isConsensus": "Y"},
+                                               {"key": "202612", "isConsensus": "Y"}],
+                               "rowList": [{"title": "매출액", "columns": {"202606": {"value": "740,000"},
+                                                                         "202609": {"value": "860,617"}}},
+                                           {"title": "영업이익", "columns": {"202609": {"value": "105,123"}}}]}}
+
+    def test_estimate_takes_first_consensus_column(self):
+        self.assertEqual({"at": "2026.09", "rev": 860617.0, "op": 105123.0}, fn.parse_estimate(self.QUARTER))
+        self.assertIsNone(fn.parse_estimate({"financeInfo": {"trTitleList": [{"key": "202606", "isConsensus": "N"}]}}))
+
+    def test_wise_count_reads_label_not_needle(self):
+        cells = ["4.00", "투자의견", "목표주가 (원)", "EPS (원)", "PER (배)", "추정기관수", "4.00", "477,500", "45,644", "4.81", "20"]
+        html = '<table id="cTB15">' + "".join(f"<td>{c}</td>" for c in cells) + "</table>"
+        self.assertEqual(20, fn.parse_wise_count(html))
+        self.assertIsNone(fn.parse_wise_count("<table></table>"))
+
+    def test_quarter_of_filing_day(self):
+        self.assertEqual(["26.09", "26.06", "26.03", "25.12"],
+                         [fn._quarter_of(d) for d in ("2026-10-08", "2026-07-30", "2026-04-29", "2026-01-29")])
+
+    def test_reaction_uses_day_before_and_after(self):
+        import pandas as pd
+        frame = pd.DataFrame({"Close": [100.0, 102.0, 110.0]},
+                             index=pd.to_datetime(["2026-10-07", "2026-10-08", "2026-10-10"]))
+        self.assertAlmostEqual(10.0, fn.reaction(frame, "2026-10-08"))             # 10/7 100 → 10/10 110
+        self.assertIsNone(fn.reaction(frame, "2026-10-10"))                         # 뒤 장이 아직 없으면 안 적는다
+        self.assertIsNone(fn.reaction(None, "2026-10-08"))
+
+    def test_next_guess_is_marked_estimate(self):
+        from datetime import date
+        earn = ["2026-10-28", "2026-07-30", "2026-04-29", "2026-01-29", "2025-10-30"]
+        self.assertEqual("1월 28일쯤 · 85일 남음", fn._next_guess(earn, date(2026, 11, 4)))
+        self.assertEqual("", fn._next_guess([], date(2026, 11, 4)))
+
+    def test_three_boxes_in_jarvis12_order(self):
+        import pandas as pd
+        from datetime import date
+        frame = pd.DataFrame({"Close": [100.0, 95.0, 104.0, 99.0]},
+                             index=pd.to_datetime(["2026-07-29", "2026-07-31", "2026-10-27", "2026-10-29"]))
+        info = {"earn": ["2026-10-28", "2026-07-30"], "est": {"at": "2026.12", "op": 120000.0, "rev": 900000.0},
+                "quarter": [["26.06", 740000.0, 95000.0, 1.0], ["26.09", 860000.0, 101000.0, 1.0]],
+                "consensus": {"recomm": 4.0, "target": 150000.0, "at": "2026-11-03", "n": 20}, "price": 100000.0,
+                "reports": [], "foreign": 50.2,
+                "ins": {"since": "2026-05-05", "up": 3, "down": 1, "up_sh": 25000.0, "down_sh": 500.0},
+                "divd": {"year": 2025, "dps": 1446.0, "yield": 2.6, "payout": 33.0}, "divdays": ["2026-10-30"]}
+        out = fn.street_html(info, frame, today=date(2026, 11, 4))
+        self.assertLess(out.index("📅 실적 발표"), out.index("👥 증권사 의견"))
+        self.assertLess(out.index("👥 증권사 의견"), out.index("🔍 외국인 · 내부자 · 배당"))
+        for text in ("추정", "26.12 영업이익", "12.0조 원", "26.09", "101,000", "-5.0%", "-4.8%", "· 20곳",
+                     "늘림 3번(2.5만 주)", "줄임 1번(500주)", "주당 1,446원", "배당수익률 2.6%", "배당성향 33%",
+                     "최근 배당 결정 10/30", "공매도는", "「예상 대 실제」는 못 적습니다"):
+            self.assertIn(text, out)
+        self.assertNotIn("j3", out.replace("j13", ""))                              # 자비스12 이름과 안 섞임
+
+    def test_no_data_draws_no_box(self):
+        out = fn.street_html({"consensus": {"recomm": 3.0}, "reports": []})
+        self.assertNotIn("📅 실적 발표", out)
+        self.assertNotIn("🔍", out)
+
+    def test_dart_extra_reads_both_date_shapes(self):
+        from datetime import date
+
+        class Resp:
+            status_code = 200
+
+            def __init__(self, data):
+                self._data = data
+
+            def json(self):
+                return self._data
+
+        class Session:
+            def get(self, url, params=None, timeout=None):
+                name = url.rsplit("/", 1)[-1]
+                if name == "list.json":
+                    return Resp({"status": "000", "list": [
+                        {"rcept_dt": "20261028", "report_nm": "연결재무제표기준영업(잠정)실적(공정공시)"},
+                        {"rcept_dt": "20261029", "report_nm": "[기재정정]연결재무제표기준영업(잠정)실적(공정공시)"},
+                        {"rcept_dt": "20261030", "report_nm": "현금ㆍ현물배당결정"}]})
+                if name == "elestock.json":
+                    return Resp({"status": "000", "list": [
+                        {"rcept_dt": "2026-10-01", "sp_stock_lmp_irds_cnt": "1,000"},
+                        {"rcept_dt": "20260901", "sp_stock_lmp_irds_cnt": "-200"},
+                        {"rcept_dt": "2025-01-01", "sp_stock_lmp_irds_cnt": "99,999"}]})     # 6개월 밖 — 뺀다
+                return Resp({"status": "000", "list": [{"se": "주당 현금배당금(원)", "thstrm": "1,446"},
+                                                       {"se": "현금배당수익률(%)", "thstrm": "2.6"},
+                                                       {"se": "(연결)현금배당성향(%)", "thstrm": "33.0"}]})
+
+        out = fn.dart_extra("열쇠", "00126380", Session(), today=date(2026, 11, 4))
+        self.assertEqual(["2026-10-28"], out["earn"])                               # 정정 공시는 뺀다
+        self.assertEqual(["2026-10-30"], out["divdays"])
+        self.assertEqual((1, 1, 1000.0, 200.0), (out["ins"]["up"], out["ins"]["down"], out["ins"]["up_sh"], out["ins"]["down_sh"]))
+        self.assertEqual({"year": 2025, "dps": 1446.0, "yield": 2.6, "payout": 33.0}, out["divd"])
+
+    def test_page_passes_daily_frame(self):
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        self.assertIn("street_block(code, price_now, frame=j4data.get_daily_frame(code))", page)
+        self.assertIn(f"_REQUIRED_J13_FUNDAMENTALS_REVISION = {fn.MODULE_REVISION}", page)
+
+    def test_workflow_reads_dart_key_from_secret_only(self):
+        flow = (Path(__file__).resolve().parent / ".github" / "workflows" / "j13_fundamentals.yml").read_text(encoding="utf-8")
+        self.assertIn("DART_API_KEY: ${{ secrets.DART_API_KEY }}", flow)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -232,7 +340,7 @@ class StreetTests(unittest.TestCase):
                 "foreign": 16.4, "dps": 2000.0, "dy": 1.66, "latest_at": "2025.12", "annual": [], "quarter": []}
         out = fn.street_html(info)
         for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "11/03 기준",
-                     "점수·판정에는 들어가지 않습니다", "🔍 외국인 · 배당", "16.4%", "주당 2,000원"):
+                     "점수·판정에는 들어가지 않습니다", "🔍 외국인 · 내부자 · 배당", "16.4%", "주당 2,000원"):
             self.assertIn(text, out)
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
         self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다

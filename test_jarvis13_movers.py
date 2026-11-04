@@ -141,7 +141,8 @@ class PageTests(unittest.TestCase):
         body = source[source.index("def _render_watch_page"):source.index("def main()")]
         self.assertIn('key="j13_movers_watch"', body)
         # 2026-11-03 카드가 격자(j13w_cards)로 바뀌었다 — 단추는 그 뒤
-        self.assertLess(body.index('st.container(key="j13w_cards")'), body.index('key="j13_movers_watch"'))
+        # 2026-11-04 관심종목을 자비스12 그대로(두 줄 「사용자 선정 종목 · 추가 검색 종목」) — 격자는 _render_j13h_grid 가 그린다
+        self.assertLess(body.index("_render_j13h_grid("), body.index('key="j13_movers_watch"'))
 
 
 
