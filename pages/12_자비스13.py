@@ -911,7 +911,7 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110501
+_REQUIRED_J13_HOME_REVISION = 2026110502
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 
@@ -972,6 +972,15 @@ _REQUIRED_J13_SHARED_REVISION = 2026110401
 if int(getattr(jarvis13_shared, "MODULE_REVISION", 0)) < _REQUIRED_J13_SHARED_REVISION:
     jarvis13_shared = importlib.reload(jarvis13_shared)
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
+# 시장분석 맨 위 띠 — 얼린 hero_banner 의 짜임 · 꾸밈은 그대로 빌리고 배경만 한국 장면(여의도 밤 · 코스피 캔들 빨강/파랑)
+# (2026-11-05 상하님 「한국 주식 배경 동영상 … 미국테마와 구분하자」). 장면 파일까지 옛 것이 남으면 다시 읽는다(규칙 11).
+import jarvis13_hero_scene  # noqa: E402
+import jarvis13_hero  # noqa: E402
+_REQUIRED_J13_HERO_REVISION = 2026110501
+if int(getattr(jarvis13_hero_scene, "MODULE_REVISION", 0)) < _REQUIRED_J13_HERO_REVISION:
+    jarvis13_hero_scene = importlib.reload(jarvis13_hero_scene)
+if int(getattr(jarvis13_hero, "MODULE_REVISION", 0)) < _REQUIRED_J13_HERO_REVISION:
+    jarvis13_hero = importlib.reload(jarvis13_hero)
 _REQUIRED_J13_SKIN_REVISION = 2026110403
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
@@ -5914,7 +5923,7 @@ def main() -> None:
     scroll_to.anchor(st, "top")
     # 맨 위 그림 띠 「JARVIS 13 · 시장분석」(자비스12 와 같은 띠 · 2026-11-03). 두 단추보다 먼저 그려야 맨 위에 선다.
     # ↻ 는 자비스12 와 같다 — 담아 둔 시세를 비우고 다시 그린다. 띠를 못 그려도 아래 화면은 그대로 나온다.
-    if hero_banner.render(st, refresh_key="j13hero_refresh", mark="13"):
+    if jarvis13_hero.render(st, refresh_key="j13hero_refresh", mark="13"):
         try:
             j4data.clear_runtime_cache()
         except Exception:
