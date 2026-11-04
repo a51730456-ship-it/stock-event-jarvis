@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110403
+MODULE_REVISION = 2026110405
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -88,6 +88,29 @@ def parse_finance(data: dict, group: str) -> tuple[list, dict, str | None]:
     return rows[-(4 if group == "annual" else 6):], latest, latest_at
 
 
+def parse_consensus(whole: dict) -> dict | None:
+    """integration 의 consensusInfo → {"recomm": 투자의견 평균(1~5) · "target": 목표주가 평균(원) · "at": 기준일}. 없으면 None."""
+    info = (whole or {}).get("consensusInfo") or {}
+    recomm, target = _num(info.get("recommMean")), _num(info.get("priceTargetMean"))
+    if not recomm and not target:
+        return None
+    return {"recomm": recomm, "target": target, "at": str(info.get("createDate") or "")[:10] or None}
+
+
+def parse_reports(whole: dict, keep: int = 3) -> list:
+    """integration 의 researches → [[증권사, 날짜]] 최근 keep 건(제목은 안 옮긴다)."""
+    out = []
+    for item in (whole or {}).get("researches") or []:
+        if not isinstance(item, dict):
+            continue
+        broker, day = str(item.get("bnm") or "").strip(), str(item.get("wdt") or "").strip()
+        if broker:
+            out.append([broker, day])
+        if len(out) >= keep:
+            break
+    return out
+
+
 def fetch_one(code: str, session=None) -> dict | None:
     """연간 · 분기 재무와 시총 · 주가 · 이름. 재무를 못 받으면 None(옛 값을 둔다)."""
     import requests
@@ -119,6 +142,10 @@ def fetch_one(code: str, session=None) -> dict | None:
     out["hi52"] = _num(infos.get("highPriceOf52Weeks"))
     out["lo52"] = _num(infos.get("lowPriceOf52Weeks"))
     out["foreign"] = _num(str(infos.get("foreignRate") or "").replace("%", ""))
+    # 증권사 의견(2026-11-04 상하님 「3번째 캡쳐 빠졌고」 — 자비스12 「애널리스트 의견 · 목표주가」 자리) — 같은 integration 자료라
+    # 새로 받는 곳이 없다. 점수 · 판정에 안 쓴다(보여 주기만). 리포트는 증권사 · 날짜만 둔다(제목은 남의 글이라 안 옮긴다 · 저장소 공개).
+    out["consensus"] = parse_consensus(whole)
+    out["reports"] = parse_reports(whole)
     try:
         basic = get("basic") or {}
     except Exception:
@@ -212,6 +239,8 @@ def summary(code: str, price_now=None, *, path: Path = DATA_PATH) -> dict | None
         "dy": (dps / price * 100.0) if (dps is not None and price) else latest.get("dy"),
         "hi52": _num(entry.get("hi52")), "lo52": _num(entry.get("lo52")), "foreign": _num(entry.get("foreign")),
         "price": price,
+        "consensus": entry.get("consensus") if isinstance(entry.get("consensus"), dict) else None,
+        "reports": [row for row in entry.get("reports") or [] if isinstance(row, list) and len(row) == 2],
         "annual": [row for row in entry.get("annual") or [] if isinstance(row, list) and len(row) == 4],
         "quarter": [row for row in entry.get("quarter") or [] if isinstance(row, list) and len(row) == 4],
     }
@@ -330,7 +359,50 @@ def card_html(info: dict) -> str:
         foot.append("시가총액·PER·PBR·배당은 지금 주가로 다시 셈")
     return ("<div class='j13fn'><div class='j13fn-grid'>" + "".join(cells) + "</div><div class='j13fn-charts'>"
             + _results_html("연간 실적", info.get("annual") or []) + _results_html("분기 실적", info.get("quarter") or [])
-            + "</div><div class='j13fn-foot'>단위 억 원 · 칸 위는 결산한 달 · " + " · ".join(foot) + "</div></div>")
+            + "</div>" + street_html(info) + "<div class='j13fn-foot'>단위 억 원 · 칸 위는 결산한 달 · " + " · ".join(foot) + "</div></div>")
+
+
+RECOMM_WORDS = ((4.5, "강력 매수"), (3.5, "매수"), (2.5, "중립"), (1.5, "매도"), (0.0, "강력 매도"))
+
+
+def recomm_word(value) -> str:
+    """투자의견 평균(5 강력 매수 · 4 매수 · 3 중립 · 2 매도 · 1 강력 매도) → 가장 가까운 말."""
+    for floor, word in RECOMM_WORDS:
+        if value is not None and value >= floor:
+            return word
+    return "—"
+
+
+def street_html(info: dict) -> str:
+    """👥 증권사 의견 — 투자의견 평균 · 목표주가 평균(지금보다 몇 %) · 최근 리포트 증권사. 자료가 없으면 빈 글(칸을 안 그린다)."""
+    consensus = info.get("consensus") or {}
+    reports = info.get("reports") or []
+    if not consensus and not reports:
+        return ""
+    recomm, target, price = _num(consensus.get("recomm")), _num(consensus.get("target")), _num(info.get("price"))
+    rows = []
+    if recomm:
+        place = max(0.0, min(100.0, (recomm - 1.0) / 4.0 * 100.0))
+        rows.append(
+            "<div class='j13st-row'><b>투자의견</b><span><i class='j13st-big'>" + f"{recomm:.2f}" + "</i> / 5 · "
+            + recomm_word(recomm) + "</span></div>"
+            "<div class='j13st-bar'><span style='left:" + f"{place:.0f}" + "%'></span></div>"
+            "<div class='j13st-scale'><span>1 강력 매도</span><span>3 중립</span><span>5 강력 매수</span></div>")
+    if target:
+        gap = ""
+        if price:
+            change = target / price * 100.0 - 100.0
+            tone = "#ff5b5b" if change > 0 else NEG
+            gap = f" · <b style='color:{tone}'>지금보다 {change:+.0f}%</b>"
+        rows.append(f"<div class='j13st-row'><b>목표주가</b><span>평균 <i class='j13st-big'>{target:,.0f}원</i>{gap}</span></div>")
+    if reports:
+        listed = " · ".join(f"{_html.escape(str(b))} {_html.escape(str(d)[5:].replace('-', '/'))}" for b, d in reports)
+        rows.append(f"<div class='j13st-row'><b>최근 리포트</b><span>{listed}</span></div>")
+    at = _html.escape(str(consensus.get("at") or ""))
+    return ("<div class='j13st'><div class='j13st-h'>👥 증권사 의견" + (f"<small> · {at} 기준</small>" if at else "") + "</div>"
+            + "".join(rows)
+            + "<div class='j13st-note'>※ 증권사 의견 평균입니다(네이버 증권 · 주 1회 모음). 자비스 점수 · 판정에는 안 들어갑니다. "
+            "공매도 · 내부자 거래는 받을 곳이 없어(DART 뺌) 적지 않습니다.</div></div>")
 
 
 # 칸 모양은 자비스12 재무 창(us_fundamentals.CARD_CSS)과 같은 값(2026-11-04 상하님 「미국테마와 비교해 봐라」 — 폰에서 두 칸씩
@@ -358,6 +430,27 @@ CSS = """<style>
 .j13fn-t th,.j13fn-t td{text-align:right;padding:2px 3px;white-space:nowrap}
 .j13fn-t th:first-child,.j13fn-t td:first-child{text-align:left;color:#9fb6c8}
 .j13fn-foot{color:#8b96a8;font-size:.74rem;line-height:1.5}
+/* 폰처럼 카드가 좁으면 자비스12 폰 배치(mobile_ui 의 j3fn — 두 칸 · 실적 그림 한 칸 가득)와 같게 (2026-11-04 상하님 캡처 — 표가 잘려
+   옛 칸 23.12·24.12 만 보였다). 화면 폭 규칙이 아니라 이 카드 폭으로 본다 — PC·태블릿은 카드가 넓어 그대로다(CLAUDE.md 12). */
+.j13st{border:1px solid #1d3a63;border-radius:10px;padding:8px 10px}
+.j13st-h{font-weight:900;font-size:.95rem;margin-bottom:4px}
+.j13st-h small{font-weight:600;color:#8fb4de;font-size:.72rem}
+.j13st-row{display:flex;gap:10px;align-items:baseline;margin:3px 0;font-size:.85rem}
+.j13st-row>b{min-width:5.2em;color:#8fb4de}
+.j13st-big{font-style:normal;font-weight:900;font-size:1.05rem;color:#ffffff}
+.j13st-bar{position:relative;height:8px;border-radius:999px;margin:4px 0 2px;
+  background:linear-gradient(90deg,#5aa9ff 0%,#ffd166 50%,#ff5b5b 100%)}
+.j13st-bar span{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;transform:translateX(-50%)}
+.j13st-scale{display:flex;justify-content:space-between;font-size:.66rem;color:#8b96a8}
+.j13st-note{font-size:.7rem;color:#8b96a8;margin-top:4px;line-height:1.45}
+.j13fn{container-type:inline-size}
+.j13fn-t{table-layout:fixed}
+@container (max-width: 620px){
+  .j13fn-grid{grid-template-columns:1fr 1fr}
+  .j13fn-charts{grid-template-columns:1fr}
+  .j13fn-t{font-size:.7rem}
+  .j13fn-t th,.j13fn-t td{padding:2px 1px}
+}
 </style>"""
 
 

@@ -201,3 +201,42 @@ class ColorRuleTests(unittest.TestCase):
         out = fn.card_html({"annual": [["24.12", 742696, -3557, -23725]], "quarter": []})
         self.assertIn(f"color:{fn.NEG}'>-3,557", out)
         self.assertIn(f"color:{fn.NEG}'>-23,725", out)
+
+
+class NarrowCardTests(unittest.TestCase):
+    """2026-11-04 상하님 캡처 — 폰에서 실적 표가 잘려 옛 칸(23.12·24.12)만 보였다. 좁은 카드는 자비스12 폰처럼 두 칸 · 그림 한 칸 가득."""
+
+    def test_narrow_card_stacks_like_jarvis12_phone(self):
+        self.assertIn(".j13fn{container-type:inline-size}", fn.CSS)
+        block = fn.CSS.split("@container (max-width: 620px){")[1].split("}\n}")[0]
+        self.assertIn(".j13fn-grid{grid-template-columns:1fr 1fr", block)
+        self.assertIn(".j13fn-charts{grid-template-columns:1fr", block)
+        self.assertIn(".j13fn-t{table-layout:fixed}", fn.CSS)            # 칸이 넘치지 않고 최신 칸까지 다 들어간다
+
+
+class StreetTests(unittest.TestCase):
+    """2026-11-04 상하님 「한국테마에서 3번째 캡쳐 빠졌고」 — 자비스12 「애널리스트 의견 · 목표주가」 자리(받을 수 있는 것만)."""
+
+    WHOLE = {"consensusInfo": {"itemCode": "096770", "createDate": "2026-11-03", "recommMean": "4.00",
+                               "priceTargetMean": "207,455"},
+             "researches": [{"bnm": "하나증권", "wdt": "2026-10-30", "tit": "남의 제목"},
+                            {"bnm": "KB증권", "wdt": "2026-10-29", "tit": "남의 제목 2"}]}
+
+    def test_parse_from_integration(self):
+        self.assertEqual({"recomm": 4.0, "target": 207455.0, "at": "2026-11-03"}, fn.parse_consensus(self.WHOLE))
+        self.assertEqual([["하나증권", "2026-10-30"], ["KB증권", "2026-10-29"]], fn.parse_reports(self.WHOLE))
+        self.assertIsNone(fn.parse_consensus({}))                                     # 없으면 지어내지 않는다
+
+    def test_box_shows_target_gap_and_no_titles(self):
+        info = {"consensus": fn.parse_consensus(self.WHOLE), "reports": fn.parse_reports(self.WHOLE), "price": 120700.0,
+                "annual": [], "quarter": []}
+        out = fn.card_html(info)
+        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "2026-11-03 기준",
+                     "점수 · 판정에는 안 들어갑니다"):
+            self.assertIn(text, out)
+        self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
+        self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
+
+    def test_recomm_words(self):
+        self.assertEqual(["강력 매수", "매수", "중립", "매도", "강력 매도"],
+                         [fn.recomm_word(v) for v in (4.8, 4.0, 3.0, 2.0, 1.0)])
