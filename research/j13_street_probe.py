@@ -151,11 +151,27 @@ def short(code: str) -> None:
         say(f"한국거래소 공매도 실패 {exc}")
 
 
+def deep(code: str) -> None:
+    """2차 — 와이즈리포트 투자의견 표(cTB15) 칸 · 네이버 공매도 화면 안의 자료."""
+    status, body = get(f"https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd={code}")
+    at = body.find('id="cTB15"')
+    table = body[at:body.find("</table>", at)] if at >= 0 else ""
+    cells = [" ".join(re.sub(r"<[^>]+>", " ", c).split()) for c in re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", table, re.S)]
+    say(f"cTB15 칸 {len(cells)}: {cells}")
+    status, body = get(f"https://finance.naver.com/item/short_trade.naver?code={code}")
+    for word in ("공매도", "shortSell", "short", "잔고"):
+        idx = [m.start() for m in re.finditer(word, body)][:3]
+        for i in idx:
+            say(f"   공매도 화면 [{word}] {' '.join(body[max(0, i - 150):i + 250].split())[:400]}")
+    apis = sorted(set(re.findall(r'https?://[a-z.]*naver\.com/api/[^"\' ]+', body)))[:20]
+    say(f"   화면 속 api 주소: {apis}")
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     for code in CODES:
         say(f"\n================ {code}")
-        for step in (dart, naver, wise, short):
+        for step in (deep,):
             try:
                 step(code)
             except Exception as exc:
