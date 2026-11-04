@@ -1,0 +1,45 @@
+# 온라인 앱 자비스13 「시장 현황」을 손님으로 열어 사진을 찍고 따로 갈래(j13-online)에 올린다 (2026-11-04 상하님 「다해라」).
+# 클라우드 작업 칸은 온라인 앱 주소로 나가는 것이 막혀 있어 깃허브 컴퓨터가 대신 연다. 보기만 한다(손님 · master 에 아무것도 안 씀).
+name: 자비스13 온라인 사진
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_online_shot.py
+      - .github/workflows/j13_online_shot.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-online
+  cancel-in-progress: true
+
+jobs:
+  shoot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 브라우저 하나만 설치
+        run: |
+          pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: 온라인 앱 사진 찍기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13online
+        run: python research/j13_online_shot.py
+      - name: 사진만 따로 갈래(j13-online)에 올리기
+        run: |
+          cd "$RUNNER_TEMP/j13online"
+          git init -q -b j13-online
+          git config user.name "j13-online"
+          git config user.email "j13-online@users.noreply.github.com"
+          git add .
+          git commit -q -m "온라인 사진 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-online
