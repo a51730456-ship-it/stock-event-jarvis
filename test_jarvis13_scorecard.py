@@ -133,6 +133,11 @@ class ScorecardPageTests(unittest.TestCase):
         self.assertIn("📈 코스피와 견줘 보기", text)
         self.assertIn("못 산 것으로 빼고", text)
         self.assertIn("<td>1</td>", text)                 # 급락 줄 하나가 「못 산 줄」
+        # 2026-11-04 상하님 「파트별 성적표 미국테마대로」 — 자비스12 처럼 막대 순위가 먼저 · 표는 「표로 자세히」에 접힘
+        self.assertIn("class='j13sc-row'", text)
+        self.assertIn("다섯 파트를 다 샀다면", text)
+        self.assertIn("100%</span>", text)                # 순위 7 한 줄 · 이익 1/1
+        self.assertIn("표로 자세히 ▾", text)
         keys = {b.key for b in app.button}
         for key in ("j13sc_span_0", "j13sc_span_4", "j13vx_t_all", "j13vx_p_d", "j13vx_v_line", "close_j13sc_open"):
             self.assertIn(key, keys)

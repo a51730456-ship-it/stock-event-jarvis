@@ -3522,6 +3522,19 @@ div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button{min-heigh
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button p{font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
 div[class*="st-key-j13sc_box"] div[class*="st-key-j13sc_span_"] button[kind="primary"] p{color:#0a1a33!important}
+/* 막대 순위 — 자비스12 .j3sc-row 와 같은 모양(폭에 따라 막대 칸만 줄어든다 · 폰 규칙 없이) */
+.j13sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.j13sc-head b{font-size:1rem;color:#fff;font-weight:800}
+.j13sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
+.j13sc-row{display:grid;grid-template-columns:22px minmax(0,1fr) clamp(70px,26vw,150px) 50px;align-items:center;gap:8px;
+  padding:6px 0;border-top:1px solid #16304f}
+.j13sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
+.j13sc-name{font-size:.9rem;font-weight:800;color:#fff;min-width:0}
+.j13sc-bar{display:block;height:9px;border-radius:5px;background:#16304f}
+.j13sc-bar i{display:block;height:9px;border-radius:5px}
+.j13sc-val{font-size:.95rem;font-weight:800;text-align:right}
+.j13sc-base .j13sc-name{font-weight:700;color:#8fb4de;font-size:.86rem}
+.j13sc-base .j13sc-val{color:#8fb4de;font-weight:700}
 /* 기간 고르기 달력 — 자비스12 규칙 그대로(j13 이름). 폰에서도 한 줄에 다섯 날. */
 div[class*="st-key-j13sc_cal"]{gap:4px!important}
 div[class*="st-key-j13sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important;flex-wrap:nowrap!important}
@@ -3713,6 +3726,38 @@ def _j13sc_range_picker(first_day, last_day, trading_days: set):
     return None
 
 
+def _j13sc_bars_html(table: dict) -> str:
+    """자비스12 성적표와 같은 모양 — 파트마다 「이익 난 확률」 막대 한 줄 · 높은 차례 · 맨 밑 「다섯 파트를 다 샀다면」.
+    (2026-11-04 상하님 「파트별 성적표 미국테마대로」) 값은 part_table 그대로 — 산 줄이 없으면 「—」(0으로 채우지 않는다)."""
+    def rate(kind):
+        slot = table.get(kind) or {}
+        n = int(slot.get("n") or 0)
+        return None if not n else round(slot["win"] * 100.0 / n)
+
+    ranked = sorted(j13vx.PARTS, key=lambda kind: -(rate(kind) if rate(kind) is not None else -1))
+    lines = []
+    for order, kind in enumerate(ranked, start=1):
+        value = rate(kind)
+        name = html.escape(j13vx.PART_NAMES[kind])
+        if value is None:
+            lines.append(f"<div class='j13sc-row'><span class='j13sc-no'>{order:02d}</span><div class='j13sc-name'>{name}</div>"
+                         "<span class='j13sc-bar'></span><span class='j13sc-val' style='color:#6f93bd'>—</span></div>")
+            continue
+        tone = "#ffd166" if value >= 50 else "#ff8a8a"
+        lines.append(f"<div class='j13sc-row'><span class='j13sc-no'>{order:02d}</span><div class='j13sc-name'>{name}</div>"
+                     f"<span class='j13sc-bar'><i style='width:{value}%;background:{j13vx.PART_COLORS[kind]}'></i></span>"
+                     f"<span class='j13sc-val' style='color:{tone}'>{value}%</span></div>")
+    seen = sum(int((table.get(kind) or {}).get("n") or 0) for kind in j13vx.PARTS)
+    won = sum(int((table.get(kind) or {}).get("win") or 0) for kind in j13vx.PARTS)
+    if seen:
+        base = round(won * 100.0 / seen)
+        lines.append("<div class='j13sc-row j13sc-base'><span class='j13sc-no'></span>"
+                     "<div class='j13sc-name'>다섯 파트를 다 샀다면</div>"
+                     f"<span class='j13sc-bar'><i style='width:{base}%;background:#46617f'></i></span>"
+                     f"<span class='j13sc-val'>{base}%</span></div>")
+    return "<div class='j13sc-bars'>" + "".join(lines) + "</div>"
+
+
 def _j13sc_table_html(table: dict, blocked: dict) -> str:
     head = ("<tr><th>파트</th><th>산 줄</th><th>이익 난 확률</th><th>평균 수익</th><th>같은 날 코스피</th>"
             "<th>코스피보다 나음</th><th>못 산 줄</th></tr>")
@@ -3741,7 +3786,13 @@ def _j13sc_table_html(table: dict, blocked: dict) -> str:
 def _render_scorecard_section() -> None:
     """📊 파트별 성적표 — 날짜별 목록 밑. 눌러야 열린다."""
     # 2026-11-04 자비스12 형식 — 단추만 차례로 세운다(제목·안내 줄은 뺐다 · 상하님 「왠만한 것 다 찾아서 미국테마 형식을 따라」)
-    if not _section_toggle("📊 파트별 성적표 — 코스피와 견줘 보기", _J13SC_OPEN, close_label="파트별 성적표 닫기"):
+    # 여닫이 단추는 자비스12 「📊 파트별 성적표 보기」와 같은 보라 띠(폭 가득) — 2026-11-04 상하님 「미국테마대로」.
+    st.markdown("<style>div[class*='st-key-btn_j13sc_open'] button{width:100%!important;"
+                "background:linear-gradient(90deg,#2a1450 0%,#3d1f74 38%,#7c3aed 100%)!important;border:1px solid #7c3aed!important;"
+                "box-shadow:0 2px 10px rgba(124,58,237,.25)!important;justify-content:center!important}"
+                "div[class*='st-key-btn_j13sc_open'] button p{color:#fff!important;font-weight:800!important}"
+                "div[class*='st-key-btn_j13sc_open']{width:100%!important}</style>", unsafe_allow_html=True)
+    if not _section_toggle("📊 파트별 성적표 보기", _J13SC_OPEN, close_label="파트별 성적표 닫기"):
         return
     with st.spinner("저장해 둔 목록의 종목 값을 받는 중입니다…"):
         data = _j13sc_load()
@@ -3756,6 +3807,7 @@ def _render_scorecard_section() -> None:
     st.markdown(_J13SC_CSS + j13vx.CSS, unsafe_allow_html=True)
     first_saved = min(str(row.get("trade_date") or "")[:10] for row in data["rows"])
     with st.container(key="j13sc_box"):
+        st.markdown("<div class='j13sc-head'><b>📊 파트별 성적표</b><span>이익 난 확률</span></div>", unsafe_allow_html=True)
         chip_list = list(_J13SC_SPANS) + [(_J13SC_RANGE, None)]
         chips = st.columns(len(chip_list))
         for index, (label, _days) in enumerate(chip_list):
@@ -3783,7 +3835,10 @@ def _render_scorecard_section() -> None:
         for row in blocked_rows:
             blocked[str(row.get("list_kind"))] = blocked.get(str(row.get("list_kind")), 0) + 1
         table = j13vx.part_table(rows, data["frames"], kospi, last_day=end_day)
-        st.markdown(_j13sc_table_html(table, blocked), unsafe_allow_html=True)
+        # 자비스12 처럼 막대 순위가 먼저 · 산 줄·평균·코스피 견줌 표는 「표로 자세히」에 접는다(2026-11-04 상하님 「미국테마대로」).
+        st.markdown(_j13sc_bars_html(table)
+                    + "<details class='j13-why'><summary>표로 자세히 ▾ (산 줄 · 평균 수익 · 같은 날 코스피 · 못 산 줄)</summary>"
+                    + _j13sc_table_html(table, blocked) + "</details>", unsafe_allow_html=True)
         missing = data.get("codes", 0) - len(data.get("frames") or {})
         # 설명은 짧게 · 숫자에 색(2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」). 긴 풀이는 「셈 방법」에 접어 둔다.
         st.markdown(
