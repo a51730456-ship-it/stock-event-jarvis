@@ -102,9 +102,50 @@ class FlowTests(unittest.TestCase):
     def test_page_and_theme15_collector_install_it(self):
         page = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
         self.assertIn("jarvis13_flow.install(j4data)", page)
-        self.assertEqual(2, page.count("foreign = jarvis13_flow.for_display(overview.get(\"foreign\"))"))
+        # 시장 카드의 대표종목 수급 칸은 뺐다(2026-11-04) — 시장 흐름 글 한 곳만 실제 값을 읽는다.
+        self.assertEqual(1, page.count("foreign = jarvis13_flow.for_display(overview.get(\"foreign\"))"))
         collector = (ROOT / "research" / "j13_theme15_collect.py").read_text(encoding="utf-8")
         self.assertIn("jarvis13_flow.install(data)", collector)
+
+
+class IndexTailTests(unittest.TestCase):
+    """2026-11-04 상하님 「로딩 문제가 가장 우선」 — 닫힌 지수 꼬리 주소(410)는 한 번만 묻고 6시간 건너뛴다."""
+
+    def setUp(self):
+        flow.install(j4)
+        self.addCleanup(flow.uninstall, j4)
+        flow._TAIL_OFF_UNTIL["t"] = 0.0
+        self.addCleanup(lambda: flow._TAIL_OFF_UNTIL.update(t=0.0))
+
+    def test_closed_tail_is_asked_once_then_skipped(self):
+        calls = []
+
+        def dead(url, *, timeout=8, retries=2):
+            calls.append(retries)
+            raise RuntimeError("410 Client Error")
+
+        with patch.object(j4, "_j13_original_get_text", dead):
+            flow.uninstall(j4)
+            flow.install(j4)
+            url = "https://finance.naver.com/sise/sise_index_time.naver?code=KOSPI&thistime=1&page=1"
+            for _ in range(3):
+                with self.assertRaises(RuntimeError):
+                    j4._get_text(url, timeout=8)
+        self.assertEqual([0], calls)                                    # 다시 시도 없이 한 번 · 그 뒤는 묻지도 않는다
+        self.assertGreater(flow._TAIL_OFF_UNTIL["t"], 0)
+
+    def test_other_pages_keep_their_retries(self):
+        calls = []
+
+        def ok(url, *, timeout=8, retries=2):
+            calls.append(retries)
+            return "ok"
+
+        with patch.object(j4, "_j13_original_get_text", ok):
+            flow.uninstall(j4)
+            flow.install(j4)
+            self.assertEqual("ok", j4._get_text("https://finance.naver.com/sise/theme.naver"))
+        self.assertEqual([2], calls)
 
 
 if __name__ == "__main__":

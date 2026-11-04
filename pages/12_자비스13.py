@@ -875,7 +875,7 @@ if (
 # 얼린 jarvis4_data 파일은 그대로 — 실행 중에 받는 곳·읽는 법만 바꿔 끼운다(다시 읽으면 다시 끼운다).
 import jarvis13_flow
 
-_REQUIRED_J13_FLOW_REVISION = 2026110401
+_REQUIRED_J13_FLOW_REVISION = 2026110402
 if int(getattr(jarvis13_flow, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_REVISION:
     jarvis13_flow = importlib.reload(jarvis13_flow)
 jarvis13_flow.install(j4data)
@@ -1384,31 +1384,11 @@ def _render_market_overview() -> None:
         st.caption("네트워크가 복구되면 1분 자동 갱신에서 다시 시도합니다.")
         return
 
-    phase = overview.get("phase", {}).get("label", "—")
     # 아래 조건점수 안내문이 국면 색을 그대로 쓴다(게이지 색과 같아야 한다).
     regime_color = regime_gauge_ui.color_of(overview.get("score"))
-    phase_color = "#44f0a1" if phase == "정규장" else "#ff9d3b" if "동시호가" in phase or "시간외" in phase else "#ff5b5b"
     rows = overview["rows"]
     kospi, kosdaq, usdkrw = rows.get("KOSPI", {}), rows.get("KOSDAQ", {}), rows.get("USDKRW", {})
-    foreign = jarvis13_flow.for_display(overview.get("foreign"))   # 점수용은 「자료 없음」 · 화면은 실제 값(값만 보여줌)
     us_prev = overview.get("us_prev") or {}
-    if foreign.get("live_ok"):
-        flow_cell = _top_metric(
-            "대표종목 5일 수급 (현재가 환산)",
-            _eok(foreign.get("live_net5_amount")),
-            _sign_color(foreign.get("live_net5_amount")),
-            _representative_flow_sub(foreign),
-            side=_leader_flow_marks(foreign),
-        )
-    else:
-        # 장외·원천 장애 때는 완료 거래일 자료임을 분명히 하고 종전 값을 보조로 남긴다.
-        flow_cell = _top_metric(
-            "대표종목 5일 수급 (종가)",
-            _eok(foreign.get("net5_amount")) if foreign.get("ok") else "—",
-            _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
-            _representative_flow_sub(foreign),
-            side=_leader_flow_marks(foreign),
-        )
 
     # 시장 국면·미국 시장국면·공포탐욕 세 가지를 같은 반원 게이지로 통일한다.
     # 제목은 스카이블루로 두고, 미국 카드의 '(미국)'만 밝은 초록으로 구분한다.
@@ -1433,14 +1413,8 @@ def _render_market_overview() -> None:
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
-        # 폰·태블릿에서 시장상태가 바로 위 차트에 붙어 보였다 — 여기서 줄을 끊고
-        # 두 줄만큼 띄운다(2026-07-25 지시). PC에서는 이 칸이 없는 것과 같다.
-        "<div class='j4-top-break'></div>",
-        _top_metric(
-            "시장상태", phase, phase_color,
-            "한국 거래 세션",
-        ),
-        flow_cell,
+        # 「시장상태(정규장)」 · 「대표종목 5일 수급」 두 칸은 뺐다(2026-11-04 상하님 폰 캡처 「둘 다 필요 없는 것 아니냐」).
+        # 줄 끊기(j4-top-break)도 그 두 칸을 띄우려던 것이라 같이 뺐다. 값·점수는 그대로(시장 점수 셈은 jarvis4_data 안).
         # 미국테마의 시장 국면 카드를 제목·문구·전일 행까지 그대로 복제한다.
         # 한국 화면용 제목이나 S&P/나스닥 별도 행을 덧붙이지 않는다.
         regime_gauge_ui.regime_box_html(
