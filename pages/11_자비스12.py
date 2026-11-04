@@ -11672,41 +11672,6 @@ div.st-key-j12_help_card [data-testid="stImage"] img{height:auto!important}
 """
 
 
-_J12_HELP_POINTS = [
-    ("key", "① 상승장", "자격 <b>6개</b>를 다 넘어야 후보 — 나스닥 상승환경 · 3·6개월 상위 20% · 종가로 1년 최고가 돌파 · "
-                       "그 뒤 1~3일 · <b>3~10%</b> 내려온 날"),
-    ("info", "🏅 점수", "핵심 <b>70</b>(3개월 25 · 6개월 25 · 눌림 20) + 보조 <b>30</b> · 같은 총점이면 핵심 높은 쪽 먼저"),
-    ("key", "② 급락 후 반등장", "나스닥이 크게 빠졌을 때 낙폭 큰 종목 — 숫자는 그 화면 「📘 이 화면 설명 보기」"),
-    ("bad", "⚠ 꼭 기억", "총점 90 ≠ 승률 90% · 지난 10년은 나스닥이 해마다 <b>+20.9%</b> 오른 기간"),
-    ("info", "🕒 사고 팔기", "종가 확인 → <b>다음 날 시가</b> 매수 · 파는 때·손절은 <b>상하님이</b> 정함"),
-]
-
-
-def _render_us_help_body() -> None:
-    """method_help.render_us_body 와 같은 차례(만화 → 규칙 그림 → 표 그림 → 글) · 글만 접는다. 얼린 method_help 는 부르기만."""
-    for name in (method_help.US_CARTOON, method_help.US_RULES_IMAGE):
-        path = method_help._image_path(name)
-        if path is None:
-            st.warning(f"그림을 찾지 못했습니다 — assets/{name}")
-        else:
-            method_help._picture(st, path, name)
-    for index, (name, caption) in enumerate(method_help.US_IMAGES):
-        path = method_help._image_path(name)
-        if path is None:
-            st.warning(f"표 그림을 찾지 못했습니다 — assets/{name}")
-            continue
-        st.markdown(f"<div class='mh-doc'><div class='mh-h2'><span class='mh-no'>{index + 2}</span><span>{caption}</span>"
-                    "</div></div>", unsafe_allow_html=True)
-        method_help._picture(st, path, name)
-        if index < len(method_help.US_IMAGE_NOTES):
-            st.markdown(f"<div class='mh-doc'><div class='mh-note'>{method_help.US_IMAGE_NOTES[index]}</div></div>",
-                        unsafe_allow_html=True)
-    with st.expander("📖 글 전체 보기", expanded=False):
-        st.markdown(method_help.US_TEXT, unsafe_allow_html=True)
-        st.markdown(method_help.US_TAIL_TEXT, unsafe_allow_html=True)
-    method_help.image_zoom.run(st)
-
-
 def _render_help_card() -> None:
     """「이 테마 설명」 카드 — 미리 그려 두고 숨겨 둔다. 체크칸이 켜지면 튀어 오른다."""
     st.markdown(
@@ -11721,10 +11686,8 @@ def _render_help_card() -> None:
             f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label></div>",
             unsafe_allow_html=True,
         )
-        # 2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」 — 핵심 칩을 맨 위에 ·
-        # 만화·규칙·표 그림은 그대로(상하님이 만드신 그림) · 긴 글만 「📖 글 전체」에 접는다(_render_us_help_body).
-        st.markdown(jarvis12_brief.wrap(_J12_HELP_POINTS), unsafe_allow_html=True)
-        _render_us_help_body()
+        # 2026-11-04 상하님 「액셀표나 캡쳐해서 올린 것은 건들이지 마라(이 테마 설명서) · 만화 액셀표」 — 원래 그대로.
+        method_help.render_us_body(st)
         st.markdown(
             "<div class='j3-help-row bottom'>"
             f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label>"

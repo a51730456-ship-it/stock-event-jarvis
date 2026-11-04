@@ -5642,28 +5642,14 @@ def _render_watch_page() -> None:
     _render_watch_detail(stocks)
 
 
-_J13_HELP_POINTS = [
-    ("key", "① 상승장", "52주 신고가 뒤 며칠 기다려 고점에서 조금 내려온 날 → 다음 날 시가 · 약 1년 보유"),
-    ("key", "② 급락 후 반등장", "코스피가 고점 대비 <b>15%↓</b>인 국면 · 크게 빠진 종목 → 다음 날 시가"),
-    ("info", "③ 눌림목 찾기", "조건점수로 고름 — 시장 <b>50↑</b> · 분야 <b>60↑</b> · 종목 <b>70↑</b> (종목 85↑면 분야 면제)"),
-    ("good", "🟩 상자 색", "<b style='color:#44f0a1'>초록</b> 진입 자리 · <b style='color:#ffd166'>노랑</b> 지켜봄 · "
-                         "<b style='color:#ff7b7b'>빨강</b> 손대지 않음"),
-    ("bad", "⚠ 점수", "앞일을 맞히는 숫자가 아님 · <b>낮은 점수 = 크게 깨질 수 있다</b>는 맞음"),
-    ("info", "🕒 사고 팔기", "종가 확인 → <b>다음 날 시가</b> 매수 · 두 갈래는 보유일 · 눌림목 찾기는 파는 때 없음"),
-]
-
-
 def _j13_method_help() -> None:
     """「📘 이 테마 설명」 창 — method_help.render 와 같은 창 · 같은 열쇠 · 같은 닫기 단추, 글만 급락 부분을 바로잡은 것."""
     box = st.container(key="jarvis_method_help")
     with box:
         with st.popover(method_help.BUTTON_LABEL, key=method_help.popover_key("KR"), on_change="rerun"):
             method_help._close_button(st, "KR", where="top")
-            # 2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」 — 핵심 칩 · 설명서 전체는 접어 둔다.
-            # 숫자는 칩에 적지 않는다 — 갈래마다 「📘 이 화면 설명 보기」가 지금 쓰는 값을 읽는다(두 곳에 적으면 어긋난다).
-            st.markdown(jarvis13_brief.wrap(_J13_HELP_POINTS), unsafe_allow_html=True)
-            with st.expander("📖 설명서 전체 보기", expanded=False):
-                st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
+            # 2026-11-04 상하님 「이 테마 설명서 · 액셀표나 캡쳐는 건들이지 마라」 — 칩·접기 없이 예전 그대로.
+            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
             method_help._close_button(st, "KR")
 
 

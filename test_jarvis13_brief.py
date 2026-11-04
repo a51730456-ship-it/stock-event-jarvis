@@ -38,16 +38,13 @@ class BriefTests(unittest.TestCase):
         self.assertNotIn("jarvis12_brief", J13)
         self.assertNotIn("jarvis13_brief", J12)
 
-    def test_method_help_windows_show_chips_then_full_text_folded(self):
-        self.assertIn("jarvis13_brief.wrap(_J13_HELP_POINTS)", J13)
-        self.assertIn('with st.expander("📖 설명서 전체 보기", expanded=False):', J13)
-        self.assertIn("jarvis13_crash_record.help_text(method_help.KR_TEXT)", J13)
-        self.assertIn("jarvis12_brief.wrap(_J12_HELP_POINTS)", J12)
-        self.assertIn('with st.expander("📖 글 전체 보기", expanded=False):', J12)
-        body = J12.split("def _render_us_help_body() -> None:")[1].split("\ndef ")[0]
-        for name in ("US_CARTOON", "US_RULES_IMAGE", "US_IMAGES", "US_TEXT", "US_TAIL_TEXT", "image_zoom.run"):
-            self.assertIn(name, body)                           # 만화 · 규칙 · 표 그림 · 글 차례 그대로
-
+    def test_method_help_windows_stay_as_they_were(self):
+        # 2026-11-04 상하님 「액셀표나 캡쳐해서 올린 것은 건들이지 마라(이 테마 설명서) · 만화 액셀표」
+        self.assertIn("        method_help.render_us_body(st)\n", J12)
+        self.assertNotIn("_J12_HELP_POINTS", J12)
+        self.assertIn("            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)\n"
+                      "            method_help._close_button(st, \"KR\")", J13)
+        self.assertNotIn("_J13_HELP_POINTS", J13)
 
 if __name__ == "__main__":
     unittest.main()
