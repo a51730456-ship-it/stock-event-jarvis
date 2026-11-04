@@ -44,6 +44,14 @@ class AndroidProjectTests(unittest.TestCase):
         self.assertIn("setAcceptThirdPartyCookies", java)                             # 로그인 유지 쿠키
         self.assertIn("versionCode 7", (self.out / "app" / "build.gradle").read_text(encoding="utf-8"))
 
+    def test_exit_bridge_closes_the_app(self):
+        # 2026-11-04 상하님 「완전 창 닫는 것도 하나 만들자」 — 화면의 ✕ 가 JarvisApp.exit() 를 부르면 앱이 끝난다
+        java = "\n".join(p.read_text(encoding="utf-8") for p in self.out.rglob("*.java"))
+        self.assertIn('addJavascriptInterface(new Bridge(), "JarvisApp")', java)
+        self.assertIn("@JavascriptInterface", java)
+        self.assertIn("finishAndRemoveTask()", java)
+        self.assertEqual(1, java.count("@JavascriptInterface"))                      # 연 것은 이것 하나
+
     def test_icon_is_drawn(self):
         try:
             import PIL  # noqa: F401

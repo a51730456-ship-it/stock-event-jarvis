@@ -15284,3 +15284,15 @@ try:
     )
 except Exception:
     pass
+
+# 「✕ 자비스 닫기」 — 시장분석 그림 띠 오른쪽 위(2026-11-04 상하님 「완전 창 닫는 것도 하나 만들자 · ↻ 실시간 왼쪽으로」).
+# 얼린 hero_banner 는 안 고친다 — jarvis12_exit 가 ↻ · 실시간을 한 칸 옮기고 ✕ 를 띠에 붙인다(JARVIS 12 띠에만). 맨 끝에 심는다(틈 안 생기게).
+try:
+    import importlib as _il
+    import jarvis12_exit
+
+    if int(getattr(jarvis12_exit, "MODULE_REVISION", 0)) < 2026110403:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+        jarvis12_exit = _il.reload(jarvis12_exit)
+    jarvis12_exit.render(st)
+except Exception:
+    pass

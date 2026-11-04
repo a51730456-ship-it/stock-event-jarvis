@@ -229,14 +229,51 @@ class StreetTests(unittest.TestCase):
 
     def test_box_shows_target_gap_and_no_titles(self):
         info = {"consensus": fn.parse_consensus(self.WHOLE), "reports": fn.parse_reports(self.WHOLE), "price": 120700.0,
-                "annual": [], "quarter": []}
-        out = fn.card_html(info)
-        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "2026-11-03 기준",
-                     "점수 · 판정에는 안 들어갑니다"):
+                "foreign": 16.4, "dps": 2000.0, "dy": 1.66, "latest_at": "2025.12", "annual": [], "quarter": []}
+        out = fn.street_html(info)
+        for text in ("👥 증권사 의견", "4.00", "매수", "207,455원", "지금보다 +72%", "하나증권 10/30", "11/03 기준",
+                     "점수·판정에는 들어가지 않습니다", "🔍 외국인 · 배당", "16.4%", "주당 2,000원"):
             self.assertIn(text, out)
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
         self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
+        # 2026-11-04 상하님 「왜 재무현황 안에 집어넣었냐」 — 재무 창 안에는 없다
+        self.assertNotIn("증권사 의견", fn.card_html(info))
+
+    def test_page_puts_it_above_the_fundamentals_button(self):
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        block = page[page.index("jarvis13_fundamentals.street_block("):]
+        self.assertLess(block.index("street_block("), block.index("_render_fundamentals_box(code, metrics, panel=panel)"))
+        self.assertNotIn("j3st", fn.STREET_CSS)                                       # 자비스12 이름과 안 섞임
+
+    def test_report_dates_from_naver_shape(self):
+        # 2026-11-04 실제 모은 값은 「20261030」 모양이었다(처음에는 「030」으로 잘못 나왔다)
+        out = fn.street_html({"reports": [["하나증권", "20261030"], ["KB증권", "2026-10-09"], ["X", "날짜없음"]]})
+        self.assertIn("하나증권 10/30", out)
+        self.assertIn("KB증권 10/9", out)
+        self.assertNotIn("030", out.replace("10/30", ""))
 
     def test_recomm_words(self):
         self.assertEqual(["강력 매수", "매수", "중립", "매도", "강력 매도"],
                          [fn.recomm_word(v) for v in (4.8, 4.0, 3.0, 2.0, 1.0)])
+
+
+class OverviewTests(unittest.TestCase):
+    """2026-11-04 상하님 「다른 것도 확인하고 미국테마 형식 따라서 해라」 — 자비스12 「🏢 종목 개요」 자리(있는 것만)."""
+
+    def test_overview_shows_app_themes_first_and_link(self):
+        out = fn.overview_html("096770", "SK이노베이션", theme="2차전지",
+                               themes=["정유", "2차전지", "윤활유", "LPG", "석유화학", "폐배터리", "주유소", "ESS"],
+                               info={"mcap": 204047.0})
+        self.assertIn("🏢 SK이노베이션", out)
+        self.assertLess(out.index("앱 테마 · 2차전지"), out.index("앱 테마 · 정유"))      # 지금 보는 테마가 맨 앞
+        self.assertEqual(6, out.count("j13ov-chip j13ov-t"))
+        self.assertIn("외 2개", out)
+        self.assertIn("coinfo.naver?code=096770", out)
+        self.assertIn("시가총액 20.4조 원", out)
+        self.assertNotIn("j3ov", out)
+
+    def test_page_order_matches_jarvis12(self):
+        page = (Path(__file__).resolve().parent / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        block = page[page.index("jarvis13_fundamentals.overview_html("):]
+        self.assertLess(block.index("overview_html("), block.index("street_block("))
+        self.assertLess(block.index("street_block("), block.index("_render_fundamentals_box(code, metrics, panel=panel)"))

@@ -133,6 +133,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -146,6 +147,17 @@ public abstract class WebActivity extends Activity {{
     private WebView web;
 
     protected abstract String startUrl();
+
+    /** 화면의 「✕ 자비스 닫기」(jarvis12_exit · jarvis13_exit)가 부르는 다리 — 앱을 완전히 끝낸다. 이것 하나만 연다. */
+    private class Bridge {{
+        @JavascriptInterface
+        public void exit() {{
+            runOnUiThread(() -> {{
+                CookieManager.getInstance().flush();               // 로그인 유지는 적어 두고 끝낸다
+                finishAndRemoveTask();
+            }});
+        }}
+    }}
 
     static boolean inside(String host) {{
         if (host == null) return false;
@@ -200,6 +212,7 @@ public abstract class WebActivity extends Activity {{
                 return true;
             }}
         }});
+        web.addJavascriptInterface(new Bridge(), "JarvisApp");      // ✕ 자비스 닫기 → 앱 끝내기
         web.setDownloadListener((url, agent, disposition, mime, length) -> openOutside(Uri.parse(url)));
         if (saved != null) {{
             web.restoreState(saved);

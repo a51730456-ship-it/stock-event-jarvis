@@ -1,4 +1,5 @@
-"""자비스13 「시장 현황」 — 한국 테마 지도 · 테마 상위 5 줄 · 오름/내림 막대 (2026-11-04 상하님 — 미국테마 캡처를 보이시며
+"""자비스13 「강한 테마 지도」(처음 이름 「시장 현황」 · 2026-11-04 밤 상하님 「지금대로 + 이름 바꿈」 —
+자비스가 고른 강한 테마만이라 시장 전체 분위기로 읽히지 않게) — 한국 테마 지도 · 테마 상위 5 줄 · 오름/내림 막대 (2026-11-04 상하님 — 미국테마 캡처를 보이시며
 「미국테마에는 있는데 한국 테마에는 없다」).
 
 자비스12 「시장 현황」(_sector_map_cell · 칸 자리 셈 squarify · 누르면 크게) 그대로 옮기고 이름표만 j13 이다.
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 import html
 
-MODULE_REVISION = 2026110402
+MODULE_REVISION = 2026110403
 MAP_W, MAP_H = 100.0, 58.0
 POP_W, POP_H = 100.0, 45.0
 MAX_TILES = 30
@@ -160,7 +161,7 @@ def cell_html(ranking) -> str:
     """지도 칸 한 개(시장분석 맨 위 줄에 끼운다). 테마 순위가 아직 없으면 「받는 중」 한 줄(기다리지 않는다)."""
     rows = tiles_from_ranking(ranking)
     if not rows:
-        return ("<div class='j4-top-cell j13-sector-map'><div class='j4-top-label'>시장 현황</div>"
+        return ("<div class='j4-top-cell j13-sector-map'><div class='j4-top-label'>강한 테마 지도</div>"
                 "<div class='j13-sector-wait'>테마 지도를 받는 중입니다 — 잠시 뒤 저절로 채워집니다</div></div>")
     breadth = breadth_from_ranking(ranking)
     foot = ""
@@ -179,13 +180,13 @@ def cell_html(ranking) -> str:
         "<div class='j4-top-cell j13-sector-map'>"
         "<input type='checkbox' id='j13sm-tap' class='j13sm-tap'>"
         "<label for='j13sm-tap' class='j13sm-cell'>"
-        "<div class='j4-top-label'>시장 현황</div>"
+        "<div class='j4-top-label'>강한 테마 지도</div>"
         "<div class='j13-sector-sub'>칸 크기 = 테마 오늘 거래대금 · 색 = 테마 등락(밝을수록 크게) · 누르면 크게</div>"
         f"<div class='j13-sector-grid'>{_tiles_html(rows, MAP_W, MAP_H)}</div>"
         + strip + foot + "</label>"
         "<label for='j13sm-tap' class='j13sm-scrim' aria-hidden='true'></label>"
         "<label for='j13sm-tap' class='j13sm-pop'>"
-        "<span class='j13sm-title'>시장 현황 · 한국 테마 지도 <small>오늘 등락</small></span>"
+        "<span class='j13sm-title'>강한 테마 지도 · 자비스가 고른 테마 <small>오늘 등락</small></span>"
         "<span class='j13sm-sub'>칸 크기 = 그 테마 구성 종목의 오늘 거래대금 합 · 색 = 네이버 테마 등락률 · 오름 빨강 · 내림 파랑 · 0% 가까이 어둡고 6% 이상 가장 밝음</span>"
         f"<div class='j13-sector-grid j13sm-grid'>{_tiles_html(rows, POP_W, POP_H)}</div>"
         + strip + foot + "<span class='j13sm-close'>다시 누르면 닫힘</span></label></div>")
