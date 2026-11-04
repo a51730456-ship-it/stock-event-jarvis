@@ -5807,3 +5807,12 @@ try:
     )
 except Exception:
     pass
+
+# 「✕ 자비스 닫기」 — 자비스12 와 같은 단추(jarvis13_exit · 이름 j13 · 2026-11-04 상하님 「완전 창 닫는 것도 하나 만들자」).
+# 얼린 hero_banner 는 안 고친다. JARVIS 13 띠에만 붙는다. 맨 끝에 심는다(틈 안 생기게).
+try:
+    import jarvis13_exit
+
+    jarvis13_exit.render(st)
+except Exception:
+    pass
