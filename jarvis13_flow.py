@@ -23,7 +23,12 @@ from __future__ import annotations
 import json
 import time
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
+# 지수 분 단위 꼬리(네이버 sise_index_time) — 2026-11-04 깃허브 재기(41777142345)에서 410(닫힌 주소)으로 지수 둘 × 세 번 = 6초를 버렸다.
+# 없어도 그림은 9시~15시 분봉으로 그대로 그려지는 보탬 자료다. 한 번만(다시 시도 없이) 묻고, 실패하면 이만큼 건너뛴다.
+INDEX_TAIL_MARK = "sise_index_time.naver"
+INDEX_TAIL_SKIP_SECONDS = 6 * 3600
+_TAIL_OFF_UNTIL = {"t": 0.0}
 TREND_URL = "https://m.stock.naver.com/api/stock/{code}/trend?pageSize=20"
 MARK = "j13trend:"
 
@@ -75,6 +80,14 @@ def install(data) -> None:
     original_market_flow = getattr(data, "_j13_original_market_foreign_flow", None) or data._market_foreign_flow
 
     def get_text(url, *, timeout: float = 8, retries: int = 2) -> str:
+        if INDEX_TAIL_MARK in str(url):
+            if time.time() < _TAIL_OFF_UNTIL["t"]:
+                raise RuntimeError("지수 꼬리 주소가 닫혀 있어 잠시 건너뜁니다")
+            try:
+                return original_get(url, timeout=min(float(timeout), 4.0), retries=0)
+            except Exception:
+                _TAIL_OFF_UNTIL["t"] = time.time() + INDEX_TAIL_SKIP_SECONDS
+                raise
         if not str(url).startswith(MARK):
             return original_get(url, timeout=timeout, retries=retries)
         code = str(url)[len(MARK):]

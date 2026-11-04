@@ -481,23 +481,10 @@ class Jarvis13PageTests(unittest.TestCase):
         self.assertNotIn("<style>", top_row)
         # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
         self.assertNotIn("공포탐욕 41", markdowns)
-        self.assertIn("대표종목 5일 수급 (현재가 환산)", top_row)
-        self.assertIn("-18,786억", top_row)
-        # 종목별 금액은 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
-        # 파는 쪽인지 안 보인다(2026-07-29 지시).
-        self.assertIn("삼성전자 <span style='color:#ff5b5b", top_row)
-        self.assertIn("-3,100억", top_row)
-        self.assertIn("SK하이닉스 <span style='color:#ff5b5b", top_row)
-        self.assertIn("-4,250억", top_row)
-        # 완료 거래일 한 줄, 당일 한 줄로 나눈다(2026-07-29 지정 형식).
-        # 날짜는 줄 앞에 한 번만 적는다 — 종목마다 붙이면 같은 날짜가 두 번 나온다.
-        self.assertIn("(07.28) : 삼성전자", top_row)
-        self.assertIn("(당일) : 아직 안 올라왔습니다", top_row)
-        self.assertNotIn("위 줄은 종목별 하루치입니다", top_row)
-        self.assertNotIn("종목별 당일 수급은 장 마감 뒤 공개됩니다", top_row)
-        self.assertIn("현재가 1분 자동조회", top_row)
-        # '5일 확정 수급수량 × 현재가'는 뺐다(2026-07-29 지시).
-        self.assertNotIn("5일 확정 수급수량", top_row)
+        # 2026-11-04 상하님 「둘 다 필요 없는 것 아니냐」 — 시장상태 · 대표종목 5일 수급 두 칸을 뺐다.
+        self.assertNotIn("대표종목 5일 수급", top_row)
+        self.assertNotIn(">시장상태<", top_row)
+        self.assertNotIn("j4-top-break", top_row)
         self.assertNotIn("KOSPI 당일 외국인+기관 수급", top_row)
 
     def test_today_line_fills_in_when_published(self):
@@ -516,10 +503,9 @@ class Jarvis13PageTests(unittest.TestCase):
             str(node.value) for node in app.markdown
             if "<div class='j4-top-row'>" in str(node.value)
         )
-        self.assertIn("(07.28) : 삼성전자", top_row)
-        self.assertIn("(당일) : 삼성전자", top_row)
-        self.assertIn("-1,200억", top_row)
-        self.assertIn("-2,400억", top_row)
+        # 2026-11-04 상하님 「둘 다 필요 없는 것 아니냐」 — 대표종목 5일 수급 칸을 뺐다(값이 들어와도 안 그린다).
+        self.assertNotIn("대표종목 5일 수급", top_row)
+        self.assertNotIn("(당일) : 삼성전자", top_row)
         # 채워졌으면 기다리라는 안내는 사라져야 한다.
         self.assertNotIn("아직 안 올라왔습니다", top_row)
 
@@ -537,8 +523,8 @@ class Jarvis13PageTests(unittest.TestCase):
             str(node.value) for node in app.markdown
             if "<div class='j4-top-row'>" in str(node.value)
         )
-        self.assertIn("삼성전자 (일부 자료)", top_row)
-        self.assertNotIn("삼성전자+SK하이닉스", top_row)
+        self.assertNotIn("삼성전자 (일부 자료)", top_row)          # 대표종목 수급 칸을 뺐다(2026-11-04)
+        self.assertNotIn("대표종목 5일 수급", top_row)
 
     def test_representative_flow_discloses_mixed_source_dates(self):
         """두 종목의 최신 일자가 다르면 더 최신 날짜 하나로 뭉뚱그리지 않는다."""
@@ -555,7 +541,7 @@ class Jarvis13PageTests(unittest.TestCase):
             str(node.value) for node in app.markdown
             if "<div class='j4-top-row'>" in str(node.value)
         )
-        self.assertIn("기준일 상이(2026.07.27~2026.07.28)", top_row)
+        self.assertNotIn("기준일 상이(2026.07.27~2026.07.28)", top_row)   # 대표종목 수급 칸을 뺐다(2026-11-04)
 
     def test_mobile_rules_are_emitted_and_scoped_to_phones(self):
         """폰 전용 규칙이 나가야 하고, 태블릿·PC가 바뀌면 안 된다(2026-07-24)."""
