@@ -564,12 +564,23 @@ def reaction(frame, day: str):
     return (after[0] / before[-1] - 1.0) * 100.0
 
 
+def _first_per_quarter(earn: list) -> list:
+    """분기마다 **첫** 잠정실적 공시일만(최근 것부터). 삼성전자처럼 한 분기에 두 번(10/8 잠정 · 10/29 확정 앞 잠정) 내는 회사가 있다
+    (2026-11-04 깃허브 실제 자료) — 주가가 먼저 움직이는 것은 첫 발표다."""
+    first: dict = {}
+    for day in earn:
+        quarter = _quarter_of(day)
+        if quarter and (quarter not in first or day < first[quarter]):
+            first[quarter] = day
+    return sorted(first.values(), reverse=True)
+
+
 def _next_guess(earn: list, today) -> str:
     """다음 잠정실적 발표 어림 — 작년 같은 때 발표일 + 1년(없으면 마지막 발표 + 91일). 「추정」으로만 적는다."""
     from datetime import date as _date, timedelta as _td
 
     days = []
-    for raw in earn:
+    for raw in _first_per_quarter(earn):
         try:
             days.append(_date.fromisoformat(raw))
         except ValueError:
@@ -580,13 +591,13 @@ def _next_guess(earn: list, today) -> str:
     target = last + _td(days=91)
     yearly = [d + _td(days=364) for d in days if abs(((d + _td(days=364)) - target).days) <= 30]
     guess = min(yearly, key=lambda d: abs((d - target).days)) if yearly else target
-    if guess < today:
+    if guess <= today:
         return "곧 · 지난해 이맘때 발표"
     return f"{guess.month}월 {guess.day}일쯤 · {(guess - today).days}일 남음"
 
 
 def _earn_box(info: dict, frame, today) -> str:
-    earn = [d for d in info.get("earn") or [] if d][:4]
+    earn = _first_per_quarter([d for d in info.get("earn") or [] if d])[:4]
     est = info.get("est") or {}
     if not earn and not est:
         return ""

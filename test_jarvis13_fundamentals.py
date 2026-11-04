@@ -209,6 +209,13 @@ class EarnInsiderTests(unittest.TestCase):
         self.assertEqual("1월 28일쯤 · 85일 남음", fn._next_guess(earn, date(2026, 11, 4)))
         self.assertEqual("", fn._next_guess([], date(2026, 11, 4)))
 
+    def test_first_announcement_per_quarter(self):
+        # 2026-11-04 깃허브 실제 삼성전자 — 10/29 · 10/8 · 7/30 · 7/7 … (한 분기에 두 번)
+        earn = ["2026-10-29", "2026-10-08", "2026-07-30", "2026-07-07", "2026-04-30", "2026-04-07", "2026-01-29", "2026-01-08"]
+        self.assertEqual(["2026-10-08", "2026-07-07", "2026-04-07", "2026-01-08"], fn._first_per_quarter(earn))
+        out = fn.street_html({"earn": earn, "quarter": []})
+        self.assertEqual(1, out.count("<th>26.09</th>"))
+
     def test_three_boxes_in_jarvis12_order(self):
         import pandas as pd
         from datetime import date
