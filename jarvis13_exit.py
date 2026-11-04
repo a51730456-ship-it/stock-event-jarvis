@@ -1,22 +1,31 @@
 """자비스13 「✕ 자비스 닫기」 — 자비스12 와 같은 단추(jarvis12_exit 를 베낌 · 이름만 j13 · 2026-11-04 상하님 「완전 창 닫는 것도
 하나 만들자」). 자비스13 은 자비스12 파일을 부르지 않는다(CLAUDE.md 0-3 ③ — 베껴 오기만).
 
-얼린 hero_banner 는 안 고친다 — ↻ · 실시간을 한 칸 왼쪽으로 옮기는 규칙과 바깥 문서 장치(j13-exit)를 얹어 **JARVIS 13 띠에만**
-✕ 를 붙인다. 누르면 확인 창 → 「닫기」: 설치한 안드로이드 앱이면 앱을 끝내고, 아니면 창 닫기를 시도한 뒤 까닭과 할 일을 띄운다(빈 화면으로 보내지 않는다).
+시장분석 띠는 자비스13 전용 jarvis13_hero(.j13hero · 2026-11-05 옛 hero_banner 연결을 끊음)다 — ↻ · 실시간을 한 칸 왼쪽으로
+옮기는 규칙과 바깥 문서 장치(j13-exit-번호 · 판이 바뀌면 새로 심김)를 얹어 **JARVIS 13 띠에만** ✕ 를 붙인다. 누르면 확인 창 → 「닫기」: 설치한 안드로이드 앱이면 앱을 끝내고, 아니면 창 닫기를 시도한 뒤 까닭과 할 일을 띄운다(빈 화면으로 보내지 않는다).
 """
 
 from __future__ import annotations
 
 import json
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026110502
 MARK = "13"
 NAME = "j13"
 
 CSS = """<style>
 /* ↻ · 실시간을 한 칸 왼쪽으로(✕ 자리 38 + 사이 8) — 보이는 동그라미 · 겹친 진짜 ↻ 단추를 같이 옮긴다 */
-.j3hero-actions{right:62px!important}
-div[class*="st-key-j3hero_box"] [data-testid="stElementContainer"]:has(button){right:156px!important}
+.j13hero-actions{right:62px!important}
+div[class*="st-key-j13hero_box"] [data-testid="stElementContainer"]:has(button){right:156px!important}
+/* 폰(600px 이하) — 단추가 31px 이다. ✕ 도 31px 로 · 실시간 · ↻ 은 ✕ 31 + 사이 6 만큼 왼쪽(15+31+6 = 52).
+   겹친 진짜 ↻ 단추 = 52 + 실시간 66 + 사이 6 - 띠가 글칸보다 넓은 8 = 116px. 앞판은 폰에서 진짜 단추가 「실시간」 위에
+   남아 ↻ 동그라미를 눌러도 안 먹었다(2026-11-05 재 보니 48px 어긋남). 폰 띠 규칙(jarvis13_hero)보다 자세해야 이긴다. */
+@media (max-width:600px){
+  html body .j13hero .j13hero-actions{right:52px!important}
+  html body div[class*="st-key-j13hero_box"] [data-testid="stElementContainer"]:has(button){right:116px!important}
+  html body .j13hero .__N__x-btn{width:31px;height:31px;right:15px;top:12px}
+  html body .j13hero .__N__x-btn svg{width:13px;height:13px}
+}
 /* ✕ 단추 — ↻ 와 같은 크기 · 같은 둥글기, 붉은 금테 */
 .__N__x-btn{position:absolute;right:16px;top:14px;z-index:7;width:38px;height:38px;padding:0;border-radius:50%;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
@@ -106,9 +115,9 @@ DEVICE = """
     window.requestAnimationFrame(function(){ s.classList.add(N + 'x-on'); });
   }
   function attach(){
-    var heroes = d.querySelectorAll('.j3hero');
+    var heroes = d.querySelectorAll('.j13hero');
     for (var i = 0; i < heroes.length; i++) {
-      var hero = heroes[i], mark = hero.querySelector('.j3hero-mark b');
+      var hero = heroes[i], mark = hero.querySelector('.j13hero-mark b');
       if (!mark || (mark.textContent || '').trim() !== MARK) { continue; }
       if (hero.querySelector('.' + N + 'x-btn')) { continue; }
       var b = d.createElement('span');
@@ -190,8 +199,8 @@ def device() -> str:
 def inject_html() -> str:
     """components.html 에 넣는 글 — 바깥 문서 머리에 장치를 한 번만 심는다(id j13-exit)."""
     return ("<script>(function(){try{var d=window.parent.document;"
-            f"if(d.getElementById('{NAME}-exit')){{return;}}"
-            f"var s=d.createElement('script');s.id='{NAME}-exit';"
+            f"if(d.getElementById('{NAME}-exit-{MODULE_REVISION}')){{return;}}"
+            f"var s=d.createElement('script');s.id='{NAME}-exit-{MODULE_REVISION}';"
             f"s.textContent={json.dumps(device())};d.head.appendChild(s);}}catch(e){{}}}})();</script>")
 
 
