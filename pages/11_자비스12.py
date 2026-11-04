@@ -1958,6 +1958,11 @@ if (
 # 「나스닥 종합과 견줘 보기」는 **자비스12 전용 사본**을 부른다 — 순위 9 를 넣었다(2026-10-14 상하님 지시).
 # scorecard_compare.py 는 자비스3 과 같이 쓰는 얼린 파일이라 그대로 둔다(CLAUDE.md 0-2).
 import jarvis12_scorecard_compare as scorecard_compare
+# 설명 글 — 색 칩 + 「자세히 ▾」(2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」)
+import jarvis12_brief
+_REQUIRED_J12_BRIEF_REVISION = 2026110401
+if int(getattr(jarvis12_brief, "MODULE_REVISION", 0)) < _REQUIRED_J12_BRIEF_REVISION:
+    jarvis12_brief = importlib.reload(jarvis12_brief)
 import us_fundamentals
 # 급락 후 반등장 — **기준일 하루로 정한 10종목**(자비스12 전용 · 2026-10-14 상하님 지시 · 설명서 3-3).
 import jarvis12_crash
@@ -9256,13 +9261,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         # 없는 것을 가리키느니 빼는 게 낫다 — 배점표는 표 위 설명 구역에 그대로 있고,
         # 무슨 항목에 몇 점인지는 바로 위 '종목 선정 근거' 표가 이미 다 보여준다.
         if mode not in ("crash", "breakout"):
-            st.caption(
-                "이 점수는 위 표의 ‘종목 조건점수’와 같은 값이며, 표의 순위를 정하는 ‘눌림 점수’와는 "
-                "다른 것을 잽니다 — 눌림 점수는 지금이 눌림 자리로 좋은지, 이 점수는 종목 자체가 "
-                "좋은지를 봅니다. 상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다"
-                "(눌림목 검색은 여러 테마를 가로질러 돌기 때문). 그래서 위 테마 대장주 표의 점수와도 "
-                "다를 수 있습니다."
-            )
+            # 2026-11-04 상하님 「설명 줄여라」 — 핵심 한 줄 · 나머지는 칩 밑 「자세히」.
+            st.markdown(jarvis12_brief.wrap([
+                ("info", "📏 이 점수", "<b>종목 자체</b>가 좋은가 · 표 순위의 ‘눌림 점수’는 <b>지금 자리</b>가 좋은가 (서로 다름)"),
+            ], "상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다(눌림목 검색은 여러 테마를 가로질러 돌기 때문). "
+               "그래서 위 테마 대장주 표의 점수와도 다를 수 있습니다."), unsafe_allow_html=True)
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
         # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
@@ -9797,7 +9800,13 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         rs_cfg = config.get("rs") or {}
         entry_cfg = config.get("entry") or {}
         st.markdown(
-            "<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
+            jarvis12_brief.wrap([
+            ("key", "✅ 자격 6개", "나스닥 살 만한 장 · 3개월 강함 · 6개월 강함 · 1년 최고가 넘음 · 그 뒤 1~3일 · 3~10% 내려옴 — "
+                                "<b>다 넘어야</b> 후보"),
+            ("info", "🏅 점수", "중요 <b>70</b>(3개월 25 · 6개월 25 · 눌림 20) + 보조 <b>30</b>"),
+            ("bad", "⚠", "점수는 <b>승률이 아닙니다</b>"),
+        ], (
+"<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
             "나스닥이 살 만한 장인가 · 최근 3개월 강했나 · 최근 6개월 강했나 · "
             "종가로 지난 1년 최고가를 넘었나 · 그 뒤 1~3거래일인가 · "
             "종가가 3~10% 내려왔나 — <b>여섯 가지를 다 넘어야</b> 정식 후보가 됩니다. "
@@ -9811,7 +9820,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
             "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>중요 점수 70</b>, "
             "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 점수 30</b>입니다. "
-            "총점은 승률이나 보장수익이 아닙니다.</div>",
+            "총점은 승률이나 보장수익이 아닙니다.</div>"
+)),
             unsafe_allow_html=True,
         )
         catalog = result.get("explanation_catalog") or {}
@@ -10310,7 +10320,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     ):
         if breakout:
             st.markdown(
-                "<div class='j3-pull-guide'>"
+                jarvis12_brief.wrap([
+                ("key", "🔎 찾는 것", f"신고가 뒤 <b>{wait_min}~{wait_max}일</b> 안에 고점에서 "
+                                    f"<b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목 전부"),
+                ("info", "🏅 순위", "점수 = 차례 · 낮은 줄도 참고로 올림"),
+                ("bad", "⚠ 아직 검증 안 됨", "144가지 다 재도 기준선을 <b>못 넘음</b> → 순위는 참고, <b>목록으로</b> 읽기"),
+            ], (
+"<div class='j3-pull-guide'>"
                 f"<b>찾는 그물</b> — 52주 신고가 뒤 <b>{wait_min}~{wait_max}거래일</b> 안에 "
                 f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목을 "
                 "<u>모두</u> 보여줍니다. 이동평균은 보지 않습니다.<br>"
@@ -10329,7 +10345,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "벌던 시장이라, 골라내는 값이 표시가 안 납니다. "
                 "<b>순위는 참고로만 보시고, 목록으로 읽으십시오.</b> "
                 "같은 방법으로 한국은 192가지 중 41가지가 통과했습니다"
-                "(docs/KR_RULE_BACKTEST.md).</div>",
+                "(docs/KR_RULE_BACKTEST.md).</div>"
+)),
                 unsafe_allow_html=True,
             )
         else:
@@ -10361,6 +10378,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                         "이미 오른 종목이 목록에서 사라집니다."
                     )
                 st.markdown(
+                    jarvis12_brief.wrap([
+                        ("key", "🔎 찾는 것", "신고가 날짜는 <u>안 보고</u> <b>고점 대비 얼마나 내려왔나</b>만 봅니다"),
+                        ("info", "🏅 순위", "배점 점수 = 차례 · 아래 갈래 성적은 갈래끼리 견준 것"),
+                        ("bad", "⚠", "아래 성적은 <b>10년치 과거</b>를 잰 것 — 앞으로의 승률이 아닙니다"),
+                    ], (
                     "<div class='j3-pull-guide'>"
                     "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
                     "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
@@ -10375,7 +10397,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                        if ref_date else "")
                     + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
                     + "</div>"
-                    f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+                    )) + f"<div class='j3-metric-row'>{''.join(cards)}</div>",
                     unsafe_allow_html=True,
                 )
         # 배점표를 화면에 그대로 뿌린다(2026-08-06 사용자 지시). 0점 항목도 왜 뺐는지
@@ -11650,6 +11672,41 @@ div.st-key-j12_help_card [data-testid="stImage"] img{height:auto!important}
 """
 
 
+_J12_HELP_POINTS = [
+    ("key", "① 상승장", "자격 <b>6개</b>를 다 넘어야 후보 — 나스닥 상승환경 · 3·6개월 상위 20% · 종가로 1년 최고가 돌파 · "
+                       "그 뒤 1~3일 · <b>3~10%</b> 내려온 날"),
+    ("info", "🏅 점수", "핵심 <b>70</b>(3개월 25 · 6개월 25 · 눌림 20) + 보조 <b>30</b> · 같은 총점이면 핵심 높은 쪽 먼저"),
+    ("key", "② 급락 후 반등장", "나스닥이 크게 빠졌을 때 낙폭 큰 종목 — 숫자는 그 화면 「📘 이 화면 설명 보기」"),
+    ("bad", "⚠ 꼭 기억", "총점 90 ≠ 승률 90% · 지난 10년은 나스닥이 해마다 <b>+20.9%</b> 오른 기간"),
+    ("info", "🕒 사고 팔기", "종가 확인 → <b>다음 날 시가</b> 매수 · 파는 때·손절은 <b>상하님이</b> 정함"),
+]
+
+
+def _render_us_help_body() -> None:
+    """method_help.render_us_body 와 같은 차례(만화 → 규칙 그림 → 표 그림 → 글) · 글만 접는다. 얼린 method_help 는 부르기만."""
+    for name in (method_help.US_CARTOON, method_help.US_RULES_IMAGE):
+        path = method_help._image_path(name)
+        if path is None:
+            st.warning(f"그림을 찾지 못했습니다 — assets/{name}")
+        else:
+            method_help._picture(st, path, name)
+    for index, (name, caption) in enumerate(method_help.US_IMAGES):
+        path = method_help._image_path(name)
+        if path is None:
+            st.warning(f"표 그림을 찾지 못했습니다 — assets/{name}")
+            continue
+        st.markdown(f"<div class='mh-doc'><div class='mh-h2'><span class='mh-no'>{index + 2}</span><span>{caption}</span>"
+                    "</div></div>", unsafe_allow_html=True)
+        method_help._picture(st, path, name)
+        if index < len(method_help.US_IMAGE_NOTES):
+            st.markdown(f"<div class='mh-doc'><div class='mh-note'>{method_help.US_IMAGE_NOTES[index]}</div></div>",
+                        unsafe_allow_html=True)
+    with st.expander("📖 글 전체 보기", expanded=False):
+        st.markdown(method_help.US_TEXT, unsafe_allow_html=True)
+        st.markdown(method_help.US_TAIL_TEXT, unsafe_allow_html=True)
+    method_help.image_zoom.run(st)
+
+
 def _render_help_card() -> None:
     """「이 테마 설명」 카드 — 미리 그려 두고 숨겨 둔다. 체크칸이 켜지면 튀어 오른다."""
     st.markdown(
@@ -11664,7 +11721,10 @@ def _render_help_card() -> None:
             f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label></div>",
             unsafe_allow_html=True,
         )
-        method_help.render_us_body(st)
+        # 2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」 — 핵심 칩을 맨 위에 ·
+        # 만화·규칙·표 그림은 그대로(상하님이 만드신 그림) · 긴 글만 「📖 글 전체」에 접는다(_render_us_help_body).
+        st.markdown(jarvis12_brief.wrap(_J12_HELP_POINTS), unsafe_allow_html=True)
+        _render_us_help_body()
         st.markdown(
             "<div class='j3-help-row bottom'>"
             f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label>"

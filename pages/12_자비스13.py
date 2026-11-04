@@ -928,6 +928,10 @@ import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 
 _REQUIRED_J13_FLOW_CARD_REVISION = 2026110402
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
+import jarvis13_brief  # noqa: E402  — 설명 글 색 칩 + 「자세히 ▾」(2026-11-04 상하님 「설명서도 이해하기 쉽게 · 전체 내용을 줄여라」)
+_REQUIRED_J13_BRIEF_REVISION = 2026110401
+if int(getattr(jarvis13_brief, "MODULE_REVISION", 0)) < _REQUIRED_J13_BRIEF_REVISION:
+    jarvis13_brief = importlib.reload(jarvis13_brief)
 import jarvis13_shared  # noqa: E402  — 손님끼리 55초 같이 쓰는 보관(2026-11-04 상하님 「로딩 문제 해결하고」 · 값은 안 바꿈)
 _REQUIRED_J13_SHARED_REVISION = 2026110401
 if int(getattr(jarvis13_shared, "MODULE_REVISION", 0)) < _REQUIRED_J13_SHARED_REVISION:
@@ -4511,7 +4515,15 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         drop_low, drop_high = rule.get("drop_band", (-6.0, -4.0))
         floor = float(rule.get("liquidity_floor") or 0) / 1e8
         st.markdown(
-            "<div class='j4-pull-guide'>"
+            jarvis13_brief.wrap([
+            ("key", "🔎 찾는 것", f"거래대금 <b>{floor:,.0f}억↑</b> · 신고가 뒤 <b>{wait_min}~{wait_max}일</b> · 고점에서 "
+                                f"<b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려옴 → <b>{rule.get('hold_days')}일</b> 보유"),
+            ("good", "📊 성적", f"100번 중 <b>{rule.get('win_rate')}번</b> 이익 (아무 종목 {rule.get('base_win_rate')}번) · "
+                               f"나은 해 {rule.get('years_better')}/{rule.get('years_total')}년"),
+            ("bad", "⚠ 주의", f"가운데 값 <b>{rule.get('median_return')}%</b> — 버는 것이 아니라 <u>덜 잃는 것</u>"),
+            ("info", "🏅 순위", "배점 점수 = 표의 차례 (배점표는 「자세히」)"),
+        ], (
+"<div class='j4-pull-guide'>"
             f"<b>찾는 기준</b> — 하루 평균 거래대금 <b>{floor:,.0f}억 이상</b>인 종목 중, "
             f"52주 신고가를 찍고 <b>{wait_min}~{wait_max}거래일</b>이 지난 뒤 "
             f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 것입니다. "
@@ -4536,7 +4548,8 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             "60일에 많이 오른 쪽에 만점을 주고 변동성은 0점이었는데, 창을 밀며 다시 재니 "
             "40% 넘게 오른 쪽과 하루 6% 넘게 흔들리는 쪽이 거의 모든 창에서 졌습니다.<br>"
             "<b>재 보고 뺀 것</b> — 거래대금이 평소 위에 며칠 연속인가(새 그물에서는 "
-            "안 갈렸습니다), 눌린 폭(그물로 이미 한 번 썼습니다).</div>",
+            "안 갈렸습니다), 눌린 폭(그물로 이미 한 번 썼습니다).</div>"
+)),
             unsafe_allow_html=True,
         )
     elif show_help:
@@ -4554,6 +4567,12 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         # 국면 상자(_kr_crash_state_html)는 위에서 이미 그렸다 — 설명을 접어도
         # 오늘 상태는 보여야 하기 때문이다.
         st.markdown(
+            jarvis13_brief.wrap([
+                ("key", "🔎 찾는 것", "코스피 종가가 1년 최고보다 <b>15%↓</b>인 국면 · 그 국면 가장 깊은 날 기준 자기 고점 대비 "
+                                    "<b>40~60%</b> 빠진 종목(거래대금 50억↑)"),
+                ("bad", "⚠ 가장 중요", "<b>이미 반등을 시작한 종목은 사지 마라</b> — 11일에 5%↑ 오른 종목은 거의 다 졌음"),
+                ("info", "🏅 순위", "배점 점수 = 표의 차례 (배점표 · 재 보고 뺀 것은 「자세히」)"),
+            ], (
             "<div class='j4-pull-guide'>"
             "<b>찾는 기준</b> — 코스피 <b>종가</b>가 1년 최고 종가보다 <b>15% 넘게</b> 빠진 국면에서, "
             "<b>그때까지 가장 깊었던 날</b>을 기준일로 날마다 다시 고릅니다 — 그날 자기 1년 고점 대비 "
@@ -4570,7 +4589,7 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             "<b>재 보고 뺀 것</b> — 낙폭 갈래(그물로 이미 한 번 썼습니다), "
             "거래대금 평소 위 연속(새 그물에서는 안 갈렸습니다), "
             "외국인+기관 동반(재 보니 거꾸로였습니다 — 같이 산 날이 많을수록 나빴습니다).</div>"
-            f"<div class='j4-metric-row'>{''.join(cards)}</div>",
+            )) + f"<div class='j4-metric-row'>{''.join(cards)}</div>",
             unsafe_allow_html=True,
         )
     funnel = ""
@@ -4803,7 +4822,12 @@ def _render_pullback_finder() -> None:
         # 재 봤다(research/kr_cond_check.py). 결과가 나빠서 그대로 적어 둔다 —
         # 감추면 화면이 검증되지 않은 점수를 검증된 것처럼 말하게 된다.
         st.markdown(
-            "<div class='j4-pull-guide' style='border-left:4px solid #ff5b5b;"
+            jarvis13_brief.wrap([
+            ("bad", "⚠ 배점 다시 짬", "2026-08-07 — 옛 배점 100점 중 <b>40점이 거꾸로</b> → 0점으로 뺌"),
+            ("good", "✅ 올린 것", "신고가 가까움 <b>35점</b> · 변동성 안정 <b>25점</b>"),
+            ("bad", "⚠ 읽는 법", "<u>점수 순서 ≠ 매수 순서</u> — ‘지금 사면 얼마나 위험한가’를 잽니다"),
+        ], (
+"<div class='j4-pull-guide' style='border-left:4px solid #ff5b5b;"
             " padding-left:.8rem'>"
             "<b class='j4-down'>⚠ 2026-08-07에 이 점수의 배점을 다시 짰습니다</b> — "
             "12년치(테마 2,272종목)를 창 2·3·4년씩 밀며 처음 재 봤더니 "
@@ -4816,11 +4840,17 @@ def _render_pullback_finder() -> None:
             "거래대금 20점은 합격선(65%)을 못 넘었습니다. 그리고 이 화면의 종목은 "
             "정의상 전부 신고가 근처라 35점이 거의 다 만점으로 붙습니다. "
             "<u>점수 순서를 매수 순서로 읽지 마십시오.</u> 이 화면은 ‘이걸 사라’가 "
-            "아니라 <b>‘지금 사면 얼마나 위험한가’</b>를 재는 것입니다.</div>",
+            "아니라 <b>‘지금 사면 얼마나 위험한가’</b>를 재는 것입니다.</div>"
+)),
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div class='j4-pull-guide'><b>무엇을 찾나</b> — 52주 최고가를 찍은 뒤 1~30거래일 조정 중이며, "
+            jarvis13_brief.wrap([
+            ("key", "🔎 찾는 것", "신고가 뒤 <b>1~30일</b> 조정 · 테마 <b>2개↑</b> · 신고가 때 점수 <b>75점↑</b>"),
+            ("info", "📖 표 읽기", "<span class='j4-up'>+ 빨강</span> · <span class='j4-down'>− 파랑</span> · "
+                                  "순위 = 신고가 기술점수 순(눌림 점수 아님)"),
+        ], (
+"<div class='j4-pull-guide'><b>무엇을 찾나</b> — 52주 최고가를 찍은 뒤 1~30거래일 조정 중이며, "
             "2개 이상 테마에 속하고, <b>신고가 당시 종목 점수가 75점 이상</b>이었던 종목입니다. "
             "현재 점수가 낮아졌어도 신고가 당시 가격·기술 조건이 좋았다면 남깁니다.<br>"
             "<b>표 읽는 법</b> — ‘고점 대비 <span class='j4-down'>−10%</span>’는 신고가에서 10% "
@@ -4833,7 +4863,8 @@ def _render_pullback_finder() -> None:
             f"<b>최대 {j4data.PULLBACK_SCORE_MAX:.0f}점</b>입니다. "
             "여기 있던 <b>장기 추세 20점(50·200일선 위)도 2026-08-07에 뺐습니다</b> — "
             "위 배점표의 추세와 같은 것을 재는데 실측에서 거꾸로였습니다."
-            "</div>",
+            "</div>"
+)),
         unsafe_allow_html=True,
         )
     # 단추 두 개로 나눈다 — '열기'와 '새로 찾기'는 다른 일이다(2026-07-30).
@@ -5170,7 +5201,12 @@ def _render_pullback_finder() -> None:
             "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
             "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
         )
-    st.caption(
+    # 2026-11-04 상하님 「설명 줄여라」 — 핵심 한 줄을 칩으로 · 원래 글은 접어 둔다.
+    st.markdown(jarvis13_brief.wrap([
+        ("key", "📏 판정", "<b>신고가 때 기술점수 75점↑</b>인가 · 이름을 누르면 바로 아래에 상세"),
+    ]), unsafe_allow_html=True)
+    with st.expander("판정 기준 자세히", expanded=False):
+        st.caption(
         "**‘신고가 기술점수’가 75점 이상인지가 판정 기준입니다** — 종목 일봉과 KOSPI 일봉을 "
         "신고가 날짜까지 함께 잘라 당시 상대강도·신고가 위치·추세·유동성·변동성을 다시 계산합니다. "
         "과거 외국인·기관 수급은 복원할 수 없어 현재 수급을 섞지 않고, 가격·기술 80점을 "
@@ -5202,7 +5238,17 @@ def _render_records_tab() -> None:
 
 def _render_method_tab() -> None:
     st.subheader("판정 기준과 데이터 정책")
-    st.markdown(
+    # 2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」 — 핵심 다섯 줄 · 원래 글은 「자세히」.
+    st.markdown(jarvis13_brief.wrap([
+        ("key", "① 시장", "코스피·코스닥 20/50일선 · 미국 전일 · 수급 · 원/달러 → 살 국면인지 먼저"),
+        ("key", "② 테마", "네이버 테마 전부를 매일 훑어 <b>상위 20개</b> · 약한 테마는 빠짐"),
+        ("key", "③ 종목 100점", "신고가 위치 <b>35</b> + 변동성 안정 <b>25</b> + 거래대금 <b>20</b> + 수급 <b>20</b> · "
+                            "종목 <b>85점↑</b>이면 테마 점수 면제"),
+        ("bad", "④ 추격 금지", "당일 <b>+20%↑</b> · 5일 <b>+25%↑</b> · ATR <b>15%↑</b>"),
+        ("info", "⑤ 그 밖", "가격은 호가단위로 반올림 · 스팩·리츠·우선주 제외"),
+    ]), unsafe_allow_html=True)
+    with st.expander("판정 기준 원래 글 자세히", expanded=False):
+        st.markdown(
         """
         1. **시장 게이트** — KOSPI·KOSDAQ의 20/50일선, 미국 전일, 외국인·기관 수급, 원/달러로
            신규 매수 가능 국면을 먼저 판단합니다.
@@ -5541,13 +5587,28 @@ def _render_watch_page() -> None:
     _render_watch_detail(stocks)
 
 
+_J13_HELP_POINTS = [
+    ("key", "① 상승장", "52주 신고가 뒤 며칠 기다려 고점에서 조금 내려온 날 → 다음 날 시가 · 약 1년 보유"),
+    ("key", "② 급락 후 반등장", "코스피가 고점 대비 <b>15%↓</b>인 국면 · 크게 빠진 종목 → 다음 날 시가"),
+    ("info", "③ 눌림목 찾기", "조건점수로 고름 — 시장 <b>50↑</b> · 분야 <b>60↑</b> · 종목 <b>70↑</b> (종목 85↑면 분야 면제)"),
+    ("good", "🟩 상자 색", "<b style='color:#44f0a1'>초록</b> 진입 자리 · <b style='color:#ffd166'>노랑</b> 지켜봄 · "
+                         "<b style='color:#ff7b7b'>빨강</b> 손대지 않음"),
+    ("bad", "⚠ 점수", "앞일을 맞히는 숫자가 아님 · <b>낮은 점수 = 크게 깨질 수 있다</b>는 맞음"),
+    ("info", "🕒 사고 팔기", "종가 확인 → <b>다음 날 시가</b> 매수 · 두 갈래는 보유일 · 눌림목 찾기는 파는 때 없음"),
+]
+
+
 def _j13_method_help() -> None:
     """「📘 이 테마 설명」 창 — method_help.render 와 같은 창 · 같은 열쇠 · 같은 닫기 단추, 글만 급락 부분을 바로잡은 것."""
     box = st.container(key="jarvis_method_help")
     with box:
         with st.popover(method_help.BUTTON_LABEL, key=method_help.popover_key("KR"), on_change="rerun"):
             method_help._close_button(st, "KR", where="top")
-            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
+            # 2026-11-04 상하님 「설명서도 이해하기 쉽게 · 색깔도 구분해서 · 전체 내용을 줄여라」 — 핵심 칩 · 설명서 전체는 접어 둔다.
+            # 숫자는 칩에 적지 않는다 — 갈래마다 「📘 이 화면 설명 보기」가 지금 쓰는 값을 읽는다(두 곳에 적으면 어긋난다).
+            st.markdown(jarvis13_brief.wrap(_J13_HELP_POINTS), unsafe_allow_html=True)
+            with st.expander("📖 설명서 전체 보기", expanded=False):
+                st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
             method_help._close_button(st, "KR")
 
 
