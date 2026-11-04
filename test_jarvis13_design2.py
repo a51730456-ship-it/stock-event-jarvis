@@ -146,5 +146,50 @@ class Theme15Tests(unittest.TestCase):
         self.assertIn("jarvis13_theme15.load_all(picklist_store)", PAGE.read_text(encoding="utf-8"))
 
 
+class FixesNov4Tests(unittest.TestCase):
+    """2026-11-04 상하님 폰 캡처 — 지수 칸 빈자리 · 밑 막대 크기 · 느린 첫 화면 · 자비스12 관심종목 「한국테마」 단추."""
+
+    def test_hidden_daily_chart_stays_stacked(self):
+        import jarvis13_skin as skin
+
+        self.assertNotIn(".j4-idx-more,body:has(.j13-market-top) .j4-idx-solo{position:relative}", skin.SKIN)
+        self.assertIn(".j4-idx-now,body:has(.j13-market-top) .j4-idx-solo{position:relative}", skin.SKIN)
+
+    def test_bottom_nav_uses_jarvis12_sizes(self):
+        source = PAGE.read_text(encoding="utf-8")
+        self.assertIn(".j13b-bottom-nav{height:50px!important", source)
+        self.assertIn("width:min(286.667px,66.667vw)!important", source)
+
+    def test_screen_tells_us_worker_it_is_waiting(self):
+        import importlib
+        import sys
+        import types
+
+        fake = types.SimpleNamespace(_FG_WAITING={"n": 0}, _FG_WAITING_LOCK=__import__("threading").Lock())
+        saved = sys.modules.get("jarvis3_data")
+        sys.modules["jarvis3_data"] = fake
+        try:
+            source = PAGE.read_text(encoding="utf-8")
+            block = source.split("class _ScreenWaitsForUS:")[1].split("\ndef _render_market_overview")[0]
+            space = {"importlib": importlib}
+            exec("class _ScreenWaitsForUS:" + block, space)
+            with space["_ScreenWaitsForUS"]():
+                self.assertEqual(1, fake._FG_WAITING["n"])
+            self.assertEqual(0, fake._FG_WAITING["n"])
+        finally:
+            if saved is not None:
+                sys.modules["jarvis3_data"] = saved
+            else:
+                sys.modules.pop("jarvis3_data", None)
+        self.assertIn("with _ScreenWaitsForUS():\n        overview = j4data.get_market_overview()", source)
+
+    def test_jarvis12_watch_hero_has_korea_link(self):
+        source = (ROOT / "pages" / "11_자비스12.py").read_text(encoding="utf-8")
+        hero = source.split('with st.container(key="j12b_hero_box"):')[1][:2500]
+        self.assertIn('method_help.cross_link(st, "US")', hero)
+        self.assertIn("_J12B_CROSS_CSS", hero)
+        self.assertLess(source.index("_J12B_CROSS_CSS = "), source.index("\nmain()"))
+
+
 if __name__ == "__main__":
     unittest.main()

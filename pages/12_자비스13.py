@@ -914,7 +914,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110401
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110402
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -929,7 +929,7 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110401
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-_REQUIRED_J13_SKIN_REVISION = 2026110402
+_REQUIRED_J13_SKIN_REVISION = 2026110403
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -1320,9 +1320,41 @@ def _market_action_detail(overview: dict) -> str:
 
 
 @st.fragment(run_every=60)
+class _ScreenWaitsForUS:
+    """화면이 시장판단(미국 전일 · 미국 시장 국면 포함)을 **기다리는 동안** 미국 자료 일꾼에게 「화면이 기다린다」고 알린다.
+
+    2026-11-04 깃허브 재기(research/j13_profile.py · 실행 41750139239) — 첫 손님 60.4초 중 40.5초가 jarvis3_data 의
+    `_yield_to_screen`(뒤 일꾼이 화면이 그리는 동안 최대 20초 비켜서기) 두 번이었다. 자비스13 은 jarvis4_data 가 제 일꾼으로
+    미국 자료를 부르는데, 그동안 화면(ScriptRunner)은 그 결과를 기다리고 있어 비켜설 까닭이 없다. 자비스12 는 같은 자리에서
+    `_FG_WAITING` 를 올려 알린다(jarvis3_data._cached_value) — 같은 값을 여기서 올린다. 얼린 jarvis3_data 는 고치지 않는다.
+    값을 못 찾으면(시험의 가짜 모듈 등) 아무것도 안 한다 — 예전처럼 돈다."""
+
+    def __enter__(self):
+        self._box = None
+        try:
+            # 이름으로 찾는다 — 한국 화면은 미국 계산 파일을 직접 들이지 않는다(test_page_contracts_present). 시장판단(jarvis4_data)이
+            # 미국 전일을 셀 때 어차피 불러오는 같은 파일이다 — 새로 읽어 바꾸는 것이 없다.
+            _j3 = importlib.import_module("jarvis3_data")
+            box, lock = getattr(_j3, "_FG_WAITING", None), getattr(_j3, "_FG_WAITING_LOCK", None)
+            if isinstance(box, dict) and lock is not None:
+                with lock:
+                    box["n"] = int(box.get("n") or 0) + 1
+                self._box, self._lock = box, lock
+        except Exception:
+            self._box = None
+        return self
+
+    def __exit__(self, *exc):
+        if self._box is not None:
+            with self._lock:
+                self._box["n"] = max(0, int(self._box.get("n") or 0) - 1)
+        return False
+
+
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
-    overview = j4data.get_market_overview()
+    with _ScreenWaitsForUS():
+        overview = j4data.get_market_overview()
     st.session_state["j13_market_overview"] = overview
     # 제목은 자비스12 「미국 전체시장 판단」과 같은 모양(보라 · 16px)으로(2026-11-03 화면 옷).
     st.markdown(f"<div class='{jarvis13_skin.TITLE_CLASS}'>한국 전체시장 판단</div>", unsafe_allow_html=True)
@@ -5085,6 +5117,29 @@ div.st-key-j13b_nav_controls button{width:100%!important;height:64px!important;m
   border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;
   pointer-events:auto!important;touch-action:manipulation!important}
 div.st-key-j13b_nav_controls button:active{background:#ffffff22!important}
+/* 크기 — 자비스12 밑 막대와 같은 값(2026-11-04 상하님 「맨 밑에 홈·시장분석·관심종목 크기 미국테마의 메뉴처럼」).
+   기본 50px · 1200px 아래는 폭 286.667px(화면 2/3)에 왼쪽으로 비켜 선다(오른쪽 아래 붉은 왕관 단추 자리 · 자비스12 와 같다) ·
+   태블릿(601~1199px)은 48px 에 바닥에서 12px 띄운다. 값은 자비스12 _J3B_HOME_CSS · 태블릿 규칙을 그대로 옮겼다. */
+.j13b-bottom-nav{height:50px!important;padding:1px 6px!important;bottom:4px!important}
+.j13b-nav-item{min-height:46px!important;font-size:12px!important;gap:1px!important}
+.j13b-nav-item b{font-size:27px!important}
+div.st-key-j13b_nav_controls{height:50px!important;bottom:4px!important}
+div.st-key-j13b_nav_controls [data-testid="stHorizontalBlock"],div.st-key-j13b_nav_controls [data-testid="stColumn"]{height:50px!important}
+div.st-key-j13b_nav_controls button{height:50px!important;min-height:50px!important}
+@media (max-width:1200px){
+  .j13b-bottom-nav,div.st-key-j13b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;
+    margin-left:8px!important;width:min(286.667px,66.667vw)!important}
+}
+@media (min-width:601px) and (max-width:1199px){
+  .j13b-bottom-nav{height:48px!important;padding:3px 10px!important;border-radius:19px!important;bottom:12px!important}
+  .j13b-nav-item{min-height:40px!important;font-size:11px!important}
+  .j13b-nav-item b{font-size:21px!important}
+  .j13b-nav-item b .j13b-pie{width:1.05em!important;height:1.05em!important}
+  div.st-key-j13b_nav_controls,div.st-key-j13b_nav_controls [data-testid="stHorizontalBlock"],
+  div.st-key-j13b_nav_controls [data-testid="stColumn"]{height:60px!important}
+  div.st-key-j13b_nav_controls{bottom:0!important}
+  div.st-key-j13b_nav_controls button{height:60px!important;min-height:60px!important}
+}
 /* 밑 막대가 마지막 글을 가리지 않게 바닥에 자리를 둔다 */
 [data-testid="stMainBlockContainer"]{padding-bottom:96px!important}
 </style>"""

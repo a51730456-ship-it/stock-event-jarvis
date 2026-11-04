@@ -1925,6 +1925,24 @@ _REQUIRED_METHOD_HELP_REVISION = 2026091830
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
+# 관심종목 맨 위 띠의 「🌏 한국테마 →」(2026-11-04) — 띠(j12b_hero_box) 왼쪽 아래에 겹친다. 모양은 method_help 의 건너가기 단추와 같다
+# (그 꾸밈은 「이 테마 설명」이 그려질 때만 실려서 관심종목 화면에는 없다 — 같은 값을 여기 다시 적는다). 폰·PC 같은 자리.
+_J12B_CROSS_CSS = """<style>
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market{position:absolute!important;left:16px!important;bottom:14px!important;
+  z-index:6!important;margin:0!important;width:auto!important}
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"]{background:#e9dcff!important;
+  border:1px solid #c6a9f5!important;border-radius:.5rem!important;padding:.35rem .9rem!important;text-decoration:none!important;
+  box-shadow:0 2px 8px #0007!important}
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"]:hover{background:#dcc7ff!important;
+  border-color:#a06bff!important}
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market a span,
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market a p{color:#4a2a86!important;font-size:.95rem!important;
+  font-weight:800!important;margin:0!important;white-space:nowrap!important}
+div[class*="st-key-j12b_hero_box"] div.st-key-jarvis_cross_market a p::first-letter{font-size:1.5em;line-height:1}
+</style>"""
+
+
+
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
@@ -14988,9 +15006,13 @@ def _render_stock_briefing() -> None:
                 f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}'
                 # 이 화면 표식(.j12b-home)과 같은 덩어리에 둘 규칙(2026-09-23 저녁 · _J3B_HOME_CSS 위).
                 # 관심종목 → 세부사항 창 단추·창 꾸밈(2026-10-09)도 같이.
-                + _J3B_HOME_CSS + _WATCH_DETAIL_CSS,
+                + _J3B_HOME_CSS + _WATCH_DETAIL_CSS + _J12B_CROSS_CSS,
                 unsafe_allow_html=True,
             )
+            # 「🌏 한국테마 →」(2026-11-04 상하님 「미국테마에서 관심종목 맨 위 좌측상단에서도 한국테마가 들어갈 수 있도록」) —
+            # 시장분석 맨 위 띠와 같은 단추(method_help.cross_link · 한국테마가 닫혀 있으면 안 그림)를 띠 왼쪽 아래에 겹쳐 둔다.
+            # 꾸밈은 _J12B_CROSS_CSS(띠 그림과 같은 덩어리에 싣는다 — 따로 실으면 빈 칸 하나가 띠 안에 생긴다).
+            method_help.cross_link(st, "US")
             if st.button("↻", key="j12b_hero_refresh"):
                 # 서버가 담아 둔 것을 비우고, **화면도 통째로 새로 연다.**
                 #
