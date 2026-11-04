@@ -79,7 +79,10 @@ class HelpTextTests(unittest.TestCase):
     def test_page_uses_the_slot_and_not_the_frozen_popover(self):
         source = page_test.PAGE.read_text(encoding="utf-8")
         self.assertIn('method_help.render(st, "KR", help_slot=_j13_method_help)', source)
-        self.assertIn("jarvis13_crash_record.help_text(method_help.KR_TEXT)", source)
+        # 2026-11-04 저녁 짧은 글(jarvis13_help)이 앞에 서고, 옛 긴 글은 접어 둔 채 같은 바로잡음(help_text)을 거친다.
+        self.assertIn("jarvis13_help.help_html(method_help.KR_TEXT)", source)
+        helper = (page_test.PAGE.parents[1] / "jarvis13_help.py").read_text(encoding="utf-8")
+        self.assertIn("jarvis13_crash_record.help_text(kr_text)", helper)
         self.assertIn('key=method_help.popover_key("KR")', source)     # 같은 창 열쇠 — 여닫힘 기억이 그대로
 
 
