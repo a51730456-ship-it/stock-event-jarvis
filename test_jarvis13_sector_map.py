@@ -35,10 +35,25 @@ class SectorMapTests(unittest.TestCase):
         self.assertEqual({"up": 2, "down": 1, "flat": 1, "total": 4}, b)          # 005930 은 두 테마에 있어도 한 번
 
     def test_korean_colors_up_red_down_blue(self):
-        up, down = sm.tone(2.0), sm.tone(-2.0)
-        self.assertEqual("#ff5b5b", up)
-        self.assertEqual("#4da6ff", down)
+        self.assertEqual("#ff5b5b", sm.tone(6.0))                                   # 6% 이상 가장 밝은 빨강
+        self.assertEqual("#4da6ff", sm.tone(-6.0))                                  # 6% 이상 내리면 가장 밝은 파랑
         self.assertEqual("#22304a", sm.tone(None))
+        self.assertEqual(sm.FLAT_TONE, sm.tone(0.0))
+
+    def test_bigger_moves_are_brighter(self):
+        # 2026-11-04 상하님 「색깔 맞냐?」 — +2.26% 와 +8.47% 가 같은 빨강이었다. 크게 움직일수록 밝아야 한다.
+        def red(change):
+            return int(sm.tone(change)[1:3], 16)
+
+        reds = [red(v) for v in (0.2, 1.0, 2.26, 3.15, 5.0, 8.47)]
+        self.assertEqual(sorted(reds), reds)
+        self.assertEqual(len(set(reds[:-1])), len(reds) - 1)                        # 6% 밑은 다 다른 색
+        self.assertLess(red(2.26), red(8.47) - 60)                                  # 눈에 띄게 다르다
+
+        def blue(change):
+            return int(sm.tone(change)[5:7], 16)
+
+        self.assertLess(blue(-0.3), blue(-3.0))
 
     def test_cell_has_map_strip_breadth_and_zoom(self):
         out = sm.cell_html(_ranking())

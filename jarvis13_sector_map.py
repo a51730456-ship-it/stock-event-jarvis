@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import html
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 MAP_W, MAP_H = 100.0, 58.0
 POP_W, POP_H = 100.0, 45.0
 MAX_TILES = 30
@@ -62,16 +62,25 @@ def _squarify(areas, x, y, width, height, out) -> None:
         _squarify(areas[index:], x, y + band, width, height - band, out)
 
 
+# 색 진하기 — 2026-11-04 상하님 「첫번째 캡쳐 저거 색깔 맞냐?」(네이버 증시 현황 캡처를 보이시며). 예전에는 2% 에서 가장 진해져
+# 강한 테마(+2.3% · +8.5%)가 다 같은 빨강이었다. 네이버처럼 0% 가까이는 어둡게 · 많이 움직일수록 밝게 — FULL_AT(6%)에서 가장 밝다.
+# 약한 움직임도 조금은 보이게 0.7 제곱(+1% 0.29 · +2% 0.46 · +4% 0.75 · +6% 이상 1.0). 보여 주는 색만 — 값 · 차례는 그대로다.
+FULL_AT = 6.0
+FLAT_TONE = "#2a3245"          # 그대로(±0.05% 안) — 회색빛
+
+
 def tone(change) -> str:
-    """한국 색 — 오르면 빨강 · 내리면 파랑 · 많이 움직일수록 진하다(2% 이상이 가장 진함)."""
+    """한국 색 — 오르면 빨강 · 내리면 파랑 · 0% 가까이는 어둡고 많이 움직일수록 밝다(6% 이상이 가장 밝음)."""
     try:
         value = float(change)
     except (TypeError, ValueError):
         return "#22304a"
-    strength = min(abs(value) / 2.0, 1.0)
-    target = (255, 91, 91) if value >= 0 else (77, 166, 255)
-    dark = (12, 28, 52)
-    mixed = tuple(round(base + (tip - base) * (0.22 + 0.78 * strength)) for base, tip in zip(dark, target))
+    if abs(value) < 0.05:
+        return FLAT_TONE
+    strength = min(abs(value) / FULL_AT, 1.0) ** 0.7
+    target = (255, 91, 91) if value > 0 else (77, 166, 255)
+    dark = (40, 26, 38) if value > 0 else (14, 28, 58)      # 네이버처럼 작게 오른 칸은 검붉게 · 작게 내린 칸은 검푸르게
+    mixed = tuple(round(base + (tip - base) * (0.12 + 0.88 * strength)) for base, tip in zip(dark, target))
     return "#%02x%02x%02x" % mixed
 
 
@@ -171,13 +180,13 @@ def cell_html(ranking) -> str:
         "<input type='checkbox' id='j13sm-tap' class='j13sm-tap'>"
         "<label for='j13sm-tap' class='j13sm-cell'>"
         "<div class='j4-top-label'>시장 현황</div>"
-        "<div class='j13-sector-sub'>칸 크기 = 테마 오늘 거래대금 · 색 = 테마 등락 · 누르면 크게</div>"
+        "<div class='j13-sector-sub'>칸 크기 = 테마 오늘 거래대금 · 색 = 테마 등락(밝을수록 크게) · 누르면 크게</div>"
         f"<div class='j13-sector-grid'>{_tiles_html(rows, MAP_W, MAP_H)}</div>"
         + strip + foot + "</label>"
         "<label for='j13sm-tap' class='j13sm-scrim' aria-hidden='true'></label>"
         "<label for='j13sm-tap' class='j13sm-pop'>"
         "<span class='j13sm-title'>시장 현황 · 한국 테마 지도 <small>오늘 등락</small></span>"
-        "<span class='j13sm-sub'>칸 크기 = 그 테마 구성 종목의 오늘 거래대금 합 · 색 = 네이버 테마 등락률 · 오름 빨강 · 내림 파랑</span>"
+        "<span class='j13sm-sub'>칸 크기 = 그 테마 구성 종목의 오늘 거래대금 합 · 색 = 네이버 테마 등락률 · 오름 빨강 · 내림 파랑 · 0% 가까이 어둡고 6% 이상 가장 밝음</span>"
         f"<div class='j13-sector-grid j13sm-grid'>{_tiles_html(rows, POP_W, POP_H)}</div>"
         + strip + foot + "<span class='j13sm-close'>다시 누르면 닫힘</span></label></div>")
 
