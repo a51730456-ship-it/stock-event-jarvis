@@ -971,17 +971,17 @@ import jarvis13_shared  # noqa: E402  — 손님끼리 55초 같이 쓰는 보�
 _REQUIRED_J13_SHARED_REVISION = 2026110401
 if int(getattr(jarvis13_shared, "MODULE_REVISION", 0)) < _REQUIRED_J13_SHARED_REVISION:
     jarvis13_shared = importlib.reload(jarvis13_shared)
-import hero_banner  # noqa: E402  — 자비스12 맨 위 그림 띠(얼린 파일 · 부르기만 · 「JARVIS 13」 숫자만 준다)
-# 시장분석 맨 위 띠 — 얼린 hero_banner 의 짜임 · 꾸밈은 그대로 빌리고 배경만 한국 장면(여의도 밤 · 코스피 캔들 빨강/파랑)
-# (2026-11-05 상하님 「한국 주식 배경 동영상 … 미국테마와 구분하자」). 장면 파일까지 옛 것이 남으면 다시 읽는다(규칙 11).
+# 시장분석 맨 위 띠 — 자비스13 전용(jarvis13_hero · 배경은 한국 장면 · 여의도 밤 · 코스피 캔들 빨강/파랑). 옛 자비스3 띠
+# (hero_banner)는 부르지 않는다 — 보고 베껴 jarvis13_hero 에 담았다(2026-11-05 상하님 「과거 자비스 1~11까지 링크시키지 말아야
+# 된다 · 참고해서 코딩하는 것은 괜찮다」). 장면 파일까지 옛 것이 남으면 다시 읽는다(규칙 11).
 import jarvis13_hero_scene  # noqa: E402
 import jarvis13_hero  # noqa: E402
-_REQUIRED_J13_HERO_REVISION = 2026110501
+_REQUIRED_J13_HERO_REVISION = 2026110502
 if int(getattr(jarvis13_hero_scene, "MODULE_REVISION", 0)) < _REQUIRED_J13_HERO_REVISION:
     jarvis13_hero_scene = importlib.reload(jarvis13_hero_scene)
 if int(getattr(jarvis13_hero, "MODULE_REVISION", 0)) < _REQUIRED_J13_HERO_REVISION:
     jarvis13_hero = importlib.reload(jarvis13_hero)
-_REQUIRED_J13_SKIN_REVISION = 2026110403
+_REQUIRED_J13_SKIN_REVISION = 2026110502
 if int(getattr(jarvis13_skin, "MODULE_REVISION", 0)) < _REQUIRED_J13_SKIN_REVISION:
     jarvis13_skin = importlib.reload(jarvis13_skin)
 _REQUIRED_SIGNAL_UI_REVISION = 2026092440  # 2026-10-30 자비스4 의 옛 번호(2026080910)를 지금 market_signal_ui 번호로(규칙 11)
@@ -6011,12 +6011,12 @@ except Exception:
     pass
 
 # 「✕ 자비스 닫기」 — 자비스12 와 같은 단추(jarvis13_exit · 이름 j13 · 2026-11-04 상하님 「완전 창 닫는 것도 하나 만들자」).
-# 얼린 hero_banner 는 안 고친다. JARVIS 13 띠에만 붙는다. 맨 끝에 심는다(틈 안 생기게).
+# 시장분석 띠는 자비스13 전용 jarvis13_hero(.j13hero) — JARVIS 13 띠에만 붙는다. 맨 끝에 심는다(틈 안 생기게).
 try:
     import importlib as _il
     import jarvis13_exit
 
-    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110501:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
+    if int(getattr(jarvis13_exit, "MODULE_REVISION", 0)) < 2026110502:      # 옛 모듈이 남으면 다시 읽는다(CLAUDE.md 11)
         jarvis13_exit = _il.reload(jarvis13_exit)
     jarvis13_exit.render(st)
 except Exception:

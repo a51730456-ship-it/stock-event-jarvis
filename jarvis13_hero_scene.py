@@ -16,7 +16,7 @@ import math
 import random
 from functools import lru_cache
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026110502
 
 W, H = 1600, 300                 # 그림 판 — 폰은 가운데(x 560~1040 쯤)만 보이고 PC 는 거의 다 보인다
 WATER = 226                      # 강물 높이(빌딩 밑동)

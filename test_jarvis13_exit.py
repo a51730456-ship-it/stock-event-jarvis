@@ -16,7 +16,7 @@ class ExitButtonTests(unittest.TestCase):
             device, css, inject = mod.device(), mod.css(), mod.inject_html()
             self.assertIn(f"MARK = '{mark}'", device)                                # 그 화면 띠에만 붙는다
             self.assertIn(f".{name}x-btn", css)
-            self.assertIn(f"'{name}-exit'", inject)
+            self.assertIn(f"'{name}-exit", inject)                                 # 자비스13 은 판 번호를 붙여 새로 심는다(j13-exit-번호)
             other = "j13" if name == "j12" else "j12"
             mixed = (device + css + inject).replace("j13-android/jarvis.apk", "")   # 설치 파일 주소(갈래 이름)는 이름이 아니다
             self.assertNotIn(other, mixed)                                         # 서로 이름이 안 섞인다
@@ -26,6 +26,18 @@ class ExitButtonTests(unittest.TestCase):
         self.assertIn(".j3hero-actions{right:62px!important}", css)              # 16 + 38 + 8
         self.assertIn("right:156px!important", css)                              # 겹친 ↻ 단추도 같이(110 + 46)
         self.assertIn("right:16px;top:14px", css)                                # ✕ 는 원래 ↻·실시간 자리
+
+    def test_jarvis13_market_banner_is_its_own_and_phone_refresh_lines_up(self):
+        # 2026-11-05 상하님 「과거 자비스 1~11까지 링크시키지 말아야 된다」 — 시장분석 띠는 자비스13 전용(.j13hero · j13hero_box).
+        # 폰에서는 앞판의 진짜 ↻ 단추가 「실시간」 위에 남아(48px 어긋남) ↻ 동그라미를 눌러도 안 먹었다 — 116px 로 맞춤.
+        css, device = jarvis13_exit.css(), jarvis13_exit.device()
+        self.assertIn(".j13hero-actions{right:62px!important}", css)
+        self.assertIn('st-key-j13hero_box"] [data-testid="stElementContainer"]:has(button){right:156px!important}', css)
+        self.assertIn("html body .j13hero .j13hero-actions{right:52px!important}", css)            # 15 + 31 + 6
+        self.assertIn(":has(button){right:116px!important}", css)                                  # 52 + 66 + 6 - 8
+        self.assertIn("querySelectorAll('.j13hero')", device)
+        self.assertNotIn("j3hero", css + device)
+        self.assertIn("j3hero", jarvis12_exit.css())                                               # 자비스12 는 그대로
 
     def test_click_asks_first_then_exits_app_or_says_what_to_do(self):
         device = jarvis12_exit.device()

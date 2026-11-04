@@ -63,13 +63,24 @@ class SceneTests(unittest.TestCase):
 
 
 class HeroTests(unittest.TestCase):
-    def test_same_outer_shape_so_exit_and_refresh_still_attach(self):
+    def test_own_shape_so_exit_and_refresh_attach(self):
         page = hero.html("13")
-        for part in ('<div class="j3hero j13k-hero">', '<p class="j3hero-mark">JARVIS <b>13</b></p>',
-                     '<div class="j3hero-actions"><span class="j3hero-round">↻</span>'):
-            self.assertIn(part, page)                     # jarvis13_exit 가 .j3hero + 「13」 을 보고 ✕ 를 붙인다
-        import hero_banner
-        self.assertEqual(hero_banner.BOX_KEY, hero.BOX_KEY)   # ↻ 겹치기 규칙(얼린 꾸밈)이 이 이름을 찾는다
+        for part in ('<div class="j13hero">', '<p class="j13hero-mark">JARVIS <b>13</b></p>',
+                     '<div class="j13hero-actions"><span class="j13hero-round">↻</span>'):
+            self.assertIn(part, page)                     # jarvis13_exit 가 .j13hero + 「13」 을 보고 ✕ 를 붙인다
+        self.assertEqual("j13hero_box", hero.BOX_KEY)
+        self.assertIn('div[class*="st-key-j13hero_box"]', hero.css())       # ↻ 겹치기 규칙이 이 이름을 찾는다
+        self.assertIn("@media (max-width:600px)", hero.css())               # 폰 크기(옛 mobile_ui 의 띠 줄을 베낌)
+        self.assertNotIn("j3hero", hero.css() + page)
+
+    def test_no_link_to_old_jarvis_files(self):
+        # 2026-11-05 상하님 「과거 자비스 1~11까지 링크시키지 말아야 된다 · 참고해서 코딩하는 것은 괜찮다」
+        import ast
+        for path in ("jarvis13_hero.py", "jarvis13_hero_scene.py"):
+            tree = ast.parse((ROOT / path).read_text(encoding="utf-8"))
+            mods = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+            mods |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
+            self.assertTrue(mods <= {"__future__", "math", "random", "functools", "jarvis13_hero_scene"}, (path, mods))
 
     def test_no_broken_markdown(self):
         self.assertEqual([], audit.markdown_problems(hero.css() + hero.html("13")))
@@ -78,7 +89,7 @@ class HeroTests(unittest.TestCase):
     def test_page_uses_the_korean_hero_and_guards_revisions(self):
         source = PAGE.read_text(encoding="utf-8")
         self.assertIn('jarvis13_hero.render(st, refresh_key="j13hero_refresh", mark="13")', source)
-        self.assertNotIn("hero_banner.render(st", source)
+        self.assertNotIn("hero_banner", "".join(line for line in source.splitlines() if not line.lstrip().startswith("#")))
         self.assertIn(f"_REQUIRED_J13_HERO_REVISION = {hero.MODULE_REVISION}", source)
         self.assertGreaterEqual(scene.MODULE_REVISION, hero.MODULE_REVISION)
         self.assertIn(f"_REQUIRED_J13_HOME_REVISION = {home.MODULE_REVISION}", source)
