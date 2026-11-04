@@ -922,7 +922,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110402
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110405
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -940,6 +940,10 @@ import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 
 _REQUIRED_J13_SECTOR_MAP_REVISION = 2026110402
 if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
+import jarvis13_help  # noqa: E402  — 「📘 이 테마 설명」 짧은 글(2026-11-04 저녁 상하님 「너무 길다 · 간단히 · 현실과 맞냐」)
+_REQUIRED_J13_HELP_REVISION = 2026110401
+if int(getattr(jarvis13_help, "MODULE_REVISION", 0)) < _REQUIRED_J13_HELP_REVISION:
+    jarvis13_help = importlib.reload(jarvis13_help)
 import jarvis13_brief  # noqa: E402  — 설명 글 색 칩 + 「자세히 ▾」(2026-11-04 상하님 「설명서도 이해하기 쉽게 · 전체 내용을 줄여라」)
 _REQUIRED_J13_BRIEF_REVISION = 2026110401
 if int(getattr(jarvis13_brief, "MODULE_REVISION", 0)) < _REQUIRED_J13_BRIEF_REVISION:
@@ -5643,8 +5647,9 @@ def _j13_method_help() -> None:
     with box:
         with st.popover(method_help.BUTTON_LABEL, key=method_help.popover_key("KR"), on_change="rerun"):
             method_help._close_button(st, "KR", where="top")
-            # 2026-11-04 상하님 「이 테마 설명서 · 액셀표나 캡쳐는 건들이지 마라」 — 칩·접기 없이 예전 그대로.
-            st.markdown(jarvis13_crash_record.help_text(method_help.KR_TEXT), unsafe_allow_html=True)
+            # 2026-11-04 저녁 상하님 「한국테마 설명이 너무 길다 · 간단히 만들어라 · 현실과 맞냐?」 — 짧은 글을 먼저(jarvis13_help) ·
+            # 예전 긴 글은 맨 밑에 접어 둔다(급락 숫자 · 틀린 「수급 20점」 줄 바로잡음). 얼린 method_help 는 안 고친다.
+            st.markdown(jarvis13_help.help_html(method_help.KR_TEXT), unsafe_allow_html=True)
             method_help._close_button(st, "KR")
 
 
