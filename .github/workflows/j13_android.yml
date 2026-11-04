@@ -1,0 +1,131 @@
+# 안드로이드 설치 파일(APK) 만들기 (2026-11-04 상하님 — 「카톡으로 보내면 바탕화면에 어플이 생기게」 · 「하나만 · 미국테마에서 한국테마로」).
+# 아이콘 하나 「자비스」 → 온라인 앱 자비스12(한국테마는 그 안 「🌏 한국테마 →」). 설계도는 research/j13_android_build.py.
+# 비밀번호는 안 넣는다(저장소 공개). 서명 열쇠는 이 실행 안에서만 만들고 버린다. 결과는 따로 갈래(j13-android)에만 올린다 — master 그대로.
+name: 자비스 안드로이드 설치 파일
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_android_build.py
+      - .github/workflows/j13_android.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: 설계도 만들기
+        run: |
+          pip install pillow
+          python research/j13_android_build.py "$RUNNER_TEMP/jarvis"
+      - name: 서명 열쇠(이 실행에서만)
+        run: |
+          PASS="$(python -c 'import secrets; print(secrets.token_hex(16))')"
+          echo "::add-mask::$PASS"
+          echo "JARVIS_KEY_PASS=$PASS" >> "$GITHUB_ENV"
+          echo "JARVIS_KEYSTORE=$RUNNER_TEMP/jarvis.jks" >> "$GITHUB_ENV"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/jarvis.jks" -alias jarvis -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass "$PASS" -keypass "$PASS" -dname "CN=Jarvis"
+      - name: 설치 파일 만들기
+        working-directory: ${{ runner.temp }}/jarvis
+        run: gradle --no-daemon assembleRelease
+      - name: 만든 것 확인
+        run: |
+          APK="$RUNNER_TEMP/jarvis/app/build/outputs/apk/release/app-release.apk"
+          ls -la "$APK"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/apksigner" verify --print-certs "$APK" | head -3
+          "$BT/aapt2" dump badging "$APK" | grep -E "^package|launchable-activity|application-label" || true
+      - name: 가상 폰 확인용으로 넘기기
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-apk
+          path: ${{ runner.temp }}/jarvis/app/build/outputs/apk/release/app-release.apk
+      - name: 따로 갈래(j13-android)에 올리기
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$RUNNER_TEMP/jarvis/app/build/outputs/apk/release/app-release.apk" "$RUNNER_TEMP/out/jarvis.apk"
+          cd "$RUNNER_TEMP/out"
+          cat > 받는법.txt <<'EOF'
+          자비스 안드로이드 앱
+          1. 폰에서 이 주소를 엽니다: https://github.com/a51730456-ship-it/stock-event-jarvis/raw/j13-android/jarvis.apk
+          2. 받은 jarvis.apk 를 누릅니다 → 「출처를 알 수 없는 앱」 허용 → 설치.
+          3. 바탕화면 「자비스」 아이콘 → 미국테마. 맨 위 「🌏 한국테마 →」 → 한국테마.
+          4. 처음 한 번 비밀번호를 칩니다(로그인은 앱 안에 남습니다).
+          EOF
+          git init -q -b j13-android
+          git config user.name "j13-android"
+          git config user.email "j13-android@users.noreply.github.com"
+          git add .
+          git commit -q -m "자비스 안드로이드 설치 파일 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7} · 판 ${GITHUB_RUN_NUMBER}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-android
+
+  # 가상 안드로이드 폰(안드로이드 14)에 깔고 열어 사진을 찍는다 — 실제로 열리는지 · 로그인 칸이 나오는지 본다(보기만 · 비밀번호 안 침).
+  # 사진은 따로 갈래(j13-android-check)에만 올린다.
+  phone_check:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jarvis-apk
+          path: apk
+      - name: 가상 폰 켤 준비
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          mkdir -p shots
+      - name: 깔고 열어 사진 찍기
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r apk/app-release.apk
+            adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER io.github.stockeventjarvis.app > shots/launcher.txt
+            adb shell am start -W -n io.github.stockeventjarvis.app/.MainActivity
+            sleep 45
+            adb exec-out screencap -p > shots/open_45s.png
+            sleep 45
+            adb exec-out screencap -p > shots/open_90s.png
+            adb shell pidof io.github.stockeventjarvis.app > shots/running.txt || echo "꺼짐" > shots/running.txt
+            adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml shots/ui.xml || echo "글자 목록 못 뽑음" > shots/ui.xml
+            adb logcat -d -s JarvisWeb:V chromium:W cr_AwContents:W ActivityManager:W > shots/logcat.txt || true
+            adb shell dumpsys webviewupdate | head -20 > shots/webview.txt || true
+      - name: 사진만 따로 갈래(j13-android-check)에 올리기
+        if: always()
+        run: |
+          cd shots
+          ls -la
+          cat launcher.txt running.txt webview.txt || true
+          tail -60 logcat.txt || true
+          git init -q -b j13-android-check
+          git config user.name "j13-android"
+          git config user.email "j13-android@users.noreply.github.com"
+          git add .
+          git commit -q -m "가상 폰 확인 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-android-check
