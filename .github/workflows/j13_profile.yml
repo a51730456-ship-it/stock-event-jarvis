@@ -1,0 +1,32 @@
+# 자비스13 첫 화면이 어디서 오래 걸리나 재기 (2026-11-04 상하님 「한국테마 로딩 너무 오래 걸린다 · 확인해 봐라」).
+# 깃허브 컴퓨터에서 화면을 세 번 그려 판마다 걸린 시간과 오래 걸린 함수를 적는다 — 재기만 하고 아무것도 올리지 않는다.
+name: 자비스13 첫 화면 시간 재기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_profile.py
+      - .github/workflows/j13_profile.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 이 실행에서만 쓰는 비밀번호 파일 · 기록 폴더
+        run: |
+          mkdir -p db .streamlit
+          python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
+      - name: 세 번 그려 재기
+        run: python research/j13_profile.py 2>&1 | grep -v -E "yfinance|possibly delisted|ScriptRunContext|Failed to get ticker|curl:"

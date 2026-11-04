@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -318,6 +318,8 @@ def card_html(info: dict) -> str:
             + "</div><div class='j13fn-foot'>단위 억 원 · 칸 위는 결산한 달 · " + " · ".join(foot) + "</div></div>")
 
 
+# 칸 모양은 자비스12 재무 창(us_fundamentals.CARD_CSS)과 같은 값(2026-11-04 상하님 「미국테마와 비교해 봐라」 — 폰에서 두 칸씩
+# 크게 쌓여 창이 길었다 · 자비스12 는 네 칸 · 그림 두 칸). 화면 폭에 따라 바뀌는 규칙(@media)은 두지 않는다(CLAUDE.md 12).
 CSS = """<style>
 .j13fn-box{margin:.35rem 0 .5rem}
 .j13fn-box>summary{display:inline-block;cursor:pointer;list-style:none;padding:.35rem .9rem;border-radius:15px;
@@ -326,13 +328,13 @@ CSS = """<style>
 .j13fn-box[open]>summary{margin-bottom:.5rem}
 .j13fn-name{font-weight:800;color:#ffc94f;margin:.2rem 0 .4rem}
 .j13fn{display:grid;gap:10px;color:#e6e6e6}
-.j13fn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:6px}
-.j13fn-cell{background:#0b1626;border:1px solid #22324a;border-radius:10px;padding:7px 9px;display:grid;gap:2px;min-width:0}
-.j13fn-cell b{color:#9fb6c8;font-size:.78rem;font-weight:700}
-.j13fn-cell i{font-style:normal;font-size:1.05rem;font-weight:800;font-variant-numeric:tabular-nums}
-.j13fn-cell small{color:#8b96a8;font-size:.7rem;line-height:1.3}
-.j13fn-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
-.j13fn-chart{background:#0b1626;border:1px solid #22324a;border-radius:10px;padding:8px;min-width:0;overflow-x:auto}
+.j13fn-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.j13fn-cell{border:1px solid #1d3a63;border-radius:10px;padding:7px 9px;background:rgba(255,255,255,.03);min-width:0}
+.j13fn-cell b{display:block;font-size:.74rem;color:#8fb4de;font-weight:700}
+.j13fn-cell i{display:block;font-style:normal;font-size:1.05rem;font-weight:900;margin-top:1px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.j13fn-cell small{display:block;font-size:.66rem;color:#6f93bd;margin-top:1px;line-height:1.3}
+.j13fn-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.j13fn-chart{border:1px solid #1d3a63;border-radius:10px;padding:8px 9px;min-width:0;overflow-x:auto}
 .j13fn-ct{display:flex;justify-content:space-between;gap:6px;font-weight:800;font-size:.88rem;margin-bottom:4px}
 .j13fn-ct span span{font-weight:500;font-size:.72rem;color:#9fb6c8;margin-left:6px}
 .j13fn-ct i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px}
