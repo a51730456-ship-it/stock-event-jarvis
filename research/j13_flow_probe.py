@@ -34,7 +34,9 @@ def _snapshot(label: str):
           f"대표종목 수급 ok={foreign.get('ok')} 5일={foreign.get('net5_amount')}", flush=True)
     for name, items in leaders.items():
         print(f"   {name}: " + " | ".join(f"{c} {k}위 {s} 수급{'○' if ok else '×'} 동반{d}" for c, k, s, ok, d in items), flush=True)
-    return overview.get("score"), {name: [(c, k, s) for c, k, s, _o, _d in items] for name, items in leaders.items()}, leaders
+    # 같은 점수끼리의 차례는 얼린 jarvis4_data 가 계산이 먼저 끝난 차례(as_completed)로 정해 판마다 바뀔 수 있다 — 수급과 상관없다.
+    # 그래서 (점수, 종목) 으로 줄 세워 견준다 — 점수가 하나라도 다르거나 종목이 빠지면 다르다고 나온다.
+    return overview.get("score"), {name: sorted(((-s, c) for c, _k, s, _o, _d in items)) for name, items in leaders.items()}, leaders
 
 
 def main() -> int:
