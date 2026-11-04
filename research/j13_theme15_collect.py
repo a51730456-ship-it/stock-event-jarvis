@@ -18,6 +18,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import jarvis4_data as data  # noqa: E402  — 얼린 파일 · 부르기만
+import jarvis13_flow  # noqa: E402  — 수급은 모바일 자료로 · 점수에 안 씀(화면과 같게 · 2026-11-04)
+
+jarvis13_flow.install(data)
 import jarvis13_theme15 as theme15  # noqa: E402
 import picklist_collector as collector  # noqa: E402  — 마지막으로 끝난 장 날짜 셈을 그대로 쓴다
 import picklist_store as store  # noqa: E402  — 얼린 파일 · 부르기만
