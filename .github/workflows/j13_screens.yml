@@ -14,6 +14,8 @@ on:
       - jarvis13_flow_card.py
       - jarvis13_charts.py
       - jarvis13_fundamentals.py
+      - jarvis13_scorecard_compare.py
+      - jarvis12_scorecard_compare.py
       - .github/workflows/j13_screens.yml
   workflow_dispatch:
 

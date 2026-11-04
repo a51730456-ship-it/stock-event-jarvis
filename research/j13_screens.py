@@ -26,6 +26,9 @@ VIEWS = (
     # 2026-11-04 순위표를 연 판도 나란히(상하님 「강한 테마 20개는 미국테마 디자인을 따라 해라」) — 단추를 눌러 연 뒤 찍는다
     ("자비스12", "j12", "?s=market", "div[class*='st-key-btn_j12_theme_rank_open']", "j12_rank", "btn_j12_theme_rank_open"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open']", "j13_rank", "btn_j13_theme_rank_open"),
+    # 2026-11-04 상하님 「파트별 성적표 미국테마대로」 — 성적표를 연 판도 나란히
+    ("자비스12", "j12", "?s=market", "div[class*='st-key-picklist_scorecard_US']", "j12_score", "picklist_scorecard_US"),
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13sc_open']", "j13_score", "btn_j13sc_open"),
 )
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
 

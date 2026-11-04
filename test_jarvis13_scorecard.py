@@ -133,6 +133,11 @@ class ScorecardPageTests(unittest.TestCase):
         self.assertIn("📈 코스피와 견줘 보기", text)
         self.assertIn("못 산 것으로 빼고", text)
         self.assertIn("<td>1</td>", text)                 # 급락 줄 하나가 「못 산 줄」
+        # 2026-11-04 상하님 「파트별 성적표 미국테마대로」 — 자비스12 처럼 막대 순위가 먼저 · 표는 「표로 자세히」에 접힘
+        self.assertIn("class='j13sc-row'", text)
+        self.assertIn("다섯 파트를 다 샀다면", text)
+        self.assertIn("100%</span>", text)                # 순위 7 한 줄 · 이익 1/1
+        self.assertIn("표로 자세히 ▾", text)
         keys = {b.key for b in app.button}
         for key in ("j13sc_span_0", "j13sc_span_4", "j13vx_t_all", "j13vx_p_d", "j13vx_v_line", "close_j13sc_open"):
             self.assertIn(key, keys)
@@ -155,8 +160,59 @@ class ScorecardPageTests(unittest.TestCase):
         css = mobile_ui.page_css().replace("st-key-j3sc_", "st-key-j13sc_").replace("st-key-j3vx_", "st-key-j13vx_")
         for name in ("j13sc_box", "j13sc_span_", "j13vx_row", "j13vx_rowtabs"):
             self.assertIn(f'div[class*="st-key-{name}"]', css, name)
-        for key in ('key="j13sc_box"', 'key=f"j13sc_span_{index}"', 'key="j13vx_rowtabs"', 'key="j13vx_rowopts"'):
+        for key in ('key="j13sc_box"', 'key=f"j13sc_span_{index}"', 'key="j13vx_rowtabs"', '"j13vx_rowopts"', '"j13vx_rowviews"'):
             self.assertIn(key, source)
+
+
+def _theme_rows():
+    """상위 테마 5개 줄 — 테마 이름(origin) 둘. 10/2 목록 → 10/5 시가에 삼."""
+    day = DAYS[1].date().isoformat()
+    return [
+        {"trade_date": day, "list_kind": "theme15", "code": "000001", "name": "가", "buy_open": 100.0, "origin": "반도체"},
+        {"trade_date": day, "list_kind": "theme15", "code": "000003", "name": "다", "buy_open": 50.0, "origin": "2차전지"},
+    ]
+
+
+class ThemeCompareTests(unittest.TestCase):
+    """2026-11-04 상하님 「파트별 성적표 미국테마대로 · 기준 날짜도 설정하는 것 빠졌고 · 테마 비교표도 빠졌고」."""
+
+    def test_themes_split_by_origin_like_jarvis12(self):
+        data = j13vx.compute(_theme_rows(), _frames(), _kospi(), last_day=DAYS[-1].date())
+        names = [row["name"] for row in data["themes"]]
+        self.assertEqual(["반도체", "2차전지"], names)                 # 이익 난 확률 차례(반도체 1/1 · 2차전지 0/1)
+        self.assertAlmostEqual(10.0, data["themes"][0]["final"], places=6)
+        self.assertEqual(0.0, data["themes"][1]["final"])
+        chart, _note = j13vx.theme_chart_html(data, "d", "line", {"000001": "가"})
+        self.assertIn("j13vx-tk-0", chart)
+        self.assertIn("j13vx-zoom", chart)
+        self.assertIn("(가 +10%)", chart)
+        rel, _n = j13vx.theme_chart_html(data, "d", "rel")
+        self.assertIn("코스피 = 0", rel)
+        bar, _n = j13vx.theme_chart_html(data, "w", "bar")
+        self.assertIn("<rect", bar)
+        self.assertIn("반도체", j13vx.theme_table_html(data))
+        self.assertEqual(("", ""), j13vx.theme_chart_html({}, "d", "line"))
+        self.assertIn(("themes", "테마 비교표", ()), j13vx.TABS)
+
+    def test_page_range_picker_and_theme_tab(self):
+        with patch("jarvis13_theme15.load_all", return_value=_theme_rows()):
+            app = ScorecardPageTests._app(self)
+            self.assertIn("j13sc_span_5", {b.key for b in app.button})                     # 📅 기간 고르기
+            app.button(key="j13sc_span_5").click().run(timeout=120)
+            self.assertEqual("기간 고르기", app.session_state["j13sc_span"])
+            first = DAYS[1].date().isoformat()          # 기록 시작(10/2) 앞은 누를 수 없다
+            last = DAYS[-1].date().isoformat()
+            keys = {b.key for b in app.button}
+            self.assertIn("j13sc_calf_start", keys)
+            app.button(key=f"j13sc_cal_d_{first}").click().run(timeout=120)              # 시작일
+            app.button(key=f"j13sc_cal_d_{last}").click().run(timeout=120)               # 종료일 → 달력 닫힘
+            self.assertEqual(DAYS[-1].date(), app.session_state["j13sc_rng_end"])
+            app.button(key="j13vx_t_themes").click().run(timeout=120)
+            self.assertEqual(0, len(app.exception), [e.value for e in app.exception])
+            text = " ".join(str(m.value) for m in app.markdown)
+            self.assertIn("j13vx-tk-0", text)
+            self.assertIn("반도체", text)
+            self.assertIn("j13vx_v_rel", {b.key for b in app.button})                      # 코스피보다 더·덜
 
 
 if __name__ == "__main__":

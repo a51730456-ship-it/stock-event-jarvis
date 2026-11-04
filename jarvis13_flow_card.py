@@ -20,10 +20,14 @@ from __future__ import annotations
 import streamlit as st
 
 import gauge_ui
+import jarvis13_shared
 import market_signal_ui as msu
 
-MODULE_REVISION = 2026110401
+MODULE_REVISION = 2026110402
 OPEN_KEY = "j13_flow_more"
+SHARED_KEY = "kr_flow"
+# run_kr_flow_check 가 남기는 칸 그대로(market_signal_ui) — 옮길 때 이 넷을 같이 옮긴다.
+SHARED_STATE = ("kr_flow_result", "kr_flow_failures", "kr_flow_last_checked_at", "kr_flow_last_attempt_at")
 
 TITLE_HTML = ("<div style='font-size:16px; font-weight:800; color:#c084fc; margin:.25rem 0 .4rem; "
               "letter-spacing:-.01em'>🎯 한국장 시장 상태</div>")
@@ -66,12 +70,20 @@ def render() -> None:
     st.markdown(TITLE_HTML, unsafe_allow_html=True)
     clicked = st.button("수급 다시 확인", key="j13_flow_refresh")
     result = st.session_state.get("kr_flow_result")
-    if clicked:
-        with st.spinner("장중 수급 확인 중..."):
-            result = msu.run_kr_flow_check(force_refresh=True)
-    elif msu._kr_flow_auto_due(result, st.session_state.get("kr_flow_last_attempt_at"), msu._now_seoul()):
-        with st.spinner("장중 수급 자동 확인 중..."):
-            result = msu.run_kr_flow_check()
+    due = msu._kr_flow_auto_due(result, st.session_state.get("kr_flow_last_attempt_at"), msu._now_seoul())
+    # 손님끼리 55초 같이 쓴다(2026-11-04 · jarvis13_shared) — 새 손님마다 수급을 새로 받던 2.3초. 방금 다른 손님이 받은 판을
+    # 그대로 옮긴다(같은 run_kr_flow_check 결과). 외국인 선물을 손으로 넣은 손님은 제 값이 따로라 옮기지 않는다.
+    if not clicked and due and not st.session_state.get("kr_flow_foreign_futures_manual"):
+        shared = jarvis13_shared.peek((SHARED_KEY, id(msu.run_kr_flow_check)))
+        if shared:
+            st.session_state.update(shared)
+            result = shared.get("kr_flow_result")
+            due = result is None
+    if clicked or due:
+        with st.spinner("장중 수급 확인 중..." if clicked else "장중 수급 자동 확인 중..."):
+            result = msu.run_kr_flow_check(force_refresh=True) if clicked else msu.run_kr_flow_check()
+        if result is not None and not st.session_state.get("kr_flow_foreign_futures_manual"):
+            jarvis13_shared.put((SHARED_KEY, id(msu.run_kr_flow_check)), {key: st.session_state.get(key) for key in SHARED_STATE})
     if result is None:
         st.info("수급 자료를 아직 못 받았습니다. 「수급 다시 확인」을 눌러 보십시오.")
         return

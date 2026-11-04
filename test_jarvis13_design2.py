@@ -181,7 +181,8 @@ class FixesNov4Tests(unittest.TestCase):
                 sys.modules["jarvis3_data"] = saved
             else:
                 sys.modules.pop("jarvis3_data", None)
-        self.assertIn("with _ScreenWaitsForUS():\n        overview = j4data.get_market_overview()", source)
+        block = source.split("with _ScreenWaitsForUS():")[1][:400]
+        self.assertIn('overview = jarvis13_shared.remember(("market_overview", id(j4data.get_market_overview)), j4data.get_market_overview,', block)
 
     def test_jarvis12_watch_hero_has_korea_link(self):
         source = (ROOT / "pages" / "11_자비스12.py").read_text(encoding="utf-8")
@@ -189,6 +190,38 @@ class FixesNov4Tests(unittest.TestCase):
         self.assertIn('method_help.cross_link(st, "US")', hero)
         self.assertIn("_J12B_CROSS_CSS", hero)
         self.assertLess(source.index("_J12B_CROSS_CSS = "), source.index("\nmain()"))
+
+
+class SharedKeepTests(unittest.TestCase):
+    """2026-11-04 상하님 「로딩 문제 해결하고」 — 손님끼리 55초 같이 쓴다 · 못 받은 판은 안 담는다."""
+
+    def test_keeps_good_values_and_skips_failures(self):
+        import jarvis13_shared as shared
+
+        calls = []
+
+        def ok():
+            calls.append(1)
+            return {"ok": True, "n": len(calls)}
+
+        good = lambda value: bool(value.get("ok"))
+        shared._BOX.clear()
+        self.assertEqual(1, shared.remember("t", ok, good=good)["n"])
+        self.assertEqual(1, shared.remember("t", ok, good=good)["n"])     # 두 번째 손님은 받으러 안 간다
+        self.assertEqual(1, len(calls))
+        shared._BOX.clear()
+        bad = lambda: {"ok": False}
+        shared.remember("b", bad, good=good)
+        self.assertIsNone(shared.peek("b"))                                 # 실패는 안 담는다
+        shared.put("p", {"x": 1})
+        self.assertEqual({"x": 1}, shared.peek("p"))
+        self.assertIsNone(shared.peek("p", keep=-1))
+
+    def test_flow_card_adopts_shared_result(self):
+        source = (ROOT / "jarvis13_flow_card.py").read_text(encoding="utf-8")
+        self.assertIn("jarvis13_shared.peek((SHARED_KEY, id(msu.run_kr_flow_check)))", source)
+        self.assertIn("jarvis13_shared.put((SHARED_KEY, id(msu.run_kr_flow_check))", source)
+        self.assertIn('not st.session_state.get("kr_flow_foreign_futures_manual")', source)
 
 
 if __name__ == "__main__":

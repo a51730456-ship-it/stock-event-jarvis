@@ -85,8 +85,8 @@ class Jarvis12CompareTests(unittest.TestCase):
 
     def test_jarvis12_uses_the_copy_and_jarvis3_keeps_the_frozen_one(self):
         self.assertIn("import jarvis12_scorecard_compare as scorecard_compare", J12)
-        self.assertIn("_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450", J12)
-        self.assertEqual(2026101450, vx12.MODULE_REVISION)
+        self.assertIn("_REQUIRED_SCORECARD_COMPARE_REVISION = 2026110401", J12)
+        self.assertEqual(2026110401, vx12.MODULE_REVISION)
         self.assertIn("네 파트를 한 그림에", J12)
         self.assertIn("\nimport scorecard_compare\n", J3)
         self.assertNotIn("jarvis12_scorecard_compare", J3)

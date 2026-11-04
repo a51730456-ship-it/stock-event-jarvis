@@ -28,5 +28,8 @@ jobs:
         run: |
           mkdir -p db .streamlit
           python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
-      - name: 세 번 그려 재기
-        run: python research/j13_profile.py 2>&1 | grep -v -E "yfinance|possibly delisted|ScriptRunContext|Failed to get ticker|curl:"
+      # 2026-11-04 상하님 「로딩 미국테마와 비교해서」 — 자비스12 도 같은 방법으로(따로 켠 파이썬 · 첫 손님끼리 견줌)
+      - name: 자비스12 세 번 그려 재기
+        run: J13_PROFILE_PAGE=11_자비스12 python research/j13_profile.py 2>&1 | grep -v -E "yfinance|possibly delisted|ScriptRunContext|Failed to get ticker|curl:"
+      - name: 자비스13 세 번 그려 재기
+        run: J13_PROFILE_PAGE=12_자비스13 python research/j13_profile.py 2>&1 | grep -v -E "yfinance|possibly delisted|ScriptRunContext|Failed to get ticker|curl:"

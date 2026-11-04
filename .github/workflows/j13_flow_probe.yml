@@ -1,0 +1,26 @@
+# 자비스13 종목 수급 받기가 왜 실패하나 살피기 (2026-11-04) — 읽기만 · 아무것도 안 올린다.
+name: 자비스13 종목 수급 살피기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_flow_probe.py
+      - .github/workflows/j13_flow_probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: 살피기
+        run: python research/j13_flow_probe.py

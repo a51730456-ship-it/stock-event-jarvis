@@ -33,7 +33,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026101450
+MODULE_REVISION = 2026110401
 
 PARTS = ("theme15", "breakout", "top7", "crash")
 PART_NAMES = {
@@ -747,13 +747,12 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
                       f"<b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b>"
                       f"<small>{count_text}</small>{'' if rel else _top_html(row)}</label>")
     legend_html = (taps + "<div class='j3vx-legend j3vx-tlegend'>" + "".join(legend) + "</div>"
-                   "<div class='j3vx-thint'>이름을 누르면 그 테마만 굵게 보입니다 · 여러 개 눌러 견줄 수 있고, "
-                   "다시 누르면 풀립니다"
-                   + ("" if rel else " · 괄호 안은 그 테마에서 산 1~3위 중 가장 많이 번 종목(산 날 평균)입니다"
-                      + (" · 점선 테마는 그 명부에서 가장 많이 오른 종목입니다" if refs else "")
-                      + (" · 점 찍힌 선은 종목 하나(SK하이닉스)입니다"
-                         if any(row.get("single") for row in refs) else ""))
-                   + ".</div>")
+                   # 2026-11-04 상하님 「미국테마도 설명 부분을 이해 가기 쉽게」 — 한 줄 · 짧게.
+                   "<div class='j3vx-thint'>👆 이름을 누르면 그 테마만 굵게 · 다시 누르면 풀림"
+                   + ("" if rel else " · <b>괄호</b> = 가장 많이 번 종목"
+                      + (" · <b>점선</b> = 비교용(산 적 없음)" if refs else "")
+                      + (" · <b>점 선</b> = SK하이닉스 하나" if any(row.get("single") for row in refs) else ""))
+                   + "</div>")
     note = ""
     if view == "bar":
         if data.get("reference"):
@@ -939,7 +938,15 @@ div[class*="st-key-j12vx_v_"] button[kind="primary"] p{color:#fff!important}
 .j3vx-tk{position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0}
 .j3vx-tchip{display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 8px;margin:0 -8px;white-space:nowrap;
   border:1px solid transparent;border-radius:999px;transition:background-color .15s ease,border-color .15s ease}
-.j3vx-thint{font-size:.72rem;color:#6f93bd;margin:-2px 0 6px}
+.j3vx-thint{font-size:.74rem;color:#ffd166;margin:-2px 0 6px}
+.j3vx-thint b{color:#fff}
+/* 짧은 설명 칩 — 숫자·뜻에 색(2026-11-04 상하님 「설명도 좀 줄이고 보기 좋게 색깔도」) */
+.j12sc-key{display:flex;flex-wrap:wrap;gap:6px 8px;margin:6px 0 4px}
+.j12sc-key span{font-size:.76rem;color:#dfe9ff;background:rgba(77,166,255,.10);border:1px solid rgba(77,166,255,.28);border-radius:999px;padding:2px 9px;line-height:1.4}
+.j12sc-key b{color:#ffd166}
+details.j12-why{margin:.3rem 0 0;font-size:.74rem;color:#8fb4de;line-height:1.55}
+details.j12-why summary{cursor:pointer;color:#c084fc;font-weight:800;list-style:none}
+details.j12-why summary::-webkit-details-marker{display:none}
 .j3vx-ttop{font-style:normal;font-size:.68rem;font-weight:600;color:#8fb4de;margin-left:3px;white-space:nowrap}
 .j3vx-tl{opacity:.85;transition:opacity .2s ease}
 .j3vx-tk:checked ~ * .j3vx-tl{opacity:.12}
