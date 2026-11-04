@@ -24,9 +24,16 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import importlib
+
 import jarvis13_home_css as C
 
-MODULE_REVISION = 2026110402
+# 베낀 꾸밈 파일의 번호 — 낮으면 다시 읽는다(온라인에서 옛 꾸밈이 남아 새 이름을 못 찾고 화면이 멈췄다 · 2026-11-04 로컬 실측).
+REQUIRED_CSS_REVISION = 2026110403
+if int(getattr(C, "MODULE_REVISION", 0)) < REQUIRED_CSS_REVISION:
+    C = importlib.reload(C)
+
+MODULE_REVISION = 2026110404
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -90,7 +97,7 @@ def _flat(block: str) -> str:
 def css() -> str:
     """관심종목 꾸밈 한 덩어리 — 자비스12 베낌 + 한국 색."""
     return "\n".join(_flat(block) for block in (*C.BRIEFING_CSS, C.BRIEFING_OPEN_CSS, decor_css(), C.BRIEFING_TABLET_CSS,
-                                                C.BRIEFING_TOUCH_CSS, KR_CSS) if block)
+                                                C.BRIEFING_GESTURE_CSS, C.BRIEFING_TOUCH_CSS, KR_CSS) if block)
 
 
 # ── 그림 ─────────────────────────────────────────────────────────────────────────────────

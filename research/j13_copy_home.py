@@ -18,8 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "pages" / "11_자비스12.py"
 TARGET = ROOT / "jarvis13_home_css.py"
-CONSTANTS = ("_J3B_HOME_CSS", "_BRIEFING_OPEN_CSS", "_BRIEFING_TABLET_CSS", "_BRIEFING_TOUCH_CSS", "_J3B_POP_CLOSE",
+CONSTANTS = ("_J3B_HOME_CSS", "_BRIEFING_OPEN_CSS", "_BRIEFING_TABLET_CSS", "_BRIEFING_GESTURE_CSS", "_BRIEFING_TOUCH_CSS",
+             "_J3B_POP_CLOSE",
              "_J12B_CROSS_CSS")
+# 베낀 꾸밈을 다시 만들면 올린다 — jarvis13_home 의 REQUIRED_CSS_REVISION 도 같이(옛 모듈이 남으면 다시 읽게 · CLAUDE.md 11).
+REVISION = 2026110403
 RENAMES = (("j3b-", "j13h-"), ("j12b_", "j13h_"), ("j12b-", "j13h-"), ("j3bPop", "j13hPop"))
 
 
@@ -54,6 +57,7 @@ def main() -> int:
         "research/j13_copy_home.py 가 pages/11_자비스12.py 에서 만든다(2026-11-04 상하님 「관심종목도 미국테마 그대로 따라 만들어라」).",
         '한국 색(오름 빨강 · 내림 파랑) 같은 다른 점은 jarvis13_home.py 의 KR_CSS 에 따로 둔다."""',
         "",
+        f"MODULE_REVISION = {REVISION}",
         f"BRIEFING_CSS = {json.dumps([rename(block) for block in found['_BRIEFING_CSS']], ensure_ascii=False)}",
     ]
     for name in CONSTANTS:

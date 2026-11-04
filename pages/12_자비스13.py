@@ -897,7 +897,7 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110402
+_REQUIRED_J13_HOME_REVISION = 2026110404
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 
@@ -5678,7 +5678,9 @@ def _render_watch_page() -> None:
         stocks = []
     client_id, client_secret = _j13h_news_keys()
     nokey = not (client_id and client_secret)
-    st.markdown(jarvis13_home.css() + jarvis13_watch.CSS, unsafe_allow_html=True)
+    # 꾸밈 덩어리는 **따로따로** 싣는다 — 한 줄로 이어 붙이면 뒤 덩어리가 글자로 찍혔다(2026-11-04 깃허브 사진 두 번).
+    st.markdown(jarvis13_home.css(), unsafe_allow_html=True)
+    st.markdown(jarvis13_watch.CSS, unsafe_allow_html=True)        # 「📈 넣은 날부터 성적」 표 꾸밈
     with st.container(key="j13h_hero_box"):
         st.markdown(jarvis13_home.hero_html(stocks), unsafe_allow_html=True)
         method_help.cross_link(st, "KR")
