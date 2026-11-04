@@ -56,6 +56,11 @@ jobs:
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$BT/apksigner" verify --print-certs "$APK" | head -3
           "$BT/aapt2" dump badging "$APK" | grep -E "^package|launchable-activity|application-label" || true
+      - name: 가상 폰 확인용으로 넘기기
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-apk
+          path: ${{ runner.temp }}/jarvis/app/build/outputs/apk/release/app-release.apk
       - name: 따로 갈래(j13-android)에 올리기
         run: |
           mkdir -p "$RUNNER_TEMP/out"
@@ -74,3 +79,49 @@ jobs:
           git add .
           git commit -q -m "자비스 안드로이드 설치 파일 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7} · 판 ${GITHUB_RUN_NUMBER}"
           git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-android
+
+  # 가상 안드로이드 폰(안드로이드 14)에 깔고 열어 사진을 찍는다 — 실제로 열리는지 · 로그인 칸이 나오는지 본다(보기만 · 비밀번호 안 침).
+  # 사진은 따로 갈래(j13-android-check)에만 올린다.
+  phone_check:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jarvis-apk
+          path: apk
+      - name: 가상 폰 켤 준비
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          mkdir -p shots
+      - name: 깔고 열어 사진 찍기
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r apk/app-release.apk
+            adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER io.github.stockeventjarvis.app > shots/launcher.txt
+            adb shell am start -W -n io.github.stockeventjarvis.app/.MainActivity
+            sleep 45
+            adb exec-out screencap -p > shots/open_45s.png
+            sleep 45
+            adb exec-out screencap -p > shots/open_90s.png
+            adb shell pidof io.github.stockeventjarvis.app > shots/running.txt || echo "꺼짐" > shots/running.txt
+      - name: 사진만 따로 갈래(j13-android-check)에 올리기
+        if: always()
+        run: |
+          cd shots
+          ls -la
+          cat launcher.txt running.txt || true
+          git init -q -b j13-android-check
+          git config user.name "j13-android"
+          git config user.email "j13-android@users.noreply.github.com"
+          git add .
+          git commit -q -m "가상 폰 확인 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-android-check
