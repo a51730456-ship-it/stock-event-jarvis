@@ -22,7 +22,7 @@ VIEWS = (
     ("자비스12", "j12", "?s=home", ".j3b-card", "j12_home"),
     ("자비스12", "j12", "?s=market", "div[class*='st-key-j12_theme_table'], .j3-ndd", "j12_market"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open'], div[class*='st-key-j13_theme_table']", "j13_market"),
-    ("자비스13", "j13", "?s=watch", ".j13w-card, .j13w-empty", "j13_watch"),
+    ("자비스13", "j13", "?s=watch", ".j13h-card, .j13h-empty", "j13_watch"),
     # 2026-11-04 순위표를 연 판도 나란히(상하님 「강한 테마 20개는 미국테마 디자인을 따라 해라」) — 단추를 눌러 연 뒤 찍는다
     ("자비스12", "j12", "?s=market", "div[class*='st-key-btn_j12_theme_rank_open']", "j12_rank", "btn_j12_theme_rank_open"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13_theme_rank_open']", "j13_rank", "btn_j13_theme_rank_open"),

@@ -181,35 +181,43 @@ class PageTests(unittest.TestCase):
         next(button for button in app.button if button.key == "j13b_nav_watch").click()
         app.run(timeout=120)
         self.assertEqual(0, len(app.exception), [e.value for e in app.exception])
-        self.assertIn("★ 관심종목", self._text(app))
+        text = self._text(app)
+        # 2026-11-04 상하님 「관심종목도 미국테마 그대로」 — 자비스12 관심종목 짜임(jarvis13_home)
+        for piece in ("j13h-home", "JARVIS <b>13</b>", "한국시장 한줄 브리핑", "사용자 선정 종목"):
+            self.assertIn(piece, text)
         self.assertEqual("watch", app.session_state["j13_briefing_page"])
         self.assertNotIn("테마·종목", [option for radio in app.radio for option in radio.options])
 
     def test_empty_watch_page_says_how_to_add(self):
         app = self._app(page="watch")
         self.assertIn("아직 넣은 종목이 없습니다", self._text(app))
-        self.assertIn("j13w_query", {box.key for box in app.text_input})
+        self.assertIn("j13h_search_selected", {box.key for box in app.text_input})
+        self.assertIn("j13h_manage_toggle_selected", {button.key for button in app.button})   # 「+」
 
     def test_watch_cards_show_since_added_against_kospi(self):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])
         text = self._text(app)
         self.assertIn("삼성전자", text)
+        self.assertIn("j13h-card-shell", text)                         # 누르면 크게(자비스12 카드)
         self.assertIn("넣은 날", text)
         self.assertIn("같은 사이 코스피", text)
         keys = {button.key for button in app.button}
-        self.assertIn("j13w_open_005930", keys)
-        self.assertIn("j13w_remove_005930", keys)
+        self.assertIn("j13h_wdgo_005930", keys)                        # 카드의 「🔎 선택종목 세부사항 보기」가 누르는 숨은 단추
+        self.assertIn("j13h_del_selected_1", keys)                     # 카드 오른쪽 위 ×
 
     def test_guest_sees_the_list_but_cannot_change_it(self):
         app = self._app(page="watch", guest=True, stocks=[("005930", "삼성전자", 130_000, 2_300)])
         keys = {button.key for button in app.button}
-        self.assertIn("j13w_open_005930", keys)
-        self.assertNotIn("j13w_remove_005930", keys)
-        self.assertNotIn("j13w_query", {box.key for box in app.text_input})
+        self.assertIn("j13h_wdgo_005930", keys)
+        self.assertNotIn("j13h_del_selected_1", keys)
+        box = next(box for box in app.text_input if box.key == "j13h_search_selected")
+        self.assertTrue(box.disabled)                                   # 손님은 찾기 칸이 잠겨 있다
 
     def test_remove_button_takes_it_off(self):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])
-        next(button for button in app.button if button.key == "j13w_remove_005930").click()
+        next(button for button in app.button if button.key == "j13h_del_selected_1").click()
+        app.run(timeout=120)
+        next(button for button in app.button if button.key == "j13h_del_yes_selected_1").click()   # 자비스12 처럼 한 번 더 확인
         app.run(timeout=120)
         self.assertEqual([], store.list_stocks())
         self.assertIn("뺐습니다", " ".join(str(item.value) for item in app.success))
@@ -217,17 +225,16 @@ class PageTests(unittest.TestCase):
     def test_buttons_sit_on_one_line_under_each_card(self):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])
         source = page_test.PAGE.read_text(encoding="utf-8")
-        body = source[source.index("def _render_watch_page"):source.index("def main()")]
-        # 2026-11-04 자비스12 카드 — 카드를 누르면 세부사항(겹친 단추) · ✕ 는 카드 위 동그라미 · 성적은 카드 밑 표
-        self.assertIn('div[class*="st-key-j13w_open_"]{position:absolute', __import__("jarvis13_watch").CSS)
-        self.assertIn("jarvis13_watch.since_table_html(cards)", body)
+        body = source[source.index("def _render_watch_page"):source.index("def _j13_method_help")]
+        self.assertIn("jarvis13_watch.since_table_html(items)", body)
+        self.assertIn("jarvis13_home.css()", body)
         text = self._text(app)
         self.assertIn("📈 넣은 날부터 성적", text)
         self.assertIn("같은 사이 코스피", text)
 
     def test_removing_inside_the_watch_detail_closes_it_and_says_so_on_top(self):
         app = self._app(page="watch", stocks=[("005930", "삼성전자", 130_000, 2_300)])
-        next(button for button in app.button if button.key == "j13w_open_005930").click()
+        next(button for button in app.button if button.key == "j13h_wdgo_005930").click()
         app.run(timeout=120)
         self.assertIn("j13w_toggle_watch_005930", {button.key for button in app.button})
         next(button for button in app.button if button.key == "j13w_toggle_watch_005930").click()
