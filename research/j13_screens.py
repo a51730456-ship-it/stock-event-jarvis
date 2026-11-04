@@ -29,6 +29,11 @@ VIEWS = (
     # 2026-11-04 상하님 「파트별 성적표 미국테마대로」 — 성적표를 연 판도 나란히
     ("자비스12", "j12", "?s=market", "div[class*='st-key-picklist_scorecard_US']", "j12_score", "picklist_scorecard_US"),
     ("자비스13", "j13", "", "div[class*='st-key-btn_j13sc_open']", "j13_score", "btn_j13sc_open"),
+    # 2026-11-04 상하님 「다른 것도 확인하고 미국테마 형식 확인하고 따라서 해라」 — 선택종목 세부사항을 연 판(여섯 장)
+    ("자비스12", "j12", "?s=market", "div[class*='st-key-btn_j12_detail_open_theme']", "j12_detail",
+     "btn_j12_detail_open_theme", 6),
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_detail_open_theme']", "j13_detail",
+     "btn_j13_detail_open_theme", 6),
 )
 SIZES = (("pc", 1400, 900), ("phone", 412, 915))
 
@@ -52,6 +57,7 @@ def _quiet(page, seconds: float = 4.0, limit: float = 120.0) -> None:
 def shoot(browser, password: str, view, size) -> dict:
     name, p, tail, ready, tag = view[:5]
     press = view[5] if len(view) > 5 else ""
+    pressed_chunks = view[6] if len(view) > 6 else 3
     label, width, height = size
     page = browser.new_page(viewport={"width": width, "height": height})
     out = {"view": tag, "size": label, "shots": []}
@@ -85,7 +91,7 @@ def shoot(browser, password: str, view, size) -> dict:
             const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
             return box.scrollTop || 0;
         }""") if press else 0
-        for index in range(CHUNKS if not press else 3):
+        for index in range(CHUNKS if not press else pressed_chunks):
             page.evaluate("""(y) => {
                 const box = document.querySelector('[data-testid="stMain"]') || document.scrollingElement;
                 box.scrollTo(0, y); window.scrollTo(0, y);
