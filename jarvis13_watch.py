@@ -187,9 +187,9 @@ div[class*="st-key-j13w_item_"]:hover .j13w-card{transform:translateY(-4px);filt
 .j13w-code{color:#9fb6c8;font-size:.76rem;font-variant-numeric:tabular-nums}
 .j13w-mid{display:flex;align-items:center;gap:6px;margin:8px 0 6px;min-width:0}
 .j13w-price{flex:1 1 auto;min-width:0;display:grid;font-size:1.12rem;font-weight:850;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
-.j13w-price b{color:#fff9eb}
+.j13w-price b{color:#fff9eb;white-space:nowrap;font-size:clamp(.85rem,3.6vw,1.12rem)}
 .j13w-price span{font-size:.88rem}
-.j13w-chart{flex:0 0 46%;min-width:0}
+.j13w-chart{flex:0 0 42%;min-width:0}
 .j13w-spark{width:100%;height:40px;display:block}
 .j13w-notes{border-top:1px solid #94b5c52a;padding-top:5px;display:grid;gap:1px}
 .j13w-note{font-size:.74rem;color:#e7edf2;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}

@@ -880,7 +880,7 @@ if int(getattr(jarvis13_market, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_RE
 # 파트별 성적표 + 코스피와 견줘 보기(자비스13 전용 · 2026-10-30 · 자비스12 의 성적표 셈을 베낌).
 import jarvis13_scorecard_compare as j13vx
 
-_REQUIRED_J13_SCORECARD_REVISION = 2026103001
+_REQUIRED_J13_SCORECARD_REVISION = 2026110401
 if int(getattr(j13vx, "MODULE_REVISION", 0)) < _REQUIRED_J13_SCORECARD_REVISION:
     j13vx = importlib.reload(j13vx)
 # 한국 관심종목(5단계 · 2026-10-30 상하님 「자비스13 관심종목 — 다해라」) — 저장은 미국 저장고와 따로(새 표),
@@ -923,6 +923,7 @@ import jarvis13_charts  # noqa: E402  — 종목 차트 자비스12 형식 · �
 _REQUIRED_J13_CHARTS_REVISION = 2026110401
 if int(getattr(jarvis13_charts, "MODULE_REVISION", 0)) < _REQUIRED_J13_CHARTS_REVISION:
     jarvis13_charts = importlib.reload(jarvis13_charts)
+import jarvis13_theme15  # noqa: E402  — 한국 상위 테마 5개 · 1~3위 목록(쌓기만 · 2026-11-04)
 import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 자비스12 형식(2026-11-04 · 얼린 market_signal_ui 는 부르기만)
 _REQUIRED_J13_FLOW_CARD_REVISION = 2026110401
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
@@ -3482,6 +3483,9 @@ def _j13sc_load() -> dict:
             kind = str(row.get("list_kind") or "")
             if kind in j13vx.PARTS and picklist_store.should_show(kind, "KR"):
                 rows.append(row)
+    # 「상위 테마 5개 (1~3위)」(2026-11-04 상하님 「해라」) — 따로 쌓는 폴더(data/picklist_theme15)에서 읽는다(얼린 창고의
+    # 「한국 theme15 감춤」 규칙은 그대로 · 날짜별 목록 화면에도 안 나온다). 못 읽으면 빈 목록 — 나머지 파트는 그대로.
+    rows.extend(jarvis13_theme15.load_all(picklist_store))
     codes = sorted({str(row.get("code") or "").strip() for row in rows} - {""})
 
     def _one(code):
@@ -3712,18 +3716,8 @@ def _render_radar_tab(market: dict) -> None:
 
     clicked_theme = None
     if rank_open:
-        entered, dropped = ranking.get("entered") or [], ranking.get("dropped") or []
-        change_text = ""
-        if entered:
-            change_text += f" · <span style='color:#ff5b5b'>신규 진입 {len(entered)}개({', '.join(entered[:3])})</span>"
-        if dropped:
-            change_text += f" · <span style='color:#4da6ff'>탈락 {len(dropped)}개({', '.join(dropped[:3])})</span>"
-        st.markdown(
-            f"<div class='j4-muted'>네이버 {ranking.get('total_scanned', 0)}개 테마 전체에서 매일 자동 선정합니다 — "
-            f"강한 테마는 새로 들어오고 가장 약한 테마는 자동 탈락{change_text}</div>",
-            unsafe_allow_html=True,
-        )
-        st.caption("표에서 테마 이름을 클릭하면 대장주·상세가 그 테마로 연결됩니다.")
+        # 표 위 설명 두 줄은 뺐다(2026-11-04 상하님 「강한 테마 20개는 미국테마 디자인을 따라 해라」 — 자비스12 「22개 테마」는
+        # 단추 바로 밑이 표다). 새로 들어온 테마는 이름 옆 🆕 로 그대로 보인다 · 고른 방식은 표 밑 「테마 계산 시각」 줄에 둔다.
         clicked_theme = _render_theme_table(ranking, st.session_state.get("j13_theme_choice"))
     if clicked_theme in names:
         st.session_state["j13_theme_choice"] = clicked_theme
@@ -3751,7 +3745,8 @@ def _render_radar_tab(market: dict) -> None:
                 "자동으로 다시 올라옵니다. 어제 상위권이었던 테마는 오늘 등락률이 낮아도 계속 심사합니다."
             )
     if rank_open:
-        st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 한국 휴장일에는 마지막 거래일 자료")
+        st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 네이버 {ranking.get('total_scanned', 0)}개 테마에서 "
+                   "날마다 자동 선정 · 한국 휴장일에는 마지막 거래일 자료")
 
     if st.session_state.get("j13_theme_choice_widget") not in names:
         preferred = st.session_state.get("j13_theme_choice")

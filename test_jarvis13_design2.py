@@ -105,5 +105,46 @@ class FundamentalsPopupTests(unittest.TestCase):
         self.assertNotIn("<details", block)
 
 
+class Theme15Tests(unittest.TestCase):
+    """2026-11-04 상하님 「해라」 — 한국 상위 테마 5개 · 각 1~3위를 쌓아 「코스피와 견줘 보기」에 줄로."""
+
+    def test_picks_top5_themes_three_each_in_theme_order(self):
+        import jarvis13_theme15 as t15
+
+        class Fake:
+            def get_theme_leaders(self, theme_row, market_score=0, theme_score=0):
+                return {"ok": True, "rows": [{"code": f"{theme_row['name']}{i}", "name": f"{theme_row['name']}{i}", "rank": i}
+                                             for i in range(1, 7)]}
+
+        themes = [{"name": n, "score": s, "ok": True} for n, s in (("가", 50), ("나", 90), ("다", 70), ("라", 10), ("마", 60), ("바", 80))]
+        out = t15.find_theme_top_picks(themes, data=Fake())
+        self.assertEqual(["나", "바", "다", "마", "가"], out["themes"])          # 점수 순 위 5개
+        self.assertEqual(15, len(out["rows"]))
+        self.assertEqual([1, 2, 3], [row["rank"] for row in out["rows"][:3]])   # 테마 안 등수 그대로
+        self.assertEqual(1, out["rows"][0]["theme_place"])
+
+    def test_rows_save_and_load_from_its_own_folder(self):
+        import tempfile
+
+        import jarvis13_theme15 as t15
+        import picklist_store as store
+
+        result = {"ok": True, "rows": [{"code": "005930", "name": "삼성전자", "rank": 1, "theme_place": 1, "score": 80.0}]}
+        with tempfile.TemporaryDirectory() as folder:
+            rows = store.rows_from_result(result, market="KR", list_kind="theme15", trade_date="2026-11-04")
+            self.assertTrue(store.save_rows(rows, trade_date="2026-11-04", market="KR", out_dir=folder))
+            loaded = t15.load_all(store, out_dir=folder)
+        self.assertEqual(["005930"], [row["code"] for row in loaded])
+        self.assertEqual("theme15", loaded[0]["list_kind"])
+        self.assertEqual([], t15.load_all(store, out_dir="/없는/폴더"))
+
+    def test_compare_has_the_theme_tab_and_page_reads_the_folder(self):
+        import jarvis13_scorecard_compare as vx
+
+        self.assertEqual("theme15", vx.PARTS[0])
+        self.assertIn("theme", vx.TAB_PARTS)
+        self.assertIn("jarvis13_theme15.load_all(picklist_store)", PAGE.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()
