@@ -936,6 +936,10 @@ import jarvis13_flow_card  # noqa: E402  — 「🎯 한국장 시장 상태」 
 _REQUIRED_J13_FLOW_CARD_REVISION = 2026110402
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
+import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
+_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110401
+if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
+    jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
 import jarvis13_brief  # noqa: E402  — 설명 글 색 칩 + 「자세히 ▾」(2026-11-04 상하님 「설명서도 이해하기 쉽게 · 전체 내용을 줄여라」)
 _REQUIRED_J13_BRIEF_REVISION = 2026110401
 if int(getattr(jarvis13_brief, "MODULE_REVISION", 0)) < _REQUIRED_J13_BRIEF_REVISION:
@@ -1335,7 +1339,6 @@ def _market_action_detail(overview: dict) -> str:
     )
 
 
-@st.fragment(run_every=60)
 class _ScreenWaitsForUS:
     """화면이 시장판단(미국 전일 · 미국 시장 국면 포함)을 **기다리는 동안** 미국 자료 일꾼에게 「화면이 기다린다」고 알린다.
 
@@ -1367,6 +1370,9 @@ class _ScreenWaitsForUS:
         return False
 
 
+# **1분 자동 갱신 표시는 바로 이 함수 위에 붙인다** — 2026-11-04(PR #43)에 위 _ScreenWaitsForUS 를 표시와 함수 사이에 끼워
+# 넣어 표시가 그 class 에 붙었다. 시장 개요가 1분마다 다시 그려지지 않았다(같은 날 찾아 바로잡음 · 시험이 지킨다).
+@st.fragment(run_every=60)
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
     # 손님끼리 55초 같이 쓴다(jarvis13_shared) — 새 손님마다 네이버에 지수·투자자 수급·대형주 수급을 다시 묻던 것(깃허브 재기
@@ -1410,6 +1416,10 @@ def _render_market_overview() -> None:
                 _kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
                 "#ff5b5b", "#4da6ff"), "KQ11", "KOSDAQ") + "</div>", 1),
         _fx_cell(),
+        # 「시장 현황」 테마 지도(2026-11-04 상하님 「미국테마에는 있는데 한국 테마에는 없다」) — 자비스12 와 같은 자리(환율 뒤).
+        # 테마 순위는 여기서 새로 받지 않는다 — 아래 테마 표가 받아 둔 것을 쓴다(없으면 「받는 중」 · 1분 뒤 저절로 채워짐).
+        jarvis13_sector_map.cell_html(jarvis13_shared.peek("theme_rankings", keep=900)
+                                      or st.session_state.get("j13_theme_rankings")),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
@@ -1432,6 +1442,7 @@ def _render_market_overview() -> None:
     # 미국테마(자비스3)는 둘 다 내보낸다.
     st.markdown(f"<style>{gauge_ui.CSS}{fear_greed_ui.CSS}</style>",
                 unsafe_allow_html=True)
+    st.markdown(jarvis13_sector_map.CSS, unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     _render_kospi_drawdown()
     # 게이지 그림과 바로 아래 조건점수 설명 단추가 붙어 보이지 않게 한 줄 띄운다.
@@ -3927,6 +3938,7 @@ def _render_radar_tab(market: dict) -> None:
         st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
         return
     st.session_state["j13_theme_rankings"] = ranking
+    jarvis13_shared.put("theme_rankings", ranking)     # 맨 위 「시장 현황」 지도가 다음 판부터 읽는다(새로 받지 않게)
 
     # 자비스3(미국)에 없고 자비스4에만 넣은 승률 보완 장치를 화면에서 바로 보이게 한다
     # (2026-07-22 사용자 질문: "승률 올리려고 뭘 찾았나? 표시는 했나?").
