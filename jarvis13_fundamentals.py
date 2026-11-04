@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110402
+MODULE_REVISION = 2026110403
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -266,13 +266,20 @@ def _results_html(title: str, rows) -> str:
                 "<div class='j13fn-foot'>자료가 없습니다.</div></div>")
     head = "".join(f"<th>{_html.escape(str(row[0]))}</th>" for row in rows)
     revenue = "".join(f"<td>{_eok(row[1])}</td>" for row in rows)
-    operating = "".join(f"<td style='color:{'#ffb020' if (row[2] or 0) >= 0 else '#9aa0aa'}'>{_eok(row[2])}</td>"
+    operating = "".join(f"<td style='color:{'#ffb020' if (row[2] or 0) >= 0 else NEG}'>{_eok(row[2])}</td>"
                         for row in rows)
-    net = "".join(f"<td>{_eok(row[3])}</td>" for row in rows)
+    net = "".join(f"<td style='color:{NEG if (row[3] or 0) < 0 else '#e6e6e6'}'>{_eok(row[3])}</td>" for row in rows)
     return (f"<div class='j13fn-chart'><div class='j13fn-ct'>{title}<span><span><i style='background:#4da6ff'></i>매출</span>"
             "<span><i style='background:#ffb020'></i>영업이익</span></span></div>" + _bars_svg(rows)
             + f"<table class='j13fn-t'><tr><th></th>{head}</tr><tr><td>매출</td>{revenue}</tr>"
             f"<tr><td>영업이익</td>{operating}</tr><tr><td>순이익</td>{net}</tr></table></div>")
+
+
+# 색 — 마이너스 숫자는 한국 「내림」 파랑 · 위험 비율은 주의색. 문턱은 자비스12 와 같다(부채 200% · 유동/당좌 100%=1배).
+NEG = "#5aa9ff"
+WARN = "#ffb020"
+DEBT_WARN = 200.0
+QUICK_WARN = 100.0
 
 
 def card_html(info: dict) -> str:
@@ -283,17 +290,24 @@ def card_html(info: dict) -> str:
 
     bad = bool(info.get("equity_bad"))
     roe, opm, debt, quick = info.get("roe"), info.get("opm"), info.get("debt"), info.get("quick")
+    # 색 기준 — 자비스12(us_fundamentals.card_html)와 같은 문턱(2026-11-04 상하님 「부채비율 유동비율 색깔 봐라 · 기준이 안 되어
+    # 색깔이 같은 거냐?」). 한국 화면은 빨강이 「오름」이라 마이너스는 파랑(NEG) · 위험 비율은 주의색(WARN).
+    neg = lambda value: NEG if (value is not None and value < 0) else "#ffffff"          # noqa: E731
     cells = [
         cell("시가총액", _won_cap(info.get("mcap")), "회사 전체 값"),
         cell("PER", "적자" if info.get("loss") else _times(info.get("per")),
-             "1년 이익이 마이너스" if info.get("loss") else "주가 ÷ 1년 주당이익", "#9aa0aa" if info.get("loss") else "#ffffff"),
-        cell("PBR", "자본잠식" if bad else _times(info.get("pbr")), "주가 ÷ 주당 자기 돈(장부)"),
-        cell("ROE", _pct(roe), "자기 돈으로 1년에 번 이익"),
-        cell("영업이익률", _pct(opm), "매출 100에 남긴 영업이익"),
+             "1년 이익이 마이너스" if info.get("loss") else "주가 ÷ 1년 주당이익", NEG if info.get("loss") else "#ffffff"),
+        cell("PBR", "자본잠식" if bad else _times(info.get("pbr")),
+             "자기 돈이 마이너스" if bad else "주가 ÷ 주당 자기 돈(장부)", WARN if bad else "#ffffff"),
+        cell("ROE", _pct(roe), "자기 돈으로 1년에 번 이익", neg(roe)),
+        cell("영업이익률", _pct(opm), "매출 100에 남긴 영업이익", neg(opm)),
         cell("배당", "없음" if info.get("dy") == 0 else _pct(info.get("dy")), "1년 배당 ÷ 주가"),
         cell("부채비율", _pct(debt) if debt is None else f"{debt:.0f}%",
-             "—" if debt is None else f"자기 돈 100에 빚 {debt:.0f}", "#ffb020" if (debt or 0) >= 200 else "#ffffff"),
-        cell("당좌비율", _pct(quick) if quick is None else f"{quick:.0f}%", "곧 갚을 빚 100에 곧 쓸 돈"),
+             "—" if debt is None else f"자기 돈 100에 빚 {debt:.0f} · {DEBT_WARN:.0f}↑ 주의",
+             WARN if bad or (debt or 0) >= DEBT_WARN else "#ffffff"),
+        cell("당좌비율", _pct(quick) if quick is None else f"{quick:.0f}%",
+             f"곧 갚을 빚 100에 곧 쓸 돈 · {QUICK_WARN:.0f}↓ 주의",
+             WARN if (quick is not None and quick < QUICK_WARN) else "#ffffff"),
     ]
     # 52주 최고·최저 · 외국인 비율 — 값이 있을 때만 한 줄(없으면 줄 자체를 안 그린다 · 0 으로 안 채움)
     hi, lo, price, foreign = info.get("hi52"), info.get("lo52"), info.get("price"), info.get("foreign")
@@ -309,6 +323,7 @@ def card_html(info: dict) -> str:
     if extra:
         cells = extra + cells
     foot = [f"{_html.escape(str(info.get('at') or ''))} 모은 재무(네이버 증권 · 추정치는 뺌)"]
+    foot.append(f"<span style='color:{NEG}'>파랑</span> 마이너스 · <span style='color:{WARN}'>주황</span> 주의")
     if info.get("latest_at"):
         foot.append(f"지표는 {_html.escape(str(info['latest_at']))} 결산 기준")
     if info.get("rescaled"):

@@ -1,0 +1,43 @@
+# 한국 종목 「실적 발표 · 애널리스트 의견·목표주가 · 공매도 · 배당」 자료 살피기 (2026-11-04 상하님 「3번째 캡쳐 빠졌고」).
+# 보기만 한다. 결과는 따로 갈래(j13-street)에만 올린다 — master 그대로.
+name: 자비스13 증권사 정보 살피기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_street_probe.py
+      - .github/workflows/j13_street_probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-street
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 살피기
+        env:
+          J13_OUT: ${{ runner.temp }}/j13street
+        run: |
+          pip install requests
+          python research/j13_street_probe.py
+      - name: 결과만 따로 갈래(j13-street)에 올리기
+        run: |
+          cd "$RUNNER_TEMP/j13street"
+          git init -q -b j13-street
+          git config user.name "j13-street"
+          git config user.email "j13-street@users.noreply.github.com"
+          git add .
+          git commit -q -m "증권사 정보 살피기 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') · ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" j13-street

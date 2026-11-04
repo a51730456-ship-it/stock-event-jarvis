@@ -173,3 +173,31 @@ class PageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ColorRuleTests(unittest.TestCase):
+    """2026-11-04 상하님 「부채비율 유동비율 색깔 봐라 · 기준이 안 되어 색깔이 같은 거냐?」 — 자비스12 와 같은 문턱."""
+
+    def _color(self, html_text, name):
+        import re
+        return re.search(name + r"</b><i style='color:([^']+)'", html_text).group(1)
+
+    def test_same_thresholds_as_jarvis12(self):
+        import jarvis13_fundamentals as fn
+        bad = fn.card_html({"loss": True, "roe": -14.4, "opm": -0.5, "debt": 250, "quick": 75, "annual": [], "quarter": []})
+        self.assertEqual(fn.NEG, self._color(bad, "PER"))          # 적자
+        self.assertEqual(fn.NEG, self._color(bad, "ROE"))          # 마이너스
+        self.assertEqual(fn.NEG, self._color(bad, "영업이익률"))
+        self.assertEqual(fn.WARN, self._color(bad, "부채비율"))     # 200%↑
+        self.assertEqual(fn.WARN, self._color(bad, "당좌비율"))     # 100%↓
+        good = fn.card_html({"per": 10, "roe": 12, "opm": 8, "debt": 170, "quick": 120, "annual": [], "quarter": []})
+        for name in ("PER", "ROE", "영업이익률", "부채비율", "당좌비율"):
+            self.assertEqual("#ffffff", self._color(good, name), name)
+        self.assertEqual((200.0, 100.0), (fn.DEBT_WARN, fn.QUICK_WARN))
+        self.assertIn("주의", good)
+
+    def test_losses_in_the_table_are_blue(self):
+        import jarvis13_fundamentals as fn
+        out = fn.card_html({"annual": [["24.12", 742696, -3557, -23725]], "quarter": []})
+        self.assertIn(f"color:{fn.NEG}'>-3,557", out)
+        self.assertIn(f"color:{fn.NEG}'>-23,725", out)
