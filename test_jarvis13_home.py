@@ -73,8 +73,11 @@ class HomeTests(unittest.TestCase):
 
     def test_hero_and_scripts_use_j13h_names(self):
         hero = home.hero_html([{"code": "005930", "name": "삼성전자"}])
-        for piece in ("j13h-home", "JARVIS <b>13</b>", "한국테마", "j13h-orbit", "j13h-hero-scene"):
+        for piece in ("j13h-home", "JARVIS <b>13</b>", "한국테마", "j13h-orbit", "j13k-scene"):
             self.assertIn(piece, hero)
+        # 2026-11-05 상하님 「한국 주식 배경 … 미국테마와 구분하자」 — 고양이 버스 그림(자비스12 와 같은 그림)은 뺐다
+        self.assertNotIn("j13h-hero-scene", hero)
+        self.assertNotIn("hero_catbus_pop", hero)
         scripts = home.scripts_html()
         self.assertIn("'j13h-pop-close'", scripts)
         self.assertIn("j13h_wdgo_", scripts)

@@ -27,13 +27,14 @@ from pathlib import Path
 import importlib
 
 import jarvis13_home_css as C
+import jarvis13_hero_scene
 
 # 베낀 꾸밈 파일의 번호 — 낮으면 다시 읽는다(온라인에서 옛 꾸밈이 남아 새 이름을 못 찾고 화면이 멈췄다 · 2026-11-04 로컬 실측).
 REQUIRED_CSS_REVISION = 2026110403
 if int(getattr(C, "MODULE_REVISION", 0)) < REQUIRED_CSS_REVISION:
     C = importlib.reload(C)
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026110502
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -196,19 +197,29 @@ def orbit_html(stocks: list[dict]) -> str:
     return f'<div class="j13h-orbit" aria-hidden="true">{"".join(pods)}</div>'
 
 
+# 2026-11-05 상하님 「한국 주식 배경 동영상 … 미국테마와 구분하자」 — 고양이 버스 그림(자비스12 와 같은 그림) 대신 한국 장면
+# (jarvis13_hero_scene · 여의도 밤 · 코스피 캔들 오름 빨강/내림 파랑). 장면은 띠 맨 앞(맨 아래 층)에 깔고 글 · 단추 · 도는 이름표가 위에 선다.
+# CSS 로 그리던 지구 · 도시(:before/:after)는 고양이 버스 때처럼 감춘다.
+_SCENE_CSS = ("<style>.j13h-hero:has(.j13k-scene):before,.j13h-hero:has(.j13k-scene):after{display:none}"
+              ".j13h-hero:has(.j13k-scene){background:#030b22!important}"
+              ".j13h-hero .j13k-scene{border-radius:inherit}"
+              # 글자(왼쪽 위) 쪽만 살짝 어둡게 — 캔들이 「JARVIS 13 한국테마」 뒤로 지나가도 읽히게(시장분석 띠와 같은 결)
+              ".j13h-hero .j13k-scene:after{content:'';position:absolute;inset:0;pointer-events:none;"
+              "background:linear-gradient(90deg,rgba(2,9,26,.6) 0%,rgba(2,9,26,.25) 30%,transparent 55%)}"
+              ".j13h-hero:has(.j13k-scene) .j13h-head-copy{text-shadow:0 2px 12px rgba(0,0,0,.85)}</style>")
+
+
 def hero_html(stocks: list[dict]) -> str:
-    scene = asset_uri("hero_scene.webp")
-    scene_html = f'<img class="j13h-hero-scene" src="{scene}" alt="">' if scene else ""
-    pop = asset_uri("hero_catbus_pop.webp") if scene else ""
-    pop_html = (f'<div class="j13h-hero j13h-hero-pop" aria-hidden="true"><div class="j13h-hero-scene">'
-                f'<img class="j13h-hero-pop-bus" src="{pop}" alt=""></div></div>') if pop else ""
-    return ('<div class="j13h-app j13h-home"></div><div class="j13h-hero"><div class="j13h-head-copy">'
+    return ('<div class="j13h-app j13h-home"></div><div class="j13h-hero">'
+            + jarvis13_hero_scene.scene_html("watch")
+            + '<div class="j13h-head-copy">'
             '<div class="j13h-title">JARVIS <b>13</b></div><div class="j13h-sub">한국테마</div></div>'
             '<div class="j13h-head-actions"><span class="j13h-round">↻</span><span class="j13h-live"><i></i>실시간</span></div>'
-            f'{scene_html}{orbit_html(stocks)}</div>{pop_html}'
-            # 두 꾸밈 덩이 사이 줄바꿈 — 「</style><style>」로 붙으면 뒤 덩이가 문단 글로 읽힐 수 있다(2026-11-05 · research/j13_render_audit ·
-            # 고치기 전후 그림이 폰 · PC 너비 모두 픽셀까지 같음을 확인).
-            + _flat(C.J13H_HOME_CSS) + "\n" + _flat(C.J13H_CROSS_CSS))
+            f'{orbit_html(stocks)}</div>'
+            # 꾸밈 덩이는 저마다 새 줄에서 연다 — 「</style><style>」로 붙으면 뒤 덩이가 문단 글로 읽힐 수 있다(2026-11-05 ·
+            # research/j13_render_audit · CLAUDE.md 0-4).
+            + "\n" + _flat(C.J13H_HOME_CSS) + "\n" + _flat(C.J13H_CROSS_CSS)
+            + "\n" + jarvis13_hero_scene.CSS + "\n" + _SCENE_CSS)
 
 
 # ── 뉴스 ─────────────────────────────────────────────────────────────────────────────────
