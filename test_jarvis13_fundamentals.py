@@ -236,10 +236,25 @@ class EarnInsiderTests(unittest.TestCase):
             self.assertIn(text, out)
         self.assertNotIn("j3", out.replace("j13", ""))                              # 자비스12 이름과 안 섞임
 
-    def test_no_data_draws_no_box(self):
+    def test_no_data_keeps_the_box_with_a_reason(self):
+        # 2026-11-05 상하님 「3」 — 자료 없는 상자도 자리를 두고 까닭 한 줄(전에는 감춰 「안 된다」로 보였다)
         out = fn.street_html({"consensus": {"recomm": 3.0}, "reports": []})
-        self.assertNotIn("📅 실적 발표", out)
-        self.assertNotIn("🔍", out)
+        self.assertLess(out.index("📅 실적 발표"), out.index("👥 애널리스트 의견"))
+        self.assertLess(out.index("👥 애널리스트 의견"), out.index("🔍 공매도 · 내부자 · 배당"))
+        self.assertIn(fn.EMPTY_EARN, out)
+        self.assertIn(fn.EMPTY_OWN, out)
+        self.assertNotIn(fn.EMPTY_ANA, out)                                          # 의견은 있다
+        self.assertNotIn("26.09", out)                                               # 없는 값은 지어내지 않는다
+
+    def test_stock_outside_the_file_says_so_in_all_three(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "KR.json"
+            path.write_text('{"stocks": {}}', encoding="utf-8")
+            block = fn.street_block("999999", 1000.0, path=path)
+        self.assertTrue(block.startswith(fn.STREET_CSS))
+        self.assertEqual(3, block.count(fn.NOT_IN_FILE))
+        self.assertEqual("", fn.street_block("", path=path))
 
     def test_dart_extra_reads_both_date_shapes(self):
         from datetime import date
@@ -356,7 +371,9 @@ class StreetTests(unittest.TestCase):
                      "점수·판정에는 들어가지 않습니다", "🔍 공매도 · 내부자 · 배당", "16.4%", "주당 2,000원"):
             self.assertIn(text, out)
         self.assertNotIn("남의 제목", out)                                             # 리포트 제목은 안 옮긴다
-        self.assertEqual("", fn.street_html({"annual": [], "quarter": []}))          # 자료 없으면 칸도 없다
+        empty = fn.street_html({"annual": [], "quarter": []})                        # 자료 없으면 칸마다 까닭 한 줄
+        for reason in (fn.EMPTY_EARN, fn.EMPTY_ANA, fn.EMPTY_OWN):
+            self.assertIn(reason, empty)
         # 2026-11-04 상하님 「왜 재무현황 안에 집어넣었냐」 — 재무 창 안에는 없다
         self.assertNotIn("애널리스트 의견", fn.card_html(info))
 

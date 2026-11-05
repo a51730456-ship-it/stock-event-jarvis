@@ -11,7 +11,8 @@ from __future__ import annotations
 import os
 import pathlib
 import sys
-from datetime import datetime
+from datetime import date, datetime
+from datetime import time as dtime
 from zoneinfo import ZoneInfo
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -29,9 +30,26 @@ OUT = pathlib.Path(os.environ.get("J13_THEME15_OUT") or theme15.DATA_DIR)
 SEOUL = ZoneInfo("Asia/Seoul")
 
 
+def traded_on(trade_date: str, check=None):
+    """그날(trade_date) 한국장이 열렸나 — 모르면 None(막지 않는다).
+
+    2026-11-05 상하님 「4」 — 예약이 자정을 넘겨 뜨면(11/5 00:31 실행) `kr_market_traded_today()` 가 **지금(11/5)** 을 물어
+    11/5 봉이 아직 없으니 「쉬는 날」로 착각하고 11/4 를 건너뛰었다(그래서 이 목록이 한 번도 안 쌓였다). 그날 마감 뒤
+    (16:00 한국 시각)를 「지금」으로 넘겨 **그날 봉**이 있나를 묻는다. 얼린 jarvis4_data 는 안 고친다.
+    """
+    check = check or getattr(data, "kr_market_traded_today", None)
+    if check is None:
+        return None
+    at = datetime.combine(date.fromisoformat(str(trade_date)), dtime(16, 0), tzinfo=SEOUL)
+    try:
+        return check(now=at)
+    except TypeError:              # now 를 못 받는 판 — 예전처럼 묻는다
+        return check()
+
+
 def main() -> int:
     trade_date = collector._last_closed_session("KR")
-    traded = getattr(data, "kr_market_traded_today", lambda: None)()
+    traded = traded_on(trade_date)
     if traded is False:
         print(f"KR {trade_date} — 한국 증시가 쉬는 날이라 찍지 않습니다", flush=True)
         return 0

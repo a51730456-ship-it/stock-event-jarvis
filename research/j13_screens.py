@@ -33,8 +33,13 @@ VIEWS = (
 # 2026-11-05 상하님 「너 사기쳤네」 · 「다른 부분도 검토하고 똑똑하게」 — 세부사항까지 실제 자료로 찍는다(폰만 · 시간 아끼기).
 # (화면, 로그인 앞이름, 주소 뒤, 다 그렸다고 볼 표시, 이름표, [(누를 열쇠, 기다릴 표시, 굴려 갈 표시)…])
 DEEP_VIEWS = (
+    # 관심종목 세부사항은 2026-11-05 부터 판 위를 덮는 창(자비스12 처럼) — 창 안 상자를 기다린다
     ("자비스13", "j13", "?s=watch", ".j13h-card, .j13h-empty", "j13_watchdetail",
-     [("j13h_wdgo_005930", ".j13st-box, .j13ov", "div[class*='st-key-j13add_sel_'], .j13ov")]),
+     [("j13h_wdgo_005930", "div.st-key-j13w_pane .j13st-box", "div.st-key-j13w_pane .j13ov")]),
+    # 날짜별 목록 → 급락 줄 첫 종목 이름(2026-11-05 상하님 「1」 — 전에는 종목명이 그냥 글자였다)
+    ("자비스13", "j13", "", "div[class*='st-key-btn_j13_picklist_archive_open_KR']", "j13_picklist",
+     [("btn_j13_picklist_archive_open_KR", "div[class*='st-key-plpick_KR_']", ".pl-kind"),
+      ("plpick_KR_crash_00", ".j13st-box", ".j13ov")]),
     ("자비스13", "j13", "", "div[class*='st-key-j13_pullback_crash']", "j13_crash",
      # 표가 다 그려진 판에만 생기는 맨 아래 「닫기」 단추를 기다린다(위쪽에 원래 있는 알림 상자에 걸리지 않게)
      [("j13_pullback_crash", "div[class*='st-key-close_j13_pullback_open']",

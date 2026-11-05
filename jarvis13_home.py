@@ -34,7 +34,7 @@ REQUIRED_CSS_REVISION = 2026110403
 if int(getattr(C, "MODULE_REVISION", 0)) < REQUIRED_CSS_REVISION:
     C = importlib.reload(C)
 
-MODULE_REVISION = 2026110502
+MODULE_REVISION = 2026110503
 ROOT = Path(__file__).resolve().parent
 UP_STROKE = "#ff5b5b"          # 한국 — 오름 빨강
 DOWN_STROKE = "#5aa9ff"        # 한국 — 내림 파랑
@@ -83,7 +83,14 @@ KR_CSS = """<style>
 /* 세부사항 여는 숨은 단추 묶음 — 눈에 안 보이고 카드의 「🔎 선택종목 세부사항 보기」가 대신 누른다 */
 div[class*="st-key-j13h_wdgo_box"]{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;
   opacity:0!important;pointer-events:none!important}
-#j13h-wd-wait{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;
+/* 큰 카드 안 「🔎 선택종목 세부사항 보기」 — 자비스12 관심종목의 같은 단추 줄 그대로(이름만 j13h). 큰 카드는 손가락을 안 받게 해 두었으니
+   (누르면 바탕이 닫는다) **이것만 받는다**. 2026-11-05 상하님 「관심종목에서 클릭해도 나와야겠지? 미국테마처럼」 — 이 줄이 없어
+   흐린 글자로만 보였고, 누르면 손가락이 바탕까지 내려가 카드가 닫히기만 했다(브라우저로 눌러 확인). */
+.j13h-wd-open{display:block;position:relative;z-index:7;pointer-events:auto;cursor:pointer;box-sizing:border-box;
+  width:min(320px,100%);margin:14px auto 0;padding:11px 14px;border-radius:14px;text-align:center;
+  border:1px solid #e3b52c;background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%);
+  color:#fff;font-size:15px;font-weight:900;box-shadow:0 8px 22px #000a}
+#j13h-wd-wait{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;
   background:rgba(2,10,28,.72);color:#eaf4ff;font-weight:800;font-size:1rem}
 #j13h-wd-wait span{padding:.7rem 1.1rem;border:1px solid #c89550;border-radius:14px;background:#062448}
 /* 빈 줄 안내 상자 밑 여백 — 다음 줄 제목이 겹치지 않게(로컬 사진 실측 · 카드가 있으면 자비스12 와 같다) */
@@ -389,14 +396,15 @@ WD_OPEN_JS = """
     var tk = go.getAttribute('data-tk') || '';
     var btn = document.querySelector('div.st-key-j13h_wdgo_' + tk + ' button');
     if (!btn) { return; }
-    var shell = go.closest('details'); if (shell) { shell.open = false; }
+    // 큰 카드는 닫지 않는다 — 창이 그 위를 덮고, 닫으면 그 종목 카드가 그대로 있다(자비스12 2026-10-27 · 2026-11-05 상하님
+    // 「관심종목에서 클릭해도 나와야겠지? 미국테마처럼」). 옛 판은 카드를 닫았다.
     var old = document.getElementById('j13h-wd-wait'); if (old) { old.remove(); }
     var wait = document.createElement('div'); wait.id = 'j13h-wd-wait';
     var label = document.createElement('span'); label.textContent = '🔎 세부사항을 여는 중…';
     wait.appendChild(label); document.body.appendChild(wait);
     var started = Date.now();
     function watch() {
-      var name = document.querySelector('.j4-stock-name');
+      var name = document.querySelector('div.st-key-j13w_pane .j4-stock-name');
       if ((name && !name.closest('[data-stale="true"]')) || Date.now() - started > 15000) { wait.remove(); return; }
       window.setTimeout(watch, 80);
     }

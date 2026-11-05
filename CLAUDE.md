@@ -290,6 +290,9 @@ Claude Code는 코드 수정 전 반드시 이 파일을 먼저 확인한다.
 - 자동 저장은 GitHub Actions(`.github/workflows/picklist_collect.yml`)가 한다 —
   상하님이 로그인하지 않아도 쌓여야 한다는 것이 이 기능의 요구다.
 - 저장 칸을 바꾸면 `picklist_store.SCHEMA_VERSION`과 `MODULE_REVISION`을 같이 올린다.
+- **한국 저장기가 「장이 열렸나」를 물을 때는 「지금」이 아니라 찍을 날(trade_date)을 묻는다**(2026-11-05). 깃허브는 예약을 몇 시간씩 미뤄
+  자정을 넘기는데, 그때 「오늘」을 물으면 아직 봉이 없는 다음 날이라 쉬는 날로 착각하고 건너뛴다(11/2·3·4 한국 목록 빠짐).
+  상위 테마 5개(research/j13_theme15_collect.traded_on)는 고쳤고, picklist_collector.py 는 상하님이 이름을 대어 말씀하셔야 고친다.
 - **그림자 목록**(2026-10-31 상하님 「라」) — 한국 급락의 자비스12 식 규칙(j13-shadow-v1 · `docs/KR_THEME_SPEC.md` 3-4-1)으로 고른 목록을
   `data/picklist_shadow/{날짜}.KR.json`에 신호 난 날에만 쌓는다(`research/j13_shadow_collect.py` · 깃허브 「자비스13 그림자 목록 저장」).
   **지우지 않고 규칙을 바꾸지 않는다** — 미리 적어 둔 규칙의 앞날 성적으로 가리는 시험이라, 바꾸면 시험이 무너진다. 화면 추천에는 안 쓴다.

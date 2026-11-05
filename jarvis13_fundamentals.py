@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026110502
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -706,13 +706,31 @@ def _shares(value) -> str:
     return f"{number / 10000:,.1f}만 주" if number >= 10000 else f"{number:,.0f}주"
 
 
-def street_html(info: dict, frame=None, today=None) -> str:
+EARN_TITLE, ANA_TITLE, OWN_TITLE = "📅 실적 발표", "👥 애널리스트 의견", "🔍 공매도 · 내부자 · 배당"
+# 자료가 없는 상자도 **자리를 남기고 까닭을 한 줄** 적는다(2026-11-05 상하님 「3」 — 전에는 상자째 감춰 「안 된다」로 보였다).
+# 지어내지 않는다 — 무엇이 없는지만 적는다. 명부 2,266종목 중 1,167종목은 🔍 하나만 자료가 있다(2026-11-05 셈).
+EMPTY_EARN = "DART 잠정실적 공시와 증권사 예상이 없어 적을 것이 없습니다"
+EMPTY_ANA = "이 종목을 다룬 증권사 리포트 · 목표주가가 없습니다 <span class='j13st-dim'>· 네이버 증권 기준 · 주 1회 모음</span>"
+EMPTY_OWN = "공매도는 못 받음(거래소 로그인 필요) · 내부자 · 배당 · 외국인 자료도 없습니다"
+NOT_IN_FILE = "자료 없음 — 테마 명부 밖 종목이라 깃허브가 재무를 모으지 않습니다"
+
+
+def _empty_box(title: str, reason: str) -> str:
+    return f"<div class='j13st-box'><div class='j13st-h'>{title}</div><div class='j13st-empty'>{reason}</div></div>"
+
+
+def street_html(info: dict | None, frame=None, today=None) -> str:
     """종목 개요 밑 상자 셋 — 자비스12 「📅 실적 발표 · 👥 애널리스트 의견 · 🔍 공매도·내부자·배당」 자리 · 차례(2026-11-04 상하님
     「위치 등 이 형식을 따르지」 · 밤 「왜 이거 안 넣냐 말 좀 들어라」). 「📑 재무 한눈에 보기」 단추 **위**에 따로 선다.
-    한국에서 받을 수 있는 것만 — 없는 칸은 안 그린다(지어내지 않는다)."""
+    한국에서 받을 수 있는 것만 적는다(지어내지 않는다). 자료가 없는 상자는 자리를 두고 까닭 한 줄(2026-11-05 상하님 「3」).
+    info 가 None(재무 파일에 없는 종목)이면 상자 셋 모두 「자료 없음」."""
+    if not info:
+        return "<div class='j13st'>" + "".join(_empty_box(t, NOT_IN_FILE) for t in (EARN_TITLE, ANA_TITLE, OWN_TITLE)) + "</div>"
     today = today or datetime.now(SEOUL).date()
-    boxes = [box for box in (_earn_box(info, frame, today), _ana_box(info), _own_box(info)) if box]
-    return f"<div class='j13st'>{''.join(boxes)}</div>" if boxes else ""
+    boxes = [_earn_box(info, frame, today) or _empty_box(EARN_TITLE, EMPTY_EARN),
+             _ana_box(info) or _empty_box(ANA_TITLE, EMPTY_ANA),
+             _own_box(info) or _empty_box(OWN_TITLE, EMPTY_OWN)]
+    return f"<div class='j13st'>{''.join(boxes)}</div>"
 
 
 NAVER_COINFO_URL = "https://finance.naver.com/item/coinfo.naver?code={code}"
@@ -769,10 +787,12 @@ a.j13ov-more{display:inline-block;margin-top:2px;font-size:.78rem;font-weight:70
 
 
 def street_block(code: str, price_now=None, *, frame=None, path: Path = DATA_PATH) -> str:
-    """화면이 부르는 한 덩이(꾸밈 + 상자). 파일에 없으면 빈 글. frame — 일봉(실적 발표 앞뒤 주가를 잰다 · 세부사항이 이미 받은 것)."""
+    """화면이 부르는 한 덩이(꾸밈 + 상자 셋). 파일에 없는 종목도 상자 셋 자리를 두고 「자료 없음」(2026-11-05 상하님 「3」).
+    frame — 일봉(실적 발표 앞뒤 주가를 잰다 · 세부사항이 이미 받은 것)."""
+    if not str(code or "").strip():
+        return ""
     info = summary(code, price_now, path=path)
-    html_text = street_html(info, frame) if info else ""
-    return (STREET_CSS + html_text) if html_text else ""
+    return STREET_CSS + street_html(info, frame)
 
 
 STREET_CSS = """<style>
@@ -799,6 +819,7 @@ STREET_CSS = """<style>
 .j13st-eps th:first-child,.j13st-eps td:first-child{text-align:left;color:#8fb4de;width:62px}
 .j13st-eps tr.j13st-move td{border-top:1px solid rgba(157,204,255,.18)!important;font-weight:900}
 .j13st-note{font-size:.72rem;color:#8b96a8;margin-top:6px;line-height:1.45}
+.j13st-empty{font-size:.8rem;color:#9fb6d6;line-height:1.55;padding:1px 0 2px}
 </style>"""
 
 
