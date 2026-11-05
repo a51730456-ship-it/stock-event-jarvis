@@ -83,6 +83,87 @@ def _detail(browser) -> list[str]:
     return out
 
 
+def _clicks(browser) -> list[str]:
+    """종목을 누르는 나머지 자리 셋을 손님으로 열어 **걸린 시간**과 상자 수를 잰다(2026-11-05 상하님 「관심종목에서 클릭해도
+    나와야겠지? 미국테마처럼 · 다하고 로딩 문제 없는지 다시 확인하고」). 보기만 한다(손님 · 저장 안 함).
+      ① 날짜별 목록 → 급락 줄 첫 종목 이름  ② 종목검색 「삼성전자」  ③ 관심종목 큰 카드 → 「🔎 선택종목 세부사항 보기」"""
+    out = []
+    boxes_js = "document.querySelectorAll('.j13st-box').length"
+    # ① 날짜별 목록
+    page = browser.new_page(viewport={"width": 412, "height": 915}, device_scale_factor=2)
+    try:
+        page.goto(URL, wait_until="domcontentloaded", timeout=180_000)
+        ready = _wait(page, "!!document.querySelector('div[class*=\"st-key-btn_j13_picklist_archive_open_KR\"] button')", 300)
+        start = time.time()
+        _click(page, "btn_j13_picklist_archive_open_KR")
+        listed = _wait(page, "!!document.querySelector('div[class*=\"st-key-plpick_KR_\"] button')", 240)
+        key = page.evaluate("""() => { const el = document.querySelector('div[class*="st-key-plpick_KR_crash_00"]')
+            || document.querySelector('div[class*="st-key-plpick_KR_"]');
+            return el ? [...el.classList].find(c => c.startsWith('st-key-')).slice(7) : ''; }""")
+        first = page.evaluate("(k) => (document.querySelector('.pl-k-' + k) || {}).textContent || k", key) if key else ""
+        if key:
+            _click(page, key)
+        opened = _wait(page, "[...document.querySelectorAll('.j4-section-title')].some(e => e.innerText.includes('저장해 둔 목록에서 고른 종목'))"
+                             f" && {boxes_js} >= 3", 240)
+        page.wait_for_timeout(1500)
+        page.screenshot(path=str(OUT / "phone_picklist.jpg"), type="jpeg", quality=80)
+        out.append(f"[날짜별 목록] 첫 화면 {ready and round(ready, 1)}초 · 목록 열림 {listed and round(listed, 1)}초 · 「{first}」 누름 → "
+                   f"세부사항 {opened and round(opened, 1)}초 · 상자 {page.evaluate(boxes_js)}개 · 전체 {round(time.time() - start, 1)}초"
+                   + ("" if opened else " · ※ 안 열림"))
+    except Exception as exc:
+        out.append(f"[날짜별 목록] 실패 {type(exc).__name__}: {exc}"[:300])
+    finally:
+        page.close()
+    # ② 종목검색
+    page = browser.new_page(viewport={"width": 412, "height": 915}, device_scale_factor=2)
+    try:
+        page.goto(URL, wait_until="domcontentloaded", timeout=180_000)
+        _wait(page, "!!document.querySelector('div[class*=\"st-key-j13_my_stock_query\"] input')", 300)
+        box = page.locator('div[class*="st-key-j13_my_stock_query"] input').first
+        box.scroll_into_view_if_needed()
+        box.fill("삼성전자")
+        box.press("Enter")
+        opened = _wait(page, "[...document.querySelectorAll('.j4-stock-name')].some(e => e.innerText.includes('삼성전자'))"
+                             f" && {boxes_js} >= 3", 240)
+        page.wait_for_timeout(1500)
+        page.screenshot(path=str(OUT / "phone_search.jpg"), type="jpeg", quality=80)
+        out.append(f"[종목검색] 「삼성전자」 → 세부사항 {opened and round(opened, 1)}초(한 번 더 안 누름) · 상자 {page.evaluate(boxes_js)}개"
+                   + ("" if opened else " · ※ 안 열림"))
+    except Exception as exc:
+        out.append(f"[종목검색] 실패 {type(exc).__name__}: {exc}"[:300])
+    finally:
+        page.close()
+    # ③ 관심종목
+    page = browser.new_page(viewport={"width": 412, "height": 915}, device_scale_factor=2)
+    try:
+        started = time.time()
+        page.goto(URL + "&s=watch", wait_until="domcontentloaded", timeout=180_000)
+        cards = _wait(page, "!!document.querySelector('.j13h-card, .j13h-empty')", 300)
+        if not page.evaluate("!!document.querySelector('.j13h-card-summary')"):
+            out.append(f"[관심종목] 판 {cards and round(cards, 1)}초 · 넣은 종목이 없어 누를 카드가 없음")
+        else:
+            page.locator(".j13h-card-summary").first.click()
+            page.wait_for_timeout(900)
+            go = page.locator(".j13h-card-shell[open] .j13h-wd-open").first
+            go.click(timeout=15_000)
+            opened = _wait(page, "!!document.querySelector('div.st-key-j13w_pane .j4-stock-name') && "
+                                 "document.querySelectorAll('div.st-key-j13w_pane .j13st-box').length >= 3", 240)
+            page.wait_for_timeout(1500)
+            info = page.evaluate("""() => { const pane = document.querySelector('div.st-key-j13w_pane');
+                const at = document.elementFromPoint(206, 300);
+                return {name: pane ? (pane.querySelector('.j4-stock-name') || {}).innerText : '',
+                        onTop: !!(at && at.closest('div.st-key-j13w_pane'))}; }""")
+            page.screenshot(path=str(OUT / "phone_watch_pane.jpg"), type="jpeg", quality=80)
+            out.append(f"[관심종목] 판 {cards and round(cards, 1)}초 · 큰 카드 「🔎」 → 창 {opened and round(opened, 1)}초 · "
+                       f"「{info.get('name')}」 · 창이 맨 위 {info.get('onTop')} · 전체 {round(time.time() - started, 1)}초"
+                       + ("" if opened else " · ※ 안 열림"))
+    except Exception as exc:
+        out.append(f"[관심종목] 실패 {type(exc).__name__}: {exc}"[:300])
+    finally:
+        page.close()
+    return out
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     lines = []
@@ -109,6 +190,7 @@ def main() -> int:
             page.screenshot(path=str(OUT / f"{name}_map.jpg"), type="jpeg", quality=80)
             page.close()
         lines.extend(_detail(browser))
+        lines.extend(_clicks(browser))
         browser.close()
     (OUT / "result.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines), flush=True)

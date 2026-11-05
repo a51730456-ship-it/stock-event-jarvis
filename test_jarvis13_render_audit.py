@@ -72,15 +72,31 @@ STATES = (
     ("판정 기준", {"j13_section": "판정 기준"}, None),
     ("관심종목", {"j13_briefing_page": "watch"}, None),
     ("관심종목 · 세부사항", {"j13_briefing_page": "watch"}, "j13h_wdgo_005930"),
+    # 2026-11-05 상하님 「관심종목에서 클릭해도 나와야겠지? 미국테마처럼 · 다하고」 — 종목을 누르는 나머지 자리
+    ("종목검색 · 세부사항", {"j13_my_stock_query": "삼성"}, None),
+    ("날짜별 목록 · 고른 종목", {"__picklist__": ("034020", "두산에너빌리티")}, None),
+    ("날짜별 목록 · 오늘 없는 종목", {"__picklist__": ("005930", "삼성전자")}, None),
 )
 
 
 def run_states(states=STATES):
     """화면 상태마다 시험 자료로 띄운 판을 돌려준다(research/j13_render_audit 도 같이 쓴다)."""
+    import shutil
+
+    import jarvis13_picklist_ui
+    import picklist_store
+
     with ExitStack() as stack, tempfile.TemporaryDirectory() as folder:
+        archive = Path(folder) / "picklist"            # 날짜별 목록 — 진짜 10/30 한국 한 날치(conftest 는 빈 폴더로 돌려 둔다)
+        archive.mkdir()
+        shutil.copy(ROOT / "data" / "picklist" / "2026-10-30.KR.csv", archive / "2026-10-30.KR.csv")
+        found = {"ok": True, "rows": [{"code": "005930", "name": "삼성전자", "market": "KOSPI"}]}
         for item in list(page_test._patches()) + [
             patch("jarvis4_data.get_daily_frame", return_value=_frame()),
             patch("jarvis13_market.index_frame", return_value=_frame(2_000, 10)),
+            patch("jarvis4_data.search_stocks", return_value=found),
+            patch("jarvis4_data.find_crash_rebound_stocks", return_value=_crash_result()),
+            patch.object(picklist_store, "ARCHIVE_DIR", archive),
             patch.object(store, "DB_PATH", Path(folder) / "watch.sqlite3"),
         ]:
             stack.enter_context(item)
@@ -96,6 +112,13 @@ def run_states(states=STATES):
                 for key, value in values.items():
                     if key == "__details__":
                         page_test._open_all_details(app)
+                        continue
+                    if key == "__picklist__":
+                        pick_code, pick_name = value
+                        app.session_state[jarvis13_picklist_ui.open_key("KR")] = True
+                        app.session_state[jarvis13_picklist_ui.pick_key("KR")] = {
+                            "code": pick_code, "name": pick_name, "kind": "crash",
+                            "row": {"code": pick_code, "name": pick_name, "score": "32.5", "themes": "원자력발전 · 전력설비"}}
                         continue
                     if value == "__crash__":
                         value = _crash_result()
@@ -167,7 +190,9 @@ class RenderAuditPageTests(unittest.TestCase):
     def test_every_state_actually_opened(self):
         # 상태를 못 띄우면 검사가 빈 판만 보고 통과한다 — 열린 표시를 하나씩 본다
         marks = {"시장분석 · 세부사항 다 펼침": "j13st-box", "급락 · 설명": "낙폭 칸 셋",
-                 "관심종목": "사용자 선정 종목", "관심종목 · 세부사항": "j13st-box"}
+                 "관심종목": "사용자 선정 종목", "관심종목 · 세부사항": "st-key-j13w_pane",
+                 "종목검색 · 세부사항": "j13st-box", "날짜별 목록 · 고른 종목": "저장해 둔 목록에서 고른 종목 · 두산에너빌리티",
+                 "날짜별 목록 · 오늘 없는 종목": "저장해 둔 목록 · 급락 후 반등장"}
         opened = {}
         for state, app in run_states(tuple(s for s in STATES if s[0] in marks)):
             opened[state] = marks[state] in " ".join(str(m.value) for m in app.markdown)

@@ -911,7 +911,7 @@ import jarvis13_watch  # noqa: E402
 import jarvis13_watch_store  # noqa: E402
 import jarvis13_home  # noqa: E402  — 관심종목 = 자비스12 관심종목 그대로(2026-11-04 상하님 「미국테마 그대로 따라 만들어라」)
 
-_REQUIRED_J13_HOME_REVISION = 2026110502
+_REQUIRED_J13_HOME_REVISION = 2026110503
 if int(getattr(jarvis13_home, "MODULE_REVISION", 0)) < _REQUIRED_J13_HOME_REVISION:
     jarvis13_home = importlib.reload(jarvis13_home)
 
@@ -941,7 +941,7 @@ if int(getattr(jarvis13_disclosures, "MODULE_REVISION", 0)) < _REQUIRED_J13_DISC
     jarvis13_disclosures = importlib.reload(jarvis13_disclosures)
 # 「📑 재무 한눈에」(2026-11-03) — 깃허브가 모은 한국 재무 파일만 읽는다(보여 주기만 · 점수·판정에 안 씀).
 import jarvis13_fundamentals  # noqa: E402
-_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110501
+_REQUIRED_J13_FUNDAMENTALS_REVISION = 2026110502
 if int(getattr(jarvis13_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_J13_FUNDAMENTALS_REVISION:
     jarvis13_fundamentals = importlib.reload(jarvis13_fundamentals)
 # 화면 옷 — 자비스12 와 같은 바탕·테두리·맨 위 그림 띠(2026-11-03 상하님 「자비스12 형식을 따라라」). 값은 안 바꾼다.
@@ -4094,7 +4094,9 @@ def _render_radar_tab(market: dict) -> None:
             _render_top_reviewed(market, ranking)
             _render_top_reviewed_detail(market)
         _render_my_stock_panel(market)
-        jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
+        jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close,
+            # 종목명을 누르면 그 줄이 나온 파트의 세부사항(2026-11-05 상하님 「1」 · 자비스12 on_pick 과 같다)
+            on_pick=lambda code, name, kind, row: _picklist_detail(market, ranking, code, name, kind, row))
         _render_scorecard_section()
         return
 
@@ -4236,7 +4238,9 @@ def _render_radar_tab(market: dict) -> None:
     _render_my_stock_panel(market)
 
     # ⑤ 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다.
-    jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
+    jarvis13_picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close,
+            # 종목명을 누르면 그 줄이 나온 파트의 세부사항(2026-11-05 상하님 「1」 · 자비스12 on_pick 과 같다)
+            on_pick=lambda code, name, kind, row: _picklist_detail(market, ranking, code, name, kind, row))
     # ⑥ 파트별 성적표 — 날짜별 목록 밑(자비스12 와 같은 자리 · 2026-10-30).
     _render_scorecard_section()
 
@@ -4407,6 +4411,89 @@ def _render_pullback_detail(market: dict) -> None:
     )
 
 
+# ── 날짜별 목록에서 종목명을 누르면 세부사항 (2026-11-05 상하님 「1」 — 미국테마는 열리는데 한국테마는 종목명이 그냥 글자였다) ──
+# 자비스12 _picklist_detail 을 베꼈다 — **그 줄이 나온 파트의 오늘 목록에서 찾아 그 파트의 자로 연다**(2026-09-02 상하님 「같은 종목도
+# 파트가 다르면 배점이 다른 것이 정상」). 배점을 새로 만들지 않고 화면이 쓰는 길을 그대로 빌린다(눌림목 · 상승장 · 급락 → 눌림목
+# 상세 · 순위 7 → 순위 7 상세). 오늘 그 목록에 없으면 **딴 자로 재지 않는다** — 그렇다고 적고, 배점 없는 세부사항(종목 개요 ·
+# 상자 셋 · 재무 · 차트)만 연다(_render_light_detail · 자비스12 는 알림만 띄웠다 — 상하님 「모든 파트에서 종목 클릭하면 캡처처럼」).
+_J13_PICKLIST_PART_BY_KIND = {"pullback": "눌림목", "breakout": "상승장", "crash": "급락 후 반등장", "top7": "순위 7"}
+_J13_PICKLIST_PANEL = "picklist"
+
+
+def _j13_find_scan_row(found, code: str):
+    """오늘 그 파트 목록에서 이 종목 줄을 찾는다(관찰 줄까지). 없으면 None."""
+    if not isinstance(found, dict) or not found.get("ok"):
+        return None
+    want = str(code or "").strip()
+    for row in list(found.get("rows") or []) + list(found.get("watch_rows") or []):
+        if str(row.get("code") or "").strip() == want:
+            return row
+    return None
+
+
+def _forget_picklist_pick() -> None:
+    """상세를 닫으면 고른 표시도 같이 걷는다(자비스12 와 같다)."""
+    st.session_state.pop(jarvis13_picklist_ui.pick_key("KR"), None)
+    st.session_state.pop("j13_picklist_shown", None)
+    st.session_state[f"j13_detail_open_{_J13_PICKLIST_PANEL}"] = False
+
+
+def _picklist_detail(market: dict, ranking: dict, code: str, name: str, kind: str, row: dict) -> None:
+    part = _J13_PICKLIST_PART_BY_KIND.get(str(kind or ""), "")
+    panel = _J13_PICKLIST_PANEL
+    # 고른 종목이 바뀌면 상세 · 당일 · 차트가 저절로 열리고 화면이 그 자리로 내려간다(제 이름표만 켠다 — 자비스12 2026-09-02).
+    if st.session_state.get("j13_picklist_shown") != code:
+        st.session_state["j13_picklist_shown"] = code
+        for opened in (f"j13_detail_open_{panel}", f"j13_intraday_open_{panel}", f"j13_bundle_open_{panel}"):
+            st.session_state[opened] = True
+        back_nav.opened(st, f"j13_detail_open_{panel}", f"j13_intraday_open_{panel}", f"j13_bundle_open_{panel}")
+        scroll_to.request(st, f"detail_{panel}")
+    scroll_to.anchor(st, f"detail_{panel}")
+    saved = (row or {}).get("score")
+    try:
+        saved_text = f" · 그날 점수 {float(saved):.1f}" if saved not in (None, "") else ""
+    except (TypeError, ValueError):
+        saved_text = ""
+    st.markdown(
+        f"<div class='j4-section-title'>저장해 둔 목록에서 고른 종목 · {html.escape(str(name or code))}"
+        f"{html.escape(' · ' + part if part else '')}{html.escape(saved_text)}</div>",
+        unsafe_allow_html=True,
+    )
+    theme_name = str((row or {}).get("themes") or "").split("·")[0].strip() or part or "저장해 둔 목록"
+    market_score = float((market or {}).get("score") or 0)
+    leader = None
+    try:
+        if kind in ("pullback", "breakout", "crash"):
+            finder = {"pullback": j4data.find_pullback_stocks, "breakout": j4data.find_breakout_pullback_stocks,
+                      "crash": j4data.find_crash_rebound_stocks}[kind]
+            with st.spinner(f"{name or code} — 오늘 「{part}」 목록에서 찾는 중입니다…"):
+                hit = _j13_find_scan_row(finder(), code)        # 10분 보관 — 그 단추로 이미 찾았으면 곧바로다
+            if hit:
+                leader = _pullback_as_candidate(hit, [], mode=None if kind == "pullback" else kind)
+        elif kind == "top7":
+            pull_rows = (st.session_state.get("j13_pullback_result") or {}).get("rows") or []
+            with st.spinner(f"{name or code} — 오늘 「순위 7」 목록에서 찾는 중입니다…"):
+                hit = _j13_find_scan_row(j4data.find_top_reviewed_stocks(
+                    (ranking or {}).get("rows") or [], market_score=market_score, extra_rows=pull_rows), code)
+            if hit:
+                leader = _pullback_as_candidate(hit, []) if "pullback" in hit else hit
+    except Exception as exc:
+        st.caption(f"오늘 목록을 다시 세지 못했습니다: {_safe_error_text(exc)}")
+        leader = None
+    if leader:
+        _render_stock_detail({"name": theme_name}, leader, market, [leader], "j13_picklist_detail_choice", panel=panel)
+        return
+    if not st.session_state.get(f"j13_detail_open_{panel}"):
+        return
+    if part:
+        st.warning(f"{name or code} 은(는) 오늘 「{part}」 목록에 없습니다 — 저장된 날에는 걸렸지만 오늘 그물에는 안 걸렸습니다. "
+                   "그 파트의 배점은 그날 목록 안에서만 잴 수 있어 배점표는 그리지 않고, 종목 정보만 보여 드립니다.")
+    else:
+        st.info("이 줄에는 매수 파트가 적혀 있지 않아 배점표를 그리지 않고, 종목 정보만 보여 드립니다.")
+    _render_light_detail(code, name or code, panel=panel, sub=f"저장해 둔 목록 · {part or '파트 모름'}")
+    st.button("✕ 선택종목 세부사항 닫기", key="close_j13_picklist_light", on_click=_forget_picklist_pick)
+
+
 def _render_my_stock_panel(market: dict) -> None:
     """내 종목 현재상황 — 이름을 치면 비슷한 종목이 뜨고, 고르면 상세가 열린다."""
     st.divider()
@@ -4444,6 +4531,13 @@ def _render_my_stock_panel(market: dict) -> None:
         horizontal=True,
         key="j13_my_stock_pick",
     )
+    # **고른 종목이 바뀌면 세부사항 · 당일 · 차트가 저절로 열린다**(자비스12 j12_my_stock_shown 과 같다 · 2026-11-05 상하님 「2」 —
+    # 전에는 고른 뒤 「🔎 선택종목 세부사항 보기」를 한 번 더 눌러야 했다). 닫으시면 닫힌 채로 있고, 다른 종목을 고르면 다시 열린다.
+    if st.session_state.get("j13_my_stock_shown") != chosen:
+        st.session_state["j13_my_stock_shown"] = chosen
+        for opened in ("j13_detail_open_mystock", "j13_intraday_open_mystock", "j13_bundle_open_mystock"):
+            st.session_state[opened] = True
+        back_nav.opened(st, "j13_detail_open_mystock", "j13_intraday_open_mystock", "j13_bundle_open_mystock")
     with st.spinner(f"{by_code[chosen]['name']} 심사 중입니다…"):
         result = j4data.analyze_one_stock(
             chosen, by_code[chosen]["name"],
@@ -5547,11 +5641,15 @@ def _watch_add(code: str, name: str, price, where: str, group: str = "selected")
 def _watch_remove(code: str, name: str, where: str) -> None:
     try:
         jarvis13_watch_store.remove(code)
-        if st.session_state.get("j13w_detail") == code:
-            st.session_state.pop("j13w_detail", None)
-            if where == "detail_watch":    # 관심종목 화면의 세부사항은 같이 닫힌다 — 알림은 화면 위(찾기 칸 밑)에 띄운다
-                where = "page"
+        full = False
+        if st.session_state.get(_J13W_DETAIL) == code:
+            _close_watch_detail()          # 관심종목 세부사항 창은 같이 닫힌다 — 알림은 화면 위(찾기 칸 밑)에 띄운다
+            if where == "detail_watch":
+                where, full = "page", True
         st.session_state["j13w_msg"] = (f"{name} 을(를) 관심종목에서 뺐습니다.", "ok", where)
+        if full:
+            # 창은 덩이(fragment)라 그 덩이만 다시 돈다 — 빠진 카드와 알림이 보이게 카드 판까지 다시 그린다(알림을 같이 넘긴다).
+            st.session_state[_J13W_FULL_RERUN] = st.session_state["j13w_msg"]
     except Exception as exc:
         st.session_state["j13w_msg"] = (f"빼지 못했습니다: {_safe_error_text(exc)}", "no", where)
 
@@ -5606,10 +5704,97 @@ div[class*="st-key-j13add_sel_"] button:hover,div[class*="st-key-j13add_ext_"] b
 </style>"""
 
 
-def _open_watch_detail(code: str) -> None:
-    st.session_state["j13w_detail"] = code
-    st.session_state["j13_detail_open_watch"] = True
-    scroll_to.request(st, "detail_watch")
+# ── 관심종목 「🔎 선택종목 세부사항 보기」 = 자비스12 처럼 **판 위를 덮는 창** (2026-11-05 상하님 「관심종목에서 클릭해도 나와야겠지?
+# 미국테마처럼」). 전에는 관심종목 판 맨 밑에 붙여 그리고 화면을 굴려 내려갔다(판 전체를 다시 그림). 이제 자비스12
+# _render_watch_detail_area · _render_watch_detail 과 같은 짜임 — 숨은 단추 + 창을 한 덩이(st.fragment)로 그려 그 덩이만 다시
+# 돌고, 창은 큰 카드 위를 덮는다(닫으면 그 종목 카드가 그대로 · 자비스12 2026-10-27). 밑 막대는 창 위에 남는다.
+# 창 안 차례도 자비스12 와 같다 — 배점 · 매수 심사는 파트마다 자가 달라 뺐다(_render_light_detail).
+_J13W_DETAIL = "j13w_detail"            # 연 종목 코드(이름은 _J13W_DETAIL_NAME)
+_J13W_DETAIL_NAME = "j13w_detail_name"
+_J13W_DETAIL_OPEN = "j13w_detail_open"  # 폰 뒤로가기가 끄는 열쇠(back_nav)
+_J13W_DETAIL_FRESH = "j13w_detail_fresh"
+_J13W_FULL_RERUN = "j13w_full_rerun"    # 창 안에서 빼기를 누른 판 — 카드 판까지 다시 그려야 한다
+_J13W_PANEL = "watch"
+
+
+def _open_watch_detail(code: str, name: str = "") -> None:
+    st.session_state[_J13W_DETAIL] = code
+    st.session_state[_J13W_DETAIL_NAME] = name or code
+    st.session_state[_J13W_DETAIL_OPEN] = True
+    st.session_state[_J13W_DETAIL_FRESH] = True
+
+
+def _close_watch_detail() -> None:
+    for key in (_J13W_DETAIL, _J13W_DETAIL_NAME, _J13W_DETAIL_FRESH):
+        st.session_state.pop(key, None)
+    st.session_state[_J13W_DETAIL_OPEN] = False
+    # 창 안에서 연 구역(4주간 시세 · 그림 묶음)은 닫아 둔다 — 다음에 열 때 처음처럼(자비스12 와 같다).
+    for key in [k for k in st.session_state.keys()
+                if str(k).startswith(f"j13_daily_prices_{_J13W_PANEL}_") or str(k) == f"j13_bundle_open_{_J13W_PANEL}"]:
+        st.session_state.pop(key, None)
+
+
+_J13W_DETAIL_CSS = """<style>
+/* 관심종목 세부사항 창 — 관심종목 판 위에 한 장 덮는다. 자비스12 처럼 밑 막대(그림 2147483646 · 단추 2147483647)보다 아래(2147483600)라
+   막대가 창 위에 보인다(그 높이만큼 밑을 비움). 큰 카드(2147483647)는 닫지 않고 **창이 떠 있는 동안만 감춘다** — 닫으면 그 종목
+   큰 카드가 그대로 있다(자비스12 2026-10-27). 처음 판은 창을 맨 위에 올려 막대 그림이 창에 가렸다(브라우저로 재어 고침). */
+body:has(div.st-key-j13w_pane) .j13h-card-shell[open]>.j13h-card-open,
+body:has(div.st-key-j13w_pane) .j13h-card-shell[open]>.j13h-card-summary{visibility:hidden!important}
+div.st-key-j13w_pane{position:fixed!important;inset:0!important;z-index:2147483600!important;overflow-y:auto!important;
+  box-sizing:border-box!important;padding:14px 16px 112px!important;gap:10px!important;
+  background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%)!important}
+div[class*="st-key-j13w_close_"] button{border-radius:12px!important;border:1px solid #e3b52c!important;
+  background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%)!important}
+div[class*="st-key-j13w_close_"] button p{color:#fff!important;font-weight:900!important}
+.j13-light-note{font-size:.78rem;color:#9fb6d6;margin:2px 0 6px}
+</style>"""
+
+
+def _render_light_detail(code: str, name: str, *, panel: str, sub: str, note: str = "") -> dict:
+    """**배점 없는** 세부사항 한 벌 — 자비스12 관심종목 창(_render_watch_detail)과 같은 차례(2026-11-05 상하님 「관심종목에서
+    클릭해도 나와야겠지? 미국테마처럼」). 이름 → (주인만) 넣기·빼기 → 🏢 종목 개요 → 📅 · 👥 · 🔍 상자 셋 → 📑 재무 → 📢 공시 →
+    당일 가격 → 4주간 시세 → 당일 · 일봉 · 주봉 · 월봉 → 종목 뉴스. 배점 · 매수 심사는 파트마다 자가 달라 넣지 않는다(시장분석의
+    그 목록에서 본다). 값은 종목검색과 같은 길(j4data.analyze_one_stock)로 받는다. 받은 줄(dict · 못 받으면 빈 dict)을 돌려준다."""
+    market = st.session_state.get("j13_market_overview") or {}
+    with st.spinner(f"{name} 세부사항을 불러오는 중입니다…"):
+        try:
+            result = j4data.analyze_one_stock(code, name, market_score=float(market.get("score") or 0))
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+    row = (result.get("row") or {}) if result.get("ok") else {}
+    metrics = row.get("metrics") or {}
+    st.markdown(
+        f"<div class='j4-stock-name'>{html.escape(str(name))} · {html.escape(str(code))}</div>"
+        f"<div class='j4-stock-sub'>{html.escape(str(sub))}</div>"
+        + (f"<div class='j13-light-note'>{html.escape(str(note))}</div>" if note else ""),
+        unsafe_allow_html=True,
+    )
+    if not auth.is_guest():
+        _render_watch_toggle(code, name, metrics, panel=panel)
+    price_now = metrics.get("current") or metrics.get("close")
+    # 개요와 상자 셋은 **따로** 내보낸다(CLAUDE.md 0-4 — 한 번에 붙이면 상자가 버려졌다).
+    try:
+        overview = jarvis13_fundamentals.overview_html(code, name, info=jarvis13_fundamentals.summary(code, price_now))
+    except Exception:
+        overview = ""
+    if overview:
+        st.markdown(overview, unsafe_allow_html=True)
+    try:
+        street = jarvis13_fundamentals.street_block(code, price_now, frame=j4data.get_daily_frame(code))
+    except Exception:
+        street = ""
+    if street:
+        st.markdown(street, unsafe_allow_html=True)
+    _render_fundamentals_box(code, metrics, panel=panel)
+    _render_disclosures_box(code, name, panel=panel)
+    if metrics:
+        _render_day_price_row(metrics)
+        _render_daily_prices(code, name, panel=panel)
+        _render_guest_stock_charts(code, panel)
+    else:
+        st.caption(f"{name} 시세를 받지 못했습니다 · {_safe_error_text(result.get('error'))}")
+    _render_stock_news(code, name, panel=panel)
+    return row
 
 
 def _render_watch_search() -> None:
@@ -5641,39 +5826,69 @@ def _render_watch_search() -> None:
         st.rerun()
 
 
-def _render_watch_detail(stocks: list[dict]) -> None:
-    """카드의 「🔎 세부사항」 → 아래에 그 종목 세부사항(시장분석 세부사항과 같은 한 벌 · panel=watch)."""
-    code = st.session_state.get("j13w_detail")
-    item = next((stock for stock in stocks if stock["code"] == code), None) if code else None
-    if item is None:
-        return
-    market = st.session_state.get("j13_market_overview")
-    if not market:
+def _watch_list_places(code: str) -> str:
+    """마지막으로 저장된 한국 목록에서 이 종목이 어디 몇 위인지 — 「급락 후 반등장 5위 · 순위 7 2위」(자비스12 _watch_list_places)."""
+    try:
+        import picklist_store
+
+        dates = picklist_store.available_dates("KR")
+        if not dates:
+            return ""
+        day = dates[0]
+        rows = picklist_store.load_rows(day, "KR") or []
+    except Exception:
+        return ""
+    names = {"breakout": "상승장", "crash": "급락 후 반등장", "top7": "순위 7", "pullback": "눌림목 찾기"}
+    places = []
+    for row in rows:
+        if str(row.get("code") or "").strip() != str(code):
+            continue
+        kind = str(row.get("list_kind") or "")
+        if kind not in names:
+            continue
         try:
-            market = j4data.get_market_overview()
-        except Exception:
-            market = None
-    market = market or {"ok": False, "score": 0, "regime": "자료부족"}
-    with st.spinner(f"{item['name']} 심사 중입니다…"):
-        result = j4data.analyze_one_stock(code, item["name"], market_score=float(market.get("score") or 0))
-    if not result.get("ok"):
-        st.error(_safe_error_text(result.get("error")))
+            rank = int(float(row.get("rank") or 0))
+        except (TypeError, ValueError):
+            rank = 0
+        label = f"{names[kind]} {rank}위" if rank else names[kind]
+        if label not in places:
+            places.append(label)
+    when = f"{int(day[5:7])}/{int(day[8:10])}" if len(day) >= 10 else day
+    return f"자비스 목록({when} 저장): " + (" · ".join(places) if places else "어느 목록에도 없음")
+
+
+@st.fragment
+def _render_watch_detail_area(stocks: tuple) -> None:
+    """**이 덩이만 다시 그린다**(자비스12 _render_watch_detail_area) — 종목마다 숨은 단추를 두고, 큰 카드의 「🔎 선택종목
+    세부사항 보기」가 그것을 대신 누른다(jarvis13_home.WD_OPEN_JS). 창 안 단추(4주간 시세 · 차트 · 닫기)도 이 덩이 안이다.
+    창 안에서 「빼기」를 누른 판만 카드 판까지 다시 그린다(_J13W_FULL_RERUN)."""
+    pending = st.session_state.pop(_J13W_FULL_RERUN, None)
+    if pending:
+        st.session_state["j13w_msg"] = pending        # 다시 그린 판에서 알림이 한 번 뜨게
+        st.rerun(scope="app")
+    with st.container(key="j13h_wdgo_box"):
+        for code, name in stocks:
+            st.button(f"{code} 세부사항", key=f"j13h_wdgo_{code}", on_click=_open_watch_detail, args=(code, name))
+    _render_watch_detail()
+
+
+def _render_watch_detail() -> None:
+    code = str(st.session_state.get(_J13W_DETAIL) or "")
+    if not code or not st.session_state.get(_J13W_DETAIL_OPEN):
+        if code:
+            _close_watch_detail()          # 폰 뒤로가기로 닫힌 판 — 남은 것을 걷는다
         return
-    leader = result["row"]
-    # 심사는 시장분석 「종목검색」과 같은 함수다 — 그 화면이 붙이는 안내 둘도 같이 붙인다(점수 읽는 법이 같아야 한다).
-    # 손님 화면에는 점수·지표 칸이 없으니(가격·차트만) 안내도 주인에게만.
-    if not auth.is_guest():
-        if leader.get("partial"):
-            st.info(
-                f"📌 상장한 지 얼마 안 돼({leader.get('bars')}거래일) 일부 칸이 비어 있습니다. "
-                f"20일 수익률·20일선·52주 고가 대비는 {j4data.MIN_HISTORY_BARS}거래일이 쌓여야 나옵니다."
-            )
-        st.caption(
-            "이 점수에는 테마 대비 상대강도가 빠져 있습니다 — 견줄 테마가 없기 때문입니다. "
-            "다만 2026-08-07 실측에서 상대강도는 **거꾸로**로 나와 배점이 0점이 됐으므로, "
-            "빠져도 점수 차이는 없습니다."
-        )
-    _render_stock_detail({"name": "관심종목"}, leader, market, [leader], "j13_watch_detail_choice", panel="watch")
+    name = str(st.session_state.get(_J13W_DETAIL_NAME) or code)
+    if st.session_state.pop(_J13W_DETAIL_FRESH, False):
+        back_nav.opened(st, _J13W_DETAIL_OPEN)
+    st.markdown(_J13W_DETAIL_CSS, unsafe_allow_html=True)
+    with st.container(key="j13w_pane"):
+        st.button(f"✕ 닫기 — {name} 화면으로", key="j13w_close_top", on_click=_close_watch_detail)
+        places = _watch_list_places(code)
+        _render_light_detail(code, name, panel=_J13W_PANEL,
+                             sub="관심종목" + (f" · {places}" if places else ""),
+                             note="배점·매수 심사는 파트마다 자가 달라 여기서는 뺐습니다 — 시장분석의 그 목록에서 보십시오.")
+        st.button(f"✕ 닫기 — {name} 화면으로", key="j13w_close_bottom", on_click=_close_watch_detail)
 
 
 _J13H_MARKET_QUERY = "코스피"
@@ -5842,12 +6057,9 @@ def _render_watch_page() -> None:
             [{"code": item["code"], "name": item["name"], "change_pct": item.get("change_pct"),
               "day": str(item.get("last_day") or "")} for item in items if item.get("ok")],
             key="j13_movers_watch")
-        # 카드의 「🔎 선택종목 세부사항 보기」가 대신 누르는 숨은 단추(자비스12 j12b_wdgo 와 같은 장치 · 이름 j13h)
-        with st.container(key="j13h_wdgo_box"):
-            for stock in stocks:
-                st.button(f"{stock['code']} 세부사항", key=f"j13h_wdgo_{stock['code']}", on_click=_open_watch_detail,
-                          args=(stock["code"],))
-        _render_watch_detail(stocks)
+        # 카드의 「🔎 선택종목 세부사항 보기」가 대신 누르는 숨은 단추 + 세부사항 창 — 한 덩이(자비스12 j12b_wdgo · j12b_wdetail 와
+        # 같은 장치 · 이름 j13h/j13w). 2026-11-05 상하님 「관심종목에서 클릭해도 나와야겠지? 미국테마처럼」.
+        _render_watch_detail_area(tuple((stock["code"], stock["name"]) for stock in stocks))
     try:
         import streamlit.components.v1 as _components
 
