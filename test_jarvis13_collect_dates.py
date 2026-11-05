@@ -58,6 +58,14 @@ class TradeDateTests(unittest.TestCase):
         body = source.split("def main()", 1)[1]
         self.assertIn("traded_on(trade_date)", body)
         self.assertNotIn("kr_market_traded_today\", lambda: None)()", body)
+        self.assertIn("다음 장", body)                          # 다음 날 장중에 돌면 「쉬는 날」이 아니라 그렇게 적는다
+
+    def test_next_session_open_is_not_called_a_holiday(self):
+        # 11/5 09:07(장중) — 마지막 봉은 11/5 · 찍을 날은 11/4 → 그날 봉을 물으면 False, 오늘 봉을 물으면 True
+        traded_on = _traded_on()
+        check = _kospi_last_bar(date(2026, 11, 5))
+        self.assertFalse(traded_on("2026-11-04", check))
+        self.assertTrue(traded_on("2026-11-05", check))
 
 
 if __name__ == "__main__":

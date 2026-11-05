@@ -51,7 +51,12 @@ def main() -> int:
     trade_date = collector._last_closed_session("KR")
     traded = traded_on(trade_date)
     if traded is False:
-        print(f"KR {trade_date} — 한국 증시가 쉬는 날이라 찍지 않습니다", flush=True)
+        today = datetime.now(SEOUL).date().isoformat()
+        if today > str(trade_date) and traded_on(today):
+            # 다음 장이 이미 열렸다(예약이 다음 날 장중까지 밀림) — 지금 값은 오늘 것이라 그날 목록으로 적으면 안 된다
+            print(f"KR {trade_date} — 다음 장({today})이 이미 열려 그날 값을 찍을 수 없어 건너뜁니다", flush=True)
+        else:
+            print(f"KR {trade_date} — 한국 증시가 쉬는 날이라 찍지 않습니다", flush=True)
         return 0
     overview = data.get_market_overview() or {}
     ranking = data.get_theme_rankings() or {}
