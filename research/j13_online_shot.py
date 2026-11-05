@@ -142,12 +142,21 @@ def _clicks(browser) -> list[str]:
         if not page.evaluate("!!document.querySelector('.j13h-card-summary')"):
             out.append(f"[관심종목] 판 {cards and round(cards, 1)}초 · 넣은 종목이 없어 누를 카드가 없음")
         else:
+            # 「🔎」를 받는 장치(바깥 문서의 script#j13h-wd-open)는 관심종목 판 맨 끝에서 심긴다 — 심기기 전에 누르면 아무 일도 없다
+            hooked = _wait(page, "!!document.getElementById('j13h-wd-open')", 120)
             page.locator(".j13h-card-summary").first.click()
             page.wait_for_timeout(900)
             go = page.locator(".j13h-card-shell[open] .j13h-wd-open").first
             go.click(timeout=15_000)
-            opened = _wait(page, "!!document.querySelector('div.st-key-j13w_pane .j4-stock-name') && "
-                                 "document.querySelectorAll('div.st-key-j13w_pane .j13st-box').length >= 3", 240)
+            ready = ("!!document.querySelector('div.st-key-j13w_pane .j4-stock-name') && "
+                     "document.querySelectorAll('div.st-key-j13w_pane .j13st-box').length >= 3")
+            opened = _wait(page, ready, 60)
+            again = False
+            if not opened:                                   # 한 번 더 눌러 본다(처음 누름이 먹었는지 가린다)
+                again = True
+                go.click(timeout=15_000)
+                opened = _wait(page, ready, 120)
+            out.append(f"   장치 심김 {hooked and round(hooked, 1)}초 · 두 번째 누름 {again}")
             page.wait_for_timeout(1500)
             info = page.evaluate("""() => { const pane = document.querySelector('div.st-key-j13w_pane');
                 const at = document.elementFromPoint(206, 300);
