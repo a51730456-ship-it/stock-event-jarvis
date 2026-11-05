@@ -1,0 +1,51 @@
+# 자비스13 「시장 현황」(업종 지도) 자료 — 업종 목록 · 업종별 종목 · 업종 시가총액 → data/kr_sectors.json
+# (2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 · docs/JARVIS13.md 4-1). 비밀번호 · 열쇠는 쓰지 않는다.
+# 업종 구성은 자주 안 바뀌어 주 1회(토 06:40 KST)면 된다. 작업 갈래에 올리면 시험만 돈다(파일 안 씀 · 첫 응답 칸 이름만 찍음).
+name: 자비스13 업종 자료 모으기
+
+on:
+  schedule:
+    - cron: "40 21 * * 5"     # 토요일 06:40 KST
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j13_sector_collect.py
+      - .github/workflows/j13_sector_collect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j13-sector-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install requests
+      - name: 업종 자료 받기
+        env:
+          J13_SECTOR_DRY: ${{ github.event_name == 'push' && '1' || '' }}
+        run: python research/j13_sector_collect.py
+      - name: 저장소에 올리기 (시험이 아닐 때만)
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "j13-sector-collector"
+          git config user.email "j13-sector-collector@users.noreply.github.com"
+          git add data/kr_sectors.json
+          if git diff --cached --quiet; then echo "바뀐 것 없음"; exit 0; fi
+          git commit -m "한국 업종 자료 $(TZ=Asia/Seoul date +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            sleep $((i * 10))
+          done
+          echo "올리기 실패" && exit 1
