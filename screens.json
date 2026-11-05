@@ -1,0 +1,456 @@
+[
+ {
+  "view": "j12_home",
+  "size": "pc",
+  "shots": [
+   "j12_home_pc_1.jpg",
+   "j12_home_pc_2.jpg",
+   "j12_home_pc_3.jpg",
+   "j12_home_pc_4.jpg",
+   "j12_home_pc_5.jpg",
+   "j12_home_pc_6.jpg",
+   "j12_home_pc_7.jpg",
+   "j12_home_pc_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 10.7
+ },
+ {
+  "view": "j12_home",
+  "size": "phone",
+  "shots": [
+   "j12_home_phone_1.jpg",
+   "j12_home_phone_2.jpg",
+   "j12_home_phone_3.jpg",
+   "j12_home_phone_4.jpg",
+   "j12_home_phone_5.jpg",
+   "j12_home_phone_6.jpg",
+   "j12_home_phone_7.jpg",
+   "j12_home_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 6.6
+ },
+ {
+  "view": "j12_market",
+  "size": "pc",
+  "shots": [
+   "j12_market_pc_1.jpg",
+   "j12_market_pc_2.jpg",
+   "j12_market_pc_3.jpg",
+   "j12_market_pc_4.jpg",
+   "j12_market_pc_5.jpg",
+   "j12_market_pc_6.jpg",
+   "j12_market_pc_7.jpg",
+   "j12_market_pc_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.4
+ },
+ {
+  "view": "j12_market",
+  "size": "phone",
+  "shots": [
+   "j12_market_phone_1.jpg",
+   "j12_market_phone_2.jpg",
+   "j12_market_phone_3.jpg",
+   "j12_market_phone_4.jpg",
+   "j12_market_phone_5.jpg",
+   "j12_market_phone_6.jpg",
+   "j12_market_phone_7.jpg",
+   "j12_market_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 7.6
+ },
+ {
+  "view": "j13_market",
+  "size": "pc",
+  "shots": [
+   "j13_market_pc_1.jpg",
+   "j13_market_pc_2.jpg",
+   "j13_market_pc_3.jpg",
+   "j13_market_pc_4.jpg",
+   "j13_market_pc_5.jpg",
+   "j13_market_pc_6.jpg",
+   "j13_market_pc_7.jpg",
+   "j13_market_pc_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 20.3
+ },
+ {
+  "view": "j13_market",
+  "size": "phone",
+  "shots": [
+   "j13_market_phone_1.jpg",
+   "j13_market_phone_2.jpg",
+   "j13_market_phone_3.jpg",
+   "j13_market_phone_4.jpg",
+   "j13_market_phone_5.jpg",
+   "j13_market_phone_6.jpg",
+   "j13_market_phone_7.jpg",
+   "j13_market_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 7.5
+ },
+ {
+  "view": "j13_watch",
+  "size": "pc",
+  "shots": [
+   "j13_watch_pc_1.jpg",
+   "j13_watch_pc_2.jpg",
+   "j13_watch_pc_3.jpg",
+   "j13_watch_pc_4.jpg",
+   "j13_watch_pc_5.jpg",
+   "j13_watch_pc_6.jpg",
+   "j13_watch_pc_7.jpg",
+   "j13_watch_pc_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 8.7
+ },
+ {
+  "view": "j13_watch",
+  "size": "phone",
+  "shots": [
+   "j13_watch_phone_1.jpg",
+   "j13_watch_phone_2.jpg",
+   "j13_watch_phone_3.jpg",
+   "j13_watch_phone_4.jpg",
+   "j13_watch_phone_5.jpg",
+   "j13_watch_phone_6.jpg",
+   "j13_watch_phone_7.jpg",
+   "j13_watch_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 6.3
+ },
+ {
+  "view": "j12_rank",
+  "size": "pc",
+  "shots": [
+   "j12_rank_pc_1.jpg",
+   "j12_rank_pc_2.jpg",
+   "j12_rank_pc_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.5
+ },
+ {
+  "view": "j12_rank",
+  "size": "phone",
+  "shots": [
+   "j12_rank_phone_1.jpg",
+   "j12_rank_phone_2.jpg",
+   "j12_rank_phone_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.4
+ },
+ {
+  "view": "j13_rank",
+  "size": "pc",
+  "shots": [
+   "j13_rank_pc_1.jpg",
+   "j13_rank_pc_2.jpg",
+   "j13_rank_pc_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 19.8
+ },
+ {
+  "view": "j13_rank",
+  "size": "phone",
+  "shots": [
+   "j13_rank_phone_1.jpg",
+   "j13_rank_phone_2.jpg",
+   "j13_rank_phone_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.4
+ },
+ {
+  "view": "j12_score",
+  "size": "pc",
+  "shots": [
+   "j12_score_pc_1.jpg",
+   "j12_score_pc_2.jpg",
+   "j12_score_pc_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 15.4
+ },
+ {
+  "view": "j12_score",
+  "size": "phone",
+  "shots": [
+   "j12_score_phone_1.jpg",
+   "j12_score_phone_2.jpg",
+   "j12_score_phone_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.9
+ },
+ {
+  "view": "j13_score",
+  "size": "pc",
+  "shots": [
+   "j13_score_pc_1.jpg",
+   "j13_score_pc_2.jpg",
+   "j13_score_pc_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 1400,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 23.9
+ },
+ {
+  "view": "j13_score",
+  "size": "phone",
+  "shots": [
+   "j13_score_phone_1.jpg",
+   "j13_score_phone_2.jpg",
+   "j13_score_phone_3.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 0,
+   "overview": 0
+  },
+  "seconds": 14.8
+ },
+ {
+  "view": "j13_watchdetail",
+  "size": "phone",
+  "shots": [
+   "j13_watchdetail_phone_1.jpg",
+   "j13_watchdetail_phone_2.jpg",
+   "j13_watchdetail_phone_3.jpg",
+   "j13_watchdetail_phone_4.jpg",
+   "j13_watchdetail_phone_5.jpg",
+   "j13_watchdetail_phone_6.jpg",
+   "j13_watchdetail_phone_7.jpg",
+   "j13_watchdetail_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 3,
+   "overview": 1
+  },
+  "seconds": 14.3
+ },
+ {
+  "view": "j13_picklist",
+  "size": "phone",
+  "shots": [
+   "j13_picklist_phone_1.jpg",
+   "j13_picklist_phone_2.jpg",
+   "j13_picklist_phone_3.jpg",
+   "j13_picklist_phone_4.jpg",
+   "j13_picklist_phone_5.jpg",
+   "j13_picklist_phone_6.jpg",
+   "j13_picklist_phone_7.jpg",
+   "j13_picklist_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 3,
+   "overview": 1
+  },
+  "seconds": 44.2
+ },
+ {
+  "view": "j13_crash",
+  "size": "phone",
+  "shots": [
+   "j13_crash_phone_1.jpg",
+   "j13_crash_phone_2.jpg",
+   "j13_crash_phone_3.jpg",
+   "j13_crash_phone_4.jpg",
+   "j13_crash_phone_5.jpg",
+   "j13_crash_phone_6.jpg",
+   "j13_crash_phone_7.jpg",
+   "j13_crash_phone_8.jpg"
+  ],
+  "audit": {
+   "css": [],
+   "tags": [],
+   "empty": [],
+   "del": [],
+   "code": [],
+   "wide": false,
+   "width": 412,
+   "boxes": 3,
+   "overview": 1
+  },
+  "seconds": 31.2
+ }
+]
