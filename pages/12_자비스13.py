@@ -956,9 +956,24 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110501
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
-_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110403
+_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110502
 if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
+# 「시장 현황」 = 네이버 증시 현황처럼 시장 전체 업종 지도(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 · 「이거 네이버다」)
+import jarvis13_market_map  # noqa: E402
+_REQUIRED_J13_MARKET_MAP_REVISION = 2026110501
+if int(getattr(jarvis13_market_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_MAP_REVISION:
+    jarvis13_market_map = importlib.reload(jarvis13_market_map)
+
+
+def _kr_market_map():
+    """업종 지도 자료 — 네이버 업종 목록을 손님끼리 55초 같이 쓴다(못 받은 판은 안 담음 · 옛 값이 있으면 그것). 못 받으면 None(테마 지도로)."""
+    try:
+        live = jarvis13_shared.remember(("kr_industry", id(jarvis13_market_map.fetch_live)), jarvis13_market_map.fetch_live,
+                                        good=lambda value: bool(value))
+        return jarvis13_market_map.snapshot(live)
+    except Exception:
+        return None
 import jarvis13_help  # noqa: E402  — 「📘 이 테마 설명」 짧은 글(2026-11-04 저녁 상하님 「너무 길다 · 간단히 · 현실과 맞냐」)
 _REQUIRED_J13_HELP_REVISION = 2026110401
 if int(getattr(jarvis13_help, "MODULE_REVISION", 0)) < _REQUIRED_J13_HELP_REVISION:
@@ -1430,8 +1445,11 @@ def _render_market_overview() -> None:
 
     # 시장 국면·미국 시장국면·공포탐욕 세 가지를 같은 반원 게이지로 통일한다.
     # 제목은 스카이블루로 두고, 미국 카드의 '(미국)'만 밝은 초록으로 구분한다.
+    # 칸 차례는 자비스12 시장분석과 같게(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」). 전에는 한국 시장 국면이 맨 앞이었다.
+    # 자비스12 는 기기마다 차례가 다르다 — PC(코드 차례): 선물 → 지수 → 원/달러 → 시장 국면 → 시장 상황 → 시장 현황 → 공포탐욕 ·
+    # 폰 · 태블릿(1200px 이하 · 얼린 폰 규칙): 원/달러 → 시장 현황 → 시장 국면. 한국도 똑같이 — PC 는 아래 코드 차례(원/달러 →
+    # 시장 국면(한국) → 시장 현황) · 폰 · 태블릿은 jarvis13_sector_map.CSS 끝 차례 5 · 6 · 7(원/달러 → 시장 현황 → 시장 국면(한국) → 미국 지수).
     top_cells = [
-        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)"),
         # 한국장보다 먼저 움직이는 나스닥100 선물을 코스피 앞에 둔다.
         _us_futures_cell(),
         # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
@@ -1448,13 +1466,19 @@ def _render_market_overview() -> None:
                 _kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
                 "#ff5b5b", "#4da6ff"), "KQ11", "KOSDAQ") + "</div>", 1),
         _fx_cell(),
-        # 「시장 현황」 테마 지도(2026-11-04 상하님 「미국테마에는 있는데 한국 테마에는 없다」) — 자비스12 와 같은 자리(환율 뒤).
-        # 테마 순위는 여기서 새로 받지 않는다 — 아래 테마 표가 받아 둔 것을 쓴다(없으면 「받는 중」 · 1분 뒤 저절로 채워짐).
+        # PC(1201px 이상)는 여기서 줄을 끊는다 — 자비스12 PC 처럼 첫 줄은 숫자 칸만, 시장 국면(한국)은 둘째 줄 맨 앞(폰 · 태블릿은 안 보임).
+        # 첫 줄에 같이 서면 숫자 칸이 206px 로 좁아져 「나스닥100 선물 (1분봉)」 제목이 두 줄로 접혔다(11/11 깃허브 PC 사진 · c99d535).
+        "<div class='j13-top-break'></div>",
+        # 폰 · 태블릿 차례를 잡는 이름표(j13-kr-phase · j13-us-idx — jarvis13_sector_map.CSS 끝 · 값은 그대로).
+        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)").replace(
+            "<div class='fg-box'>", "<div class='fg-box j13-kr-phase'>", 1),
+        # 「시장 현황」(2026-11-04 상하님 「미국테마에는 있는데 한국 테마에는 없다」 · 11-05 네이버 증시 현황처럼 업종 지도) — 자비스12 와
+        # 같은 자리(PC 시장 국면 뒤 · 폰 원/달러 뒤). 테마 순위는 여기서 새로 받지 않는다 — 아래 테마 표가 받아 둔 것을 쓴다.
         jarvis13_sector_map.cell_html(jarvis13_shared.peek("theme_rankings", keep=900)
-                                      or st.session_state.get("j13_theme_rankings")),
+                                      or st.session_state.get("j13_theme_rankings"), market=_kr_market_map()),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
-        *_us_index_cells(),
+        *[cell.replace("<div class='j4-top-cell'", "<div class='j4-top-cell j13-us-idx'", 1) for cell in _us_index_cells()],
         # 「시장상태(정규장)」 · 「대표종목 5일 수급」 두 칸은 뺐다(2026-11-04 상하님 폰 캡처 「둘 다 필요 없는 것 아니냐」).
         # 줄 끊기(j4-top-break)도 그 두 칸을 띄우려던 것이라 같이 뺐다. 값·점수는 그대로(시장 점수 셈은 jarvis4_data 안).
         # 미국테마의 시장 국면 카드를 제목·문구·전일 행까지 그대로 복제한다.

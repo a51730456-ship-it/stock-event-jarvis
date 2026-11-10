@@ -67,8 +67,14 @@ class SectorMapTests(unittest.TestCase):
 
     def test_page_places_it_after_fx_and_reuses_ranking(self):
         page = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
-        block = page.split("        _fx_cell(),")[1][:600]
-        self.assertIn("jarvis13_sector_map.cell_html(jarvis13_shared.peek(\"theme_rankings\"", block)
+        # PC 차례는 자비스12 PC 대로 — 원/달러 → 시장 국면(한국) → 시장 현황 → 미국 지수(폰 차례는 test_jarvis13_market_map · 2026-11-05)
+        fx = page.index("        _fx_cell(),")
+        phase = page.index('regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)")', fx)
+        smap = page.index("jarvis13_sector_map.cell_html(jarvis13_shared.peek(\"theme_rankings\"", phase)
+        self.assertLess(smap, page.index("for cell in _us_index_cells()", smap))
+        between = page[fx + len("        _fx_cell(),"):page.rindex("\n", 0, phase)]       # 원/달러와 시장 국면(한국) 사이엔 PC 줄 끊기만
+        code = [line.strip() for line in between.splitlines() if line.strip() and not line.strip().startswith("#")]
+        self.assertEqual(["\"<div class='j13-top-break'></div>\","], code)
         self.assertIn('jarvis13_shared.put("theme_rankings", ranking)', page)
         self.assertIn("st.markdown(jarvis13_sector_map.CSS, unsafe_allow_html=True)", page)
 
