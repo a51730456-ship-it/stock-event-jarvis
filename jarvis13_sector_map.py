@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import html
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026110502
 MAP_W, MAP_H = 100.0, 58.0
 POP_W, POP_H = 100.0, 45.0
 MAX_TILES = 30
@@ -291,4 +291,12 @@ body:has(.j13sm-tap:checked) .j13b-bottom-nav{visibility:hidden!important}
   .j13sm-tap:checked ~ .j13sm-pop{transform:translate(-50%,-50%) rotate(90deg) scale(1)}
 }
 @media (prefers-reduced-motion: reduce){.j13sm-pop,.j13sm-scrim{transition:none!important}}
+/* 칸 차례(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」) — 폰 · 태블릿(1200px 이하)은 얼린 폰 규칙이 게이지(.fg-box)를
+   맨 뒤(차례 10)로 보낸다. 자비스12 처럼 원/달러 → 시장 현황 → 시장 국면(한국) → 미국 지수가 되게 5 · 6 · 7 을 준다(미국 국면 ·
+   공포탐욕은 10 그대로). PC 는 코드 차례 그대로. 값은 안 바꾼다 — 차례만. */
+@media (max-width:1200px){
+.j4-top-row > .j13-sector-map{order:5}
+.j4-top-row > .j13-kr-phase{order:6}
+.j4-top-row > .j13-us-idx{order:7}
+}
 </style>"""

@@ -63,6 +63,19 @@ class MarketMapTests(unittest.TestCase):
         mods |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
         self.assertTrue(mods <= {"__future__", "json", "threading", "pathlib", "requests"}, mods)
 
+    def test_phone_order_follows_jarvis12(self):
+        # 폰 · 태블릿(1200px 이하) — 얼린 폰 규칙이 게이지를 차례 10 으로 보낸다. 자비스12 처럼 원/달러 → 시장 현황 → 시장 국면(한국)
+        # → 미국 지수(미국 국면 · 공포탐욕은 10 그대로).
+        block = sm.CSS.split("@media (max-width:1200px){", 1)[1].split("\n}", 1)[0]
+        for rule in (".j4-top-row > .j13-sector-map{order:5}", ".j4-top-row > .j13-kr-phase{order:6}",
+                     ".j4-top-row > .j13-us-idx{order:7}"):
+            self.assertIn(rule, block)
+        page = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
+        self.assertIn("\"<div class='fg-box'>\", \"<div class='fg-box j13-kr-phase'>\", 1)", page)
+        self.assertIn("\"<div class='j4-top-cell'\", \"<div class='j4-top-cell j13-us-idx'\", 1) for cell in _us_index_cells()", page)
+        import regime_gauge_ui                                                                     # 바꿔 끼우는 앞머리가 그대로인지
+        self.assertTrue(regime_gauge_ui.regime_box_html(None, title="시장 국면 (한국)").startswith("<div class='fg-box'>"))
+
     def test_page_passes_the_market_map_and_guards_revisions(self):
         page = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
         self.assertIn("market=_kr_market_map()", page)

@@ -956,7 +956,7 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110501
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
-_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110501
+_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110502
 if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
 # 「시장 현황」 = 네이버 증시 현황처럼 시장 전체 업종 지도(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 · 「이거 네이버다」)
@@ -1468,10 +1468,12 @@ def _render_market_overview() -> None:
         # 테마 순위는 여기서 새로 받지 않는다 — 아래 테마 표가 받아 둔 것을 쓴다(없으면 「받는 중」 · 1분 뒤 저절로 채워짐).
         jarvis13_sector_map.cell_html(jarvis13_shared.peek("theme_rankings", keep=900)
                                       or st.session_state.get("j13_theme_rankings"), market=_kr_market_map()),
-        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)"),
+        # 폰 · 태블릿 차례를 잡는 이름표(j13-kr-phase · j13-us-idx — jarvis13_sector_map.CSS 끝 · 값은 그대로).
+        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)").replace(
+            "<div class='fg-box'>", "<div class='fg-box j13-kr-phase'>", 1),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
-        *_us_index_cells(),
+        *[cell.replace("<div class='j4-top-cell'", "<div class='j4-top-cell j13-us-idx'", 1) for cell in _us_index_cells()],
         # 「시장상태(정규장)」 · 「대표종목 5일 수급」 두 칸은 뺐다(2026-11-04 상하님 폰 캡처 「둘 다 필요 없는 것 아니냐」).
         # 줄 끊기(j4-top-break)도 그 두 칸을 띄우려던 것이라 같이 뺐다. 값·점수는 그대로(시장 점수 셈은 jarvis4_data 안).
         # 미국테마의 시장 국면 카드를 제목·문구·전일 행까지 그대로 복제한다.
