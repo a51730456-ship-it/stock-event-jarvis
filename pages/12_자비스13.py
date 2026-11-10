@@ -956,9 +956,24 @@ _REQUIRED_J13_FLOW_CARD_REVISION = 2026110501
 if int(getattr(jarvis13_flow_card, "MODULE_REVISION", 0)) < _REQUIRED_J13_FLOW_CARD_REVISION:
     jarvis13_flow_card = importlib.reload(jarvis13_flow_card)
 import jarvis13_sector_map  # noqa: E402  — 「시장 현황」 테마 지도 · 테마 상위 5 · 오름/내림(자비스12 대로 · 2026-11-04 · 새로 받는 자료 없음)
-_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110403
+_REQUIRED_J13_SECTOR_MAP_REVISION = 2026110501
 if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTOR_MAP_REVISION:
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
+# 「시장 현황」 = 네이버 증시 현황처럼 시장 전체 업종 지도(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 · 「이거 네이버다」)
+import jarvis13_market_map  # noqa: E402
+_REQUIRED_J13_MARKET_MAP_REVISION = 2026110501
+if int(getattr(jarvis13_market_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_MAP_REVISION:
+    jarvis13_market_map = importlib.reload(jarvis13_market_map)
+
+
+def _kr_market_map():
+    """업종 지도 자료 — 네이버 업종 목록을 손님끼리 55초 같이 쓴다(못 받은 판은 안 담음 · 옛 값이 있으면 그것). 못 받으면 None(테마 지도로)."""
+    try:
+        live = jarvis13_shared.remember(("kr_industry", id(jarvis13_market_map.fetch_live)), jarvis13_market_map.fetch_live,
+                                        good=lambda value: bool(value))
+        return jarvis13_market_map.snapshot(live)
+    except Exception:
+        return None
 import jarvis13_help  # noqa: E402  — 「📘 이 테마 설명」 짧은 글(2026-11-04 저녁 상하님 「너무 길다 · 간단히 · 현실과 맞냐」)
 _REQUIRED_J13_HELP_REVISION = 2026110401
 if int(getattr(jarvis13_help, "MODULE_REVISION", 0)) < _REQUIRED_J13_HELP_REVISION:
@@ -1430,8 +1445,9 @@ def _render_market_overview() -> None:
 
     # 시장 국면·미국 시장국면·공포탐욕 세 가지를 같은 반원 게이지로 통일한다.
     # 제목은 스카이블루로 두고, 미국 카드의 '(미국)'만 밝은 초록으로 구분한다.
+    # 칸 차례는 자비스12 시장분석과 같게 — 선물 → 지수 → 원/달러 → 시장 현황 → 시장 국면(2026-11-05 상하님 「미국테마처럼 하라고
+    # 한국테마도 배치도」 · 자비스12 사진: 원/달러 → 시장 현황 → 시장 국면). 전에는 한국 시장 국면이 맨 앞이었다.
     top_cells = [
-        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)"),
         # 한국장보다 먼저 움직이는 나스닥100 선물을 코스피 앞에 둔다.
         _us_futures_cell(),
         # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
@@ -1451,7 +1467,8 @@ def _render_market_overview() -> None:
         # 「시장 현황」 테마 지도(2026-11-04 상하님 「미국테마에는 있는데 한국 테마에는 없다」) — 자비스12 와 같은 자리(환율 뒤).
         # 테마 순위는 여기서 새로 받지 않는다 — 아래 테마 표가 받아 둔 것을 쓴다(없으면 「받는 중」 · 1분 뒤 저절로 채워짐).
         jarvis13_sector_map.cell_html(jarvis13_shared.peek("theme_rankings", keep=900)
-                                      or st.session_state.get("j13_theme_rankings")),
+                                      or st.session_state.get("j13_theme_rankings"), market=_kr_market_map()),
+        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)"),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),

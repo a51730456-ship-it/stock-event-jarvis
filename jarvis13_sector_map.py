@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import html
 
-MODULE_REVISION = 2026110403
+MODULE_REVISION = 2026110501
 MAP_W, MAP_H = 100.0, 58.0
 POP_W, POP_H = 100.0, 45.0
 MAX_TILES = 30
@@ -157,8 +157,48 @@ def _theme_strip(ranking) -> str:
             f"<div class='j13-sector-theme-row'>{''.join(cells)}</div></div>")
 
 
-def cell_html(ranking) -> str:
-    """지도 칸 한 개(시장분석 맨 위 줄에 끼운다). 테마 순위가 아직 없으면 「받는 중」 한 줄(기다리지 않는다)."""
+def _foot_html(breadth: dict, note: str) -> str:
+    if not breadth.get("total"):
+        return ""
+    total = float(breadth["total"])
+    return ("<div class='j13-sector-bar'>"
+            f"<span style='width:{breadth['up'] / total * 100:.1f}%;background:#ff5b5b'></span>"
+            f"<span style='width:{breadth['flat'] / total * 100:.1f}%;background:#7a8494'></span>"
+            f"<span style='width:{breadth['down'] / total * 100:.1f}%;background:#4da6ff'></span></div>"
+            f"<div class='j13-sector-foot'><span style='color:#ff5b5b'>▲ 오름 {breadth['up']:,}</span>"
+            f"<span style='color:#9aa0aa'>― 그대로 {breadth['flat']:,}</span>"
+            f"<span style='color:#4da6ff'>▼ 내림 {breadth['down']:,}</span>"
+            f"<span class='j13-sector-note'>{note}</span></div>")
+
+
+def market_cell_html(ranking, market: dict) -> str:
+    """「시장 현황」 — 네이버 증시 현황처럼 시장 전체 업종 지도(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 ·
+    「이거 네이버다」). 칸 = 업종 시가총액 몫 · 색 = 업종 오늘 등락 · 밑 = 자비스 테마 상위 5 · 시장 전체 오름/그대로/내림."""
+    rows = market["rows"]
+    breadth = market.get("breadth") or {}
+    foot = _foot_html(breadth, f"한국 시장 전체 {breadth.get('total', 0):,}종목 기준(네이버)")
+    strip = _theme_strip(ranking)
+    return (
+        "<div class='j4-top-cell j13-sector-map'>"
+        "<input type='checkbox' id='j13sm-tap' class='j13sm-tap'>"
+        "<label for='j13sm-tap' class='j13sm-cell'>"
+        "<div class='j4-top-label'>시장 현황</div>"
+        "<div class='j13-sector-sub'>칸 크기 = 한국 시장에서 차지하는 몫 · 색 = 오늘 오르내림 · 누르면 크게</div>"
+        f"<div class='j13-sector-grid'>{_tiles_html(rows, MAP_W, MAP_H)}</div>"
+        + strip + foot + "</label>"
+        "<label for='j13sm-tap' class='j13sm-scrim' aria-hidden='true'></label>"
+        "<label for='j13sm-tap' class='j13sm-pop'>"
+        "<span class='j13sm-title'>시장 현황 · 업종(네이버 증시 현황과 같은 묶음) <small>오늘 등락</small></span>"
+        "<span class='j13sm-sub'>칸 크기 = 업종 구성 종목 시가총액 합(주 1회 모음) · 색 = 네이버 업종 등락률 · 오름 빨강 · 내림 파랑 · 0% 가까이 어둡고 6% 이상 가장 밝음</span>"
+        f"<div class='j13-sector-grid j13sm-grid'>{_tiles_html(rows, POP_W, POP_H)}</div>"
+        + strip + foot + "<span class='j13sm-close'>다시 누르면 닫힘</span></label></div>")
+
+
+def cell_html(ranking, market: dict | None = None) -> str:
+    """지도 칸 한 개(시장분석 맨 위 줄에 끼운다). 업종 자료(market)가 있으면 「시장 현황」(시장 전체 업종 · 2026-11-05), 없으면 예전
+    「강한 테마 지도」. 테마 순위도 아직 없으면 「받는 중」 한 줄(기다리지 않는다)."""
+    if market and market.get("rows"):
+        return market_cell_html(ranking, market)
     rows = tiles_from_ranking(ranking)
     if not rows:
         return ("<div class='j4-top-cell j13-sector-map'><div class='j4-top-label'>강한 테마 지도</div>"
