@@ -10,15 +10,20 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 
-MODULE_REVISION = 2026110501
+MODULE_REVISION = 2026111101
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "kr_sectors.json"
 LIST_API = "https://m.stock.naver.com/api/stocks/industry?page={page}&pageSize=100"
 MAX_TILES = 30
+REFRESH_SECONDS = 55.0       # 이만큼 지난 값이면 뒤에서 새로 받는다(화면 1분 자동 갱신보다 짧게) · 못 받았을 때 다시 받으러 가는 틈도 이만큼
+FIRST_WAIT_SECONDS = 3.0     # 값이 아예 없을 때(배포 뒤 첫 손님)만 이만큼까지 기다린다
 _LOCK = threading.Lock()
 _MEMO: dict = {"mtime": None, "value": {}}
+_LIVE_LOCK = threading.Lock()
+_LIVE: dict = {"rows": None, "at": 0.0, "tried": 0.0, "busy": False}
 
 
 def _num(value):
@@ -66,6 +71,41 @@ def fetch_live(session=None, timeout: float = 6.0) -> list:
             break
     if not rows:
         raise RuntimeError("업종 목록이 비었습니다")
+    return rows
+
+
+def _refresh(fetch) -> None:
+    try:
+        rows = fetch()
+    except Exception:
+        rows = None                                   # 못 받으면 있던 값을 그대로 둔다(지우지 않음)
+    with _LIVE_LOCK:
+        if rows:
+            _LIVE.update(rows=rows, at=time.time())
+        _LIVE["busy"] = False
+
+
+def live_rows(fetch=None, *, first_wait: float = FIRST_WAIT_SECONDS) -> list | None:
+    """업종 등락 — **화면은 받는 것을 기다리지 않는다**(CLAUDE.md 0-0 ①②).
+
+    55초 지난 값이면 뒤에서 새로 받고, 지금은 있던 값을 그대로 준다. 못 받아도 있던 값을 두고, 다시 받으러 가는 것은 55초에 한 번뿐이다.
+    값이 아예 없을 때(배포 뒤 첫 손님)만 길어야 first_wait 초 기다린다. 전(2026-11-05 판)에는 55초마다 화면 한 판이 네이버를
+    기다렸고, 못 받으면 있던 값을 버리고 판마다 다시 받으러 갔다(한 번에 길어야 6초).
+    """
+    fetch = fetch or fetch_live
+    now = time.time()
+    with _LIVE_LOCK:
+        rows = _LIVE["rows"]
+        due = not _LIVE["busy"] and now - _LIVE["tried"] >= REFRESH_SECONDS
+        if due:
+            _LIVE.update(busy=True, tried=now)
+    if due:
+        worker = threading.Thread(target=_refresh, args=(fetch,), name="j13-industry", daemon=True)
+        worker.start()
+        if rows is None and first_wait > 0:
+            worker.join(first_wait)
+            with _LIVE_LOCK:
+                rows = _LIVE["rows"]
     return rows
 
 
