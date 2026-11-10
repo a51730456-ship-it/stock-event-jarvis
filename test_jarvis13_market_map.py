@@ -73,6 +73,10 @@ class MarketMapTests(unittest.TestCase):
         page = (ROOT / "pages" / "12_자비스13.py").read_text(encoding="utf-8")
         self.assertIn("\"<div class='fg-box'>\", \"<div class='fg-box j13-kr-phase'>\", 1)", page)
         self.assertIn("\"<div class='j4-top-cell'\", \"<div class='j4-top-cell j13-us-idx'\", 1) for cell in _us_index_cells()", page)
+        # PC(1201px 이상)는 숫자 칸 뒤에서 줄을 끊는다(첫 줄에 시장 국면이 같이 서면 선물 제목이 두 줄로 접혔다) · 폰 · 태블릿은 안 그림
+        self.assertIn(".j13-top-break{display:none}", sm.CSS)
+        self.assertIn("@media (min-width:1201px){.j4-top-row > .j13-top-break{display:block;flex:0 0 100%;height:0;", sm.CSS)
+        self.assertNotIn("j13-top-break", block)
         import regime_gauge_ui                                                                     # 바꿔 끼우는 앞머리가 그대로인지
         self.assertTrue(regime_gauge_ui.regime_box_html(None, title="시장 국면 (한국)").startswith("<div class='fg-box'>"))
 

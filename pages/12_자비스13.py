@@ -1466,6 +1466,9 @@ def _render_market_overview() -> None:
                 _kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
                 "#ff5b5b", "#4da6ff"), "KQ11", "KOSDAQ") + "</div>", 1),
         _fx_cell(),
+        # PC(1201px 이상)는 여기서 줄을 끊는다 — 자비스12 PC 처럼 첫 줄은 숫자 칸만, 시장 국면(한국)은 둘째 줄 맨 앞(폰 · 태블릿은 안 보임).
+        # 첫 줄에 같이 서면 숫자 칸이 206px 로 좁아져 「나스닥100 선물 (1분봉)」 제목이 두 줄로 접혔다(11/11 깃허브 PC 사진 · c99d535).
+        "<div class='j13-top-break'></div>",
         # 폰 · 태블릿 차례를 잡는 이름표(j13-kr-phase · j13-us-idx — jarvis13_sector_map.CSS 끝 · 값은 그대로).
         regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)").replace(
             "<div class='fg-box'>", "<div class='fg-box j13-kr-phase'>", 1),

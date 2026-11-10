@@ -299,4 +299,8 @@ body:has(.j13sm-tap:checked) .j13b-bottom-nav{visibility:hidden!important}
 .j4-top-row > .j13-kr-phase{order:6}
 .j4-top-row > .j13-us-idx{order:7}
 }
+/* PC(1201px 이상) 줄 끊기 — 자비스12 PC 처럼 첫 줄은 숫자 칸(선물 · 코스피 · 코스닥 · 원/달러)만, 시장 국면(한국)은 둘째 줄 맨 앞.
+   폰 · 태블릿은 아예 안 그린다(차례 번호로 따로 줄을 세움). */
+.j13-top-break{display:none}
+@media (min-width:1201px){.j4-top-row > .j13-top-break{display:block;flex:0 0 100%;height:0;margin:0;padding:0}}
 </style>"""

@@ -72,7 +72,9 @@ class SectorMapTests(unittest.TestCase):
         phase = page.index('regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)")', fx)
         smap = page.index("jarvis13_sector_map.cell_html(jarvis13_shared.peek(\"theme_rankings\"", phase)
         self.assertLess(smap, page.index("for cell in _us_index_cells()", smap))
-        self.assertLess(phase - fx, 400)                                                 # 원/달러 바로 다음이 시장 국면(한국)
+        between = page[fx + len("        _fx_cell(),"):page.rindex("\n", 0, phase)]       # 원/달러와 시장 국면(한국) 사이엔 PC 줄 끊기만
+        code = [line.strip() for line in between.splitlines() if line.strip() and not line.strip().startswith("#")]
+        self.assertEqual(["\"<div class='j13-top-break'></div>\","], code)
         self.assertIn('jarvis13_shared.put("theme_rankings", ranking)', page)
         self.assertIn("st.markdown(jarvis13_sector_map.CSS, unsafe_allow_html=True)", page)
 
