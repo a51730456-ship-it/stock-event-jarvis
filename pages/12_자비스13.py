@@ -961,17 +961,16 @@ if int(getattr(jarvis13_sector_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_SECTO
     jarvis13_sector_map = importlib.reload(jarvis13_sector_map)
 # 「시장 현황」 = 네이버 증시 현황처럼 시장 전체 업종 지도(2026-11-05 상하님 「미국테마처럼 하라고 한국테마도 배치도」 · 「이거 네이버다」)
 import jarvis13_market_map  # noqa: E402
-_REQUIRED_J13_MARKET_MAP_REVISION = 2026110501
+_REQUIRED_J13_MARKET_MAP_REVISION = 2026111101
 if int(getattr(jarvis13_market_map, "MODULE_REVISION", 0)) < _REQUIRED_J13_MARKET_MAP_REVISION:
     jarvis13_market_map = importlib.reload(jarvis13_market_map)
 
 
 def _kr_market_map():
-    """업종 지도 자료 — 네이버 업종 목록을 손님끼리 55초 같이 쓴다(못 받은 판은 안 담음 · 옛 값이 있으면 그것). 못 받으면 None(테마 지도로)."""
+    """업종 지도 자료 — 네이버 업종 등락은 뒤에서 받고 화면은 있던 값을 바로 쓴다(못 받아도 옛 값 · 다시 받기는 55초에 한 번 ·
+    jarvis13_market_map.live_rows). 값이 아예 없으면 None(테마 지도로)."""
     try:
-        live = jarvis13_shared.remember(("kr_industry", id(jarvis13_market_map.fetch_live)), jarvis13_market_map.fetch_live,
-                                        good=lambda value: bool(value))
-        return jarvis13_market_map.snapshot(live)
+        return jarvis13_market_map.snapshot(jarvis13_market_map.live_rows())
     except Exception:
         return None
 import jarvis13_help  # noqa: E402  — 「📘 이 테마 설명」 짧은 글(2026-11-04 저녁 상하님 「너무 길다 · 간단히 · 현실과 맞냐」)
