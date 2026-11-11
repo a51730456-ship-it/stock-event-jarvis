@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-MODULE_REVISION = 2026110502
+MODULE_REVISION = 2026111101
 ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "fundamentals" / "KR.json"
 ROSTER_PATH = ROOT / "data" / "kr_roster.json"
@@ -147,6 +147,55 @@ def parse_wise_count(html_text: str):
     return number if number > 0 else None
 
 
+def _months_before(day, months: int):
+    """day 의 months 달 앞 같은 날(그 달에 그날이 없으면 그 달 마지막 날)."""
+    import calendar
+    from datetime import date as _date
+
+    year, month = divmod(day.year * 12 + day.month - 1 - months, 12)
+    return _date(year, month + 1, min(day.day, calendar.monthrange(year, month + 1)[1]))
+
+
+def parse_wise_targets(html_text: str, at=None, n=None) -> dict | None:
+    """와이즈리포트(네이버 기업정보) 「제공처별 투자의견 및 목표주가」 표(cTB24) → {"lo": 최저 목표가, "hi": 최고 목표가, "m": 센 곳 수}.
+
+    네이버 평균(consensusInfo) · 추정기관수(cTB15)와 같은 제공처만 센다 — 기준일(at) 앞 3달 **안** 최종일자(2026-11-11 깃허브 재기:
+    삼성전자 21곳 472,381원 · SK이노베이션 11곳 · 셀트리온 18곳 · 에코프로비엠 10곳 137,200원 — 넷 다 평균 · 곳 수가 같음).
+    곳 수(n)가 안 맞으면 90일 안으로 한 번 더 세 보고, 그래도 안 맞으면 3달 안 값을 그대로 쓴다. 못 읽으면 None(지어내지 않음)."""
+    from datetime import date as _date
+
+    text = str(html_text or "")
+    start = text.find('id="cTB24"')
+    if start < 0:
+        return None
+    table = text[start:text.find("</table>", start)]
+    rows = []
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.S):
+        cells = [" ".join(re.sub(r"<[^>]+>", " ", c).split()) for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+        if len(cells) < 3:
+            continue
+        day = re.match(r"(\d{2,4})[./-](\d{1,2})[./-](\d{1,2})$", cells[1])
+        target = _num(cells[2])
+        if not day or not target or target <= 0:
+            continue
+        year = int(day.group(1))
+        try:
+            rows.append((_date(year + 2000 if year < 100 else year, int(day.group(2)), int(day.group(3))), target))
+        except ValueError:
+            continue
+    if not rows:
+        return None
+    try:
+        base = _date.fromisoformat(str(at)[:10]) if at else datetime.now(SEOUL).date()
+    except ValueError:
+        base = datetime.now(SEOUL).date()
+    picks = [[t for d, t in rows if d > _months_before(base, 3)], [t for d, t in rows if d > base - timedelta(days=90)]]
+    chosen = next((p for p in picks if p and n and len(p) == int(n)), picks[0])
+    if not chosen:
+        return None
+    return {"lo": min(chosen), "hi": max(chosen), "m": len(chosen)}
+
+
 DART_API = "https://opendart.fss.or.kr/api/"
 INSIDER_DAYS = 183
 
@@ -267,7 +316,10 @@ def fetch_one(code: str, session=None) -> dict | None:
         try:
             page = session.get(f"https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd={code}", timeout=15,
                                headers=headers)
-            out["consensus"]["n"] = parse_wise_count(page.content.decode("utf-8", errors="replace"))
+            text = page.content.decode("utf-8", errors="replace")
+            out["consensus"]["n"] = parse_wise_count(text)
+            # 목표주가 최저 · 최고(2026-11-11 상하님 「미국테마 캡처처럼」) — 같은 화면의 제공처별 목표가 표 · 새로 받는 곳 없음
+            out["consensus"].update(parse_wise_targets(text, at=out["consensus"].get("at"), n=out["consensus"]["n"]) or {})
         except Exception:
             pass
     try:
@@ -628,6 +680,28 @@ def _earn_box(info: dict, frame, today) -> str:
     return f"<div class='j13st-box'><div class='j13st-h'>📅 실적 발표</div>{body}{table}</div>"
 
 
+def _target_bar(mean: float, low: float, high: float, now, count) -> str:
+    """자비스12 「🎯 목표주가」 막대(최저 · 평균 · 최고 · 지금)를 한국 금액에 맞게(2026-11-11 상하님 「미국테마 캡처처럼 지금과 금액이
+    나와야지」 · 「금액이 크면 표시만 하고 밑에 표시 해야지」). 원화 금액은 길어 막대 위에는 **표시만**(지금 흰색 · 평균 금색 — 자비스12 색)
+    두고 금액은 막대 **밑**에 적는다. 막대 두 끝 = 증권사 최저 · 최고 목표가. 지금 주가가 그 밖이면 표시를 끝에 붙이고 밑 글에 그렇다고 적는다."""
+    span = high - low
+
+    def place(value):
+        return max(0.0, min(100.0, (value - low) / span * 100.0))
+
+    marks = f"<i class='j13st-tg-mk j13st-tg-avg' style='left:{place(mean):.1f}%'></i>"
+    keys = f"<span class='j13st-tg-k j13st-tg-k-avg'><i></i>평균 {mean:,.0f}원</span>"
+    if now:
+        side = " · 최저보다 낮음" if now < low else " · 최고보다 높음" if now > high else ""
+        marks = f"<i class='j13st-tg-mk j13st-tg-now' style='left:{place(now):.1f}%'></i>" + marks
+        keys = f"<span class='j13st-tg-k j13st-tg-k-now'><i></i>지금 {now:,.0f}원{side}</span>" + keys
+    return (f"<div class='j13st-h2'>🎯 목표주가 <span class='j13st-dim'>· " + (f"{int(count)}곳 · " if count else "")
+            + "1년 뒤 예상</span></div>"
+            f"<div class='j13st-tg'><div class='j13st-tg-line'></div>{marks}</div>"
+            f"<div class='j13st-tg-ends'><span>최저 {low:,.0f}원</span><span>최고 {high:,.0f}원</span></div>"
+            f"<div class='j13st-tg-keys'>{keys}</div>")
+
+
 def _ana_box(info: dict) -> str:
     consensus = info.get("consensus") or {}
     reports = info.get("reports") or []
@@ -647,10 +721,14 @@ def _ana_box(info: dict) -> str:
             "<span class='j13st-lab' style='left:0'>1 강력 매도</span><span class='j13st-lab' style='left:50%;transform:translateX(-50%)'>3 중립</span>"
             "<span class='j13st-lab' style='right:0'>5 강력 매수</span></div>")
     if target:
-        parts.append(f"<div class='j13st-h2'>🎯 목표주가 <span class='j13st-dim'>· 평균"
-                     + (f" · {int(count)}곳" if count else "") + " · 1년 뒤 예상</span></div>"
-                     f"<div class='j13st-row'><b>평균</b><span><span class='j13st-hl'>{target:,.0f}원</span>"
-                     + (f" <span class='j13st-dim'>· 지금 {price:,.0f}원</span>" if price else "") + "</span></div>")
+        low, high = _num(consensus.get("lo")), _num(consensus.get("hi"))
+        if low and high and high > low:
+            parts.append(_target_bar(target, low, high, price, count))
+        else:
+            parts.append(f"<div class='j13st-h2'>🎯 목표주가 <span class='j13st-dim'>· 평균"
+                         + (f" · {int(count)}곳" if count else "") + " · 1년 뒤 예상</span></div>"
+                         f"<div class='j13st-row'><b>평균</b><span><span class='j13st-hl'>{target:,.0f}원</span>"
+                         + (f" <span class='j13st-dim'>· 지금 {price:,.0f}원</span>" if price else "") + "</span></div>")
         if price:
             gap = target / price * 100.0 - 100.0
             parts.append(f"<div class='j13st-row'><b>평균까지</b><span class='{'j13st-up' if gap >= 0 else 'j13st-dn'}'>"
@@ -813,6 +891,18 @@ STREET_CSS = """<style>
   background:linear-gradient(90deg,#ff6b6b,#ffd166,#06d6a0)}
 .j13st-mk{position:absolute;top:0;width:3px;height:16px;background:#fff;border-radius:2px;transform:translateX(-50%)}
 .j13st-lab{position:absolute;top:20px;font-size:.68rem;color:#8fb4de;white-space:nowrap}
+.j13st-tg{position:relative;height:22px;margin:10px 4px 0}
+.j13st-tg-line{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;
+  background:linear-gradient(90deg,#ff6b6b,#ffd166,#06d6a0)}
+.j13st-tg-mk{position:absolute;top:2px;width:3px;height:18px;border-radius:2px;background:#fff;transform:translateX(-50%)}
+.j13st-tg-mk.j13st-tg-avg{background:#ffd166}
+.j13st-tg-ends{display:flex;justify-content:space-between;gap:8px;margin:2px 4px 0;font-size:.68rem;color:#8fb4de;white-space:nowrap}
+.j13st-tg-keys{display:flex;flex-wrap:wrap;gap:2px 14px;margin:5px 4px 0;font-size:.82rem;font-weight:800}
+.j13st-tg-k{white-space:nowrap}
+.j13st-tg-k i{display:inline-block;width:3px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:#fff}
+.j13st-tg-k-now{color:#fff}
+.j13st-tg-k-avg{color:#ffd166}
+.j13st-tg-k-avg i{background:#ffd166}
 .j13st-eps{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.76rem;margin:6px 0 0!important;border:none!important}
 .j13st-eps th,.j13st-eps td{border:none!important;text-align:right;padding:2px 4px;white-space:nowrap;color:#e6edf8;font-weight:700}
 .j13st-eps th{color:#8fb4de;border-bottom:1px solid rgba(157,204,255,.18)!important}

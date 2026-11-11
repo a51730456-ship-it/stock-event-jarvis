@@ -53,7 +53,9 @@ def main() -> int:
     with_ins = sum(1 for e in data.values() if isinstance(e, dict) and e.get("ins"))
     with_divd = sum(1 for e in data.values() if isinstance(e, dict) and e.get("divd"))
     with_est = sum(1 for e in data.values() if isinstance(e, dict) and e.get("est"))
-    print(f"\n파일 안 — 실적 발표일 {with_earn} · 내부자 {with_ins} · 배당 {with_divd} · 증권사 예상 {with_est}종목", flush=True)
+    with_range = sum(1 for e in data.values() if isinstance(e, dict) and (e.get("consensus") or {}).get("hi"))
+    print(f"\n파일 안 — 실적 발표일 {with_earn} · 내부자 {with_ins} · 배당 {with_divd} · 증권사 예상 {with_est} · "
+          f"목표주가 최저·최고 {with_range}종목", flush=True)
     ok = result["got"] >= max(1, int(result["asked"] * 0.8))
     print(f"\n끝 · {'됨' if ok else '안 됨 — 80% 넘게 받지 못함'}", flush=True)
     return 0 if ok else 1
