@@ -22,7 +22,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
-      - name: 삼성전자
-        run: python research/j13_target_probe.py 005930
-      - name: SK이노베이션
-        run: python research/j13_target_probe.py 096770
+      - name: 삼성전자 · SK이노베이션 · 셀트리온 · 에코프로비엠
+        run: python research/j13_target_probe.py 005930 096770 068270 247540
