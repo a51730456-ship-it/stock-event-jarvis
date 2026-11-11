@@ -1,13 +1,20 @@
 """자비스13 「📑 재무 한눈에」 — 한국 재무(네이버 모바일 재무 JSON) 읽기·셈·그리기 (2026-11-03)."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 import jarvis13_fundamentals as fn
+
+_AUDIT_SPEC = importlib.util.spec_from_file_location(
+    "j13_render_audit_fn", Path(__file__).resolve().parent / "research" / "j13_render_audit.py")
+audit = importlib.util.module_from_spec(_AUDIT_SPEC)
+_AUDIT_SPEC.loader.exec_module(audit)
 
 
 def _finance(keys, rows, consensus=()):
@@ -393,6 +400,42 @@ class StreetTests(unittest.TestCase):
     def test_recomm_words(self):
         self.assertEqual(["강력 매수", "매수", "중립", "매도", "강력 매도"],
                          [fn.recomm_word(v) for v in (4.8, 4.0, 3.0, 2.0, 1.0)])
+
+    # 2026-11-11 깃허브 재기 — 에코프로비엠 와이즈리포트 표(cTB24) 모양 그대로(앞 몇 줄 · 끝 줄 8/10 은 3달 밖이라 평균 · 곳 수에 안 듦)
+    WISE = ("<table class='gHead01 all-width' id=\"cTB24\" summary='제공처별'><caption>제공처별 투자의견 및 목표주가</caption>"
+            "<tr><th>제공처</th><th>최종일자</th><th>목표가</th><th>직전목표가</th><th>변동률 (%)</th><th>투자의견</th><th>직전투자의견</th></tr>"
+            "<tr><td class='l'>하나</td><td>26/11/10</td><td class='r'>112,000</td><td>151,576</td><td>-26.11</td><td>BUY</td><td>BUY</td></tr>"
+            "<tr><td>iM</td><td>26/11/09</td><td>90,000</td><td>98,426</td><td>-8.56</td><td>Hold</td><td>Hold</td></tr>"
+            "<tr><td>상상인</td><td>26/10/18</td><td>200,000</td><td>196,852</td><td>1.60</td><td>BUY</td><td>BUY</td></tr>"
+            "<tr><td>유안타</td><td>26/08/10</td><td>265,750</td><td>265,750</td><td>0.00</td><td>Buy</td><td>Buy</td></tr></table>")
+
+    def test_wise_target_range_uses_the_consensus_brokers(self):
+        # 기준일 11/10 의 3달 안(8/10 은 밖) — 네이버 평균 · 추정기관수와 같은 제공처만 센다
+        self.assertEqual({"lo": 90000.0, "hi": 200000.0, "m": 3}, fn.parse_wise_targets(self.WISE, at="2026-11-10", n=3))
+        self.assertEqual(3, fn.parse_wise_targets(self.WISE, at="2026-11-10", n=99)["m"])        # 곳 수가 안 맞아도 3달 안 값
+        self.assertIsNone(fn.parse_wise_targets("<table id='cTB15'></table>", at="2026-11-10"))  # 표가 없으면 지어내지 않음
+        self.assertEqual(date(2026, 2, 28), fn._months_before(date(2026, 5, 31), 3))
+
+    def test_target_bar_marks_only_on_the_bar_and_amounts_below(self):
+        # 2026-11-11 상하님 「미국테마 캡처처럼 지금과 금액이 나와야지」 · 「금액이 크면 표시만 하고 밑에 표시 해야지」
+        info = {"consensus": {"recomm": 4.0, "target": 472381.0, "at": "2026-11-10", "n": 21, "lo": 270000.0, "hi": 690000.0},
+                "price": 193500.0, "annual": [], "quarter": []}
+        out = fn.street_html(info)
+        for text in ("🎯 목표주가", "21곳 · 1년 뒤 예상", "최저 270,000원", "최고 690,000원", "지금 193,500원 · 최저보다 낮음",
+                     "평균 472,381원", "j13st-tg-now", "j13st-tg-avg", "지금보다 +144%"):
+            self.assertIn(text, out)
+        bar = out.split("<div class='j13st-tg'>", 1)[1].split("<div class='j13st-tg-ends'>", 1)[0]
+        self.assertNotIn("원", bar)                                                           # 막대 위에는 표시만
+        self.assertIn("left:0.0%", bar)                                                       # 최저보다 낮으면 왼끝에
+        inside = fn.street_html({**info, "price": 500000.0})
+        self.assertIn("지금 500,000원</span>", inside)                                        # 안에 있으면 덧말 없음
+        self.assertEqual([], audit.markdown_problems(fn.STREET_CSS + "\n" + out))              # 스트림릿에서 안 깨짐(CLAUDE.md 0-4)
+
+    def test_without_range_keeps_the_average_rows(self):
+        info = {"consensus": {"recomm": 4.0, "target": 207455.0, "n": 11}, "price": 120700.0, "annual": [], "quarter": []}
+        out = fn.street_html(info)
+        self.assertIn("207,455원", out)
+        self.assertNotIn("j13st-tg-now", out)                                                 # 최저 · 최고가 없으면 막대 없이 예전 줄
 
 
 class OverviewTests(unittest.TestCase):
