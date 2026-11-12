@@ -16,6 +16,11 @@ on:
       - research/j12_screen_check.py
       - .github/workflows/j12_screen_check.yml
   workflow_dispatch:
+    inputs:
+      online:
+        description: "온라인 앱(stock-event-jarvis.streamlit.app)을 손님으로 열어 급락 · 상승장만 본다(보기만)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -39,16 +44,24 @@ jobs:
           pip install -r requirements.txt
           pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
+      - name: 온라인 앱 확인(손님 · 보기만)
+        if: ${{ inputs.online }}
+        env:
+          J12_OUT: ${{ runner.temp }}/j12shots
+        run: python research/j12_screen_check.py online
       - name: 이 실행에서만 쓰는 비밀번호 파일 · 임시 기록 DB(관심종목 셋을 지난 날짜로)
+        if: ${{ !inputs.online }}
         run: |
           mkdir -p db .streamlit
           python -c "import secrets; print('APP_PASSWORD = \"' + secrets.token_hex(16) + '\"')" > .streamlit/secrets.toml
           python research/j12_screen_check.py seed
       - name: 앱 띄우기
+        if: ${{ !inputs.online }}
         run: |
           nohup streamlit run app.py --server.port 8501 --server.headless true > "$RUNNER_TEMP/app.log" 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8501/ > /dev/null && break; sleep 2; done
       - name: 자비스12 관심종목 확인
+        if: ${{ !inputs.online }}
         env:
           J12_OUT: ${{ runner.temp }}/j12shots
         run: python research/j12_screen_check.py
