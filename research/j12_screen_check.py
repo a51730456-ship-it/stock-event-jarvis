@@ -94,6 +94,30 @@ def visit(browser, password: str, width: int) -> dict:
         }""")
         out["dist_problems"] = _problems(page)
         page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
+        # ④ 급락 후 반등장 — 「주의 · 2배」·「⚠ 수상하게 빠짐」 딱지(2026-11-12 규칙 고침 ① · jarvis12_rules).
+        # 단추는 테마 순위가 다 실린 뒤에 그려진다 — 단추가 붙을 때까지 기다린다. 표는 <table> 이 아니라 칸 묶음
+        # (.st-key-j12_rulebook_table · 접힌 나머지는 .st-key-j12_rulebook_rest)이다.
+        crash_button = page.locator('div[class*="st-key-j12_pullback_crash"] button').first
+        crash_button.wait_for(state="attached", timeout=240_000)
+        crash_button.scroll_into_view_if_needed()
+        crash_button.click()
+        page.wait_for_function(
+            "() => { const b = document.querySelector('[class*=\"st-key-j12_rulebook_table\"]');"
+            " return b && b.textContent.length > 200; }", timeout=240_000)
+        page.wait_for_timeout(2500)
+        out["crash"] = page.evaluate("""() => {
+            // 접힌 나머지 줄도 세려고 innerText 가 아니라 textContent 로 읽는다.
+            const text = [...document.querySelectorAll(
+                '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
+                .map(b => b.textContent).join(' ');
+            return {rows: (text.match(/-\\d+~-\\d+%/g) || []).length,
+                    warn: (text.match(/수상하게 빠짐/g) || []).length,
+                    caution: (text.match(/주의 · 2배/g) || []).length,
+                    guide: /2배를 넘으면/.test(document.body.innerText)};
+        }""")
+        out["crash_problems"] = _problems(page)
+        page.locator('[class*="st-key-j12_rulebook_table"]').first.scroll_into_view_if_needed()
+        page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
         try:
@@ -134,6 +158,10 @@ def main() -> int:
         "③ 시장분석 오류 0 · 폰 넘침 0": all(not (run.get("dist_problems") or {}).get("exceptions")
                                        and ((run.get("dist_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                        for run in runs),
+        "④ 급락 표 보임": all((run.get("crash") or {}).get("rows", 0) > 0 for run in runs),
+        "④ 급락 오류 0 · 폰 넘침 0": all(not (run.get("crash_problems") or {}).get("exceptions")
+                                     and ((run.get("crash_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                     for run in runs),
         "② 연 뒤 오류 0 · 폰 넘침 0": all(not (run.get("movers_problems") or {}).get("exceptions")
                                      and ((run.get("movers_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                      for run in runs),

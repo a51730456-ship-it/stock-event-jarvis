@@ -40,9 +40,10 @@ from datetime import date
 import pandas as pd
 
 import jarvis3_data as j3
+import jarvis12_rules as rules
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102206
+MODULE_REVISION = 2026111201
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -50,6 +51,13 @@ PER_BAND = 5                              # (2026-10-14 판) 두 갈래에서 5�
 SHOW_COUNT = 20                           # 2026-10-21 — 화면·날짜별 목록에 보이는 수
 SCORECARD_COUNT = 10                      # 2026-10-21 — 성적표에 쓰는 수(경고 없는 종목 먼저)
 SUSPICIOUS_TIMES = 3.0                    # 종목 낙폭이 나스닥 낙폭의 이 배를 넘으면 「수상하게 빠짐」
+# 2026-11-12 상하님 「다 해라」 — 2배를 넘으면 「주의」(보이기만 · 성적표 차례는 3배 경고만 본다 · jarvis12_rules 스위치)
+CAUTION_TIMES = float(getattr(rules, "CRASH_CAUTION_TIMES", 2.0))
+
+
+def caution_on() -> bool:
+    """「주의」(2배) 단계를 쓰나 — 화면 글이 이것만 본다(스위치는 jarvis12_rules 한 곳)."""
+    return bool(getattr(rules, "CRASH_CAUTION", False))
 
 
 def _results(rows):
@@ -237,6 +245,10 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
                 row["nasdaq_drop_pct"] = nasdaq_drop
                 row["suspicious"] = bool(nasdaq_drop is not None and nasdaq_drop < 0
                                          and abs(from_peak) > SUSPICIOUS_TIMES * abs(nasdaq_drop))
+                # 2배~3배 — 「주의」(3배를 넘으면 위 경고만 단다 · 스위치를 끄면 늘 False)
+                row["caution"] = bool(getattr(rules, "CRASH_CAUTION", False) and not row["suspicious"]
+                                      and nasdaq_drop is not None and nasdaq_drop < 0
+                                      and abs(from_peak) > CAUTION_TIMES * abs(nasdaq_drop))
                 row["reference_date"] = ref_day.isoformat()
                 row["bucket"] = rule["key"]
                 row["bucket_label"] = rule["label"]
@@ -354,6 +366,8 @@ def buy_reason(row: dict) -> str | None:
         line = f"QQQ 낙폭 {float(nasdaq):.1f}% (같은 두 날)"
         if row.get("suspicious"):
             line += f" · ⚠ 그 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐(수상하게 빠짐) — 회사 자체 문제일 수 있음"
+        elif row.get("caution"):
+            line += f" · 주의 — 그 {CAUTION_TIMES:.0f}배 넘게 빠짐(과거에 덜 이겼음)"
         lines.append(line)
     since = row.get("since_reference_pct")
     # 기준일이 마지막 장이면(산 날이 아직 없음) 「기준일 뒤 +0.0%」는 뜻이 없어 뺀다(2026-10-22 캡처).
@@ -453,6 +467,7 @@ def cohorts(since: str = "") -> list:
                         "bucket_label": row.get("bucket_label") or "", "score_order": row.get("score_order"),
                         "episode_recovered": item.get("recovered_on") or "", "shown_until": shown_until,
                         "peak_date": row.get("peak_date"), "suspicious": bool(row.get("suspicious")),
+                        "caution": bool(row.get("caution")),
                         "scorecard": bool(row.get("scorecard")), "j12_fixed": True})
     with _LOCK:
         _MEMO[key] = (time.time(), out)
