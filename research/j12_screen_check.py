@@ -95,19 +95,26 @@ def visit(browser, password: str, width: int) -> dict:
         out["dist_problems"] = _problems(page)
         page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
         # ④ 급락 후 반등장 — 「주의 · 2배」·「⚠ 수상하게 빠짐」 딱지(2026-11-12 규칙 고침 ① · jarvis12_rules).
-        page.locator('div[class*="st-key-j12_pullback_crash"] button').first.click()
-        page.wait_for_selector(".j3-pull-table", timeout=240_000)
+        # 단추는 테마 순위가 다 실린 뒤에 그려진다 — 단추가 붙을 때까지 기다린다. 표는 <table> 이 아니라 칸 묶음
+        # (.st-key-j12_pullback_table)이다.
+        crash_button = page.locator('div[class*="st-key-j12_pullback_crash"] button').first
+        crash_button.wait_for(state="attached", timeout=240_000)
+        crash_button.scroll_into_view_if_needed()
+        crash_button.click()
+        page.wait_for_function(
+            "() => { const b = document.querySelector('[class*=\"st-key-j12_pullback_table\"]');"
+            " return b && /수상하게 빠짐|낙폭|기준일/.test(b.innerText); }", timeout=240_000)
         page.wait_for_timeout(2500)
         out["crash"] = page.evaluate("""() => {
-            const t = document.querySelector('.j3-pull-table');
+            const t = document.querySelector('[class*="st-key-j12_pullback_table"]');
             const text = t ? t.innerText : '';
-            return {rows: t ? Math.max(0, t.querySelectorAll('tr').length - 1) : 0,
+            return {rows: (text.match(/종목 낙폭|-\\d+~-\\d+%|\\d+~\\d+%/g) || []).length,
                     warn: (text.match(/수상하게 빠짐/g) || []).length,
                     caution: (text.match(/주의 · 2배/g) || []).length,
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
         out["crash_problems"] = _problems(page)
-        page.locator(".j3-pull-table").first.scroll_into_view_if_needed()
+        page.locator('[class*="st-key-j12_pullback_table"]').first.scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
