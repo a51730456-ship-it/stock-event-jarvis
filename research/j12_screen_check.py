@@ -154,9 +154,87 @@ def visit(browser, password: str, width: int) -> dict:
     return out
 
 
+def online() -> int:
+    """온라인 앱을 손님(guest=1)으로 열어 급락(② 두 목록 · ① 딱지)과 상승장(④ 200일선 줄)만 본다 — 보기만 한다(2026-11-12).
+
+    클라우드 작업 칸은 온라인 주소로 나가는 것이 막혀 있어 깃허브 컴퓨터가 대신 연다. 저장 · 기록에 손대지 않는다.
+    """
+    from playwright.sync_api import sync_playwright
+    OUT.mkdir(parents=True, exist_ok=True)
+    base = os.environ.get("J12_ONLINE_BASE") or "https://stock-event-jarvis.streamlit.app/~/+"
+    runs = []
+    with sync_playwright() as play:
+        browser = play.chromium.launch()
+        for width in (1400, 412):
+            page = browser.new_page(viewport={"width": width, "height": 900})
+            out = {"width": width}
+            try:
+                page.goto(f"{base}/자비스12?guest=1", timeout=240_000)
+                button = page.locator('div[class*="st-key-j12_pullback_crash"] button').first
+                button.wait_for(state="attached", timeout=300_000)
+                button.scroll_into_view_if_needed()
+                button.click()
+                page.wait_for_function(
+                    "() => { const b = document.querySelector('[class*=\"st-key-j12_rulebook_table\"]');"
+                    " return b && b.textContent.length > 200; }", timeout=240_000)
+                page.wait_for_timeout(2500)
+                out["crash"] = page.evaluate("""() => {
+                    const text = [...document.querySelectorAll(
+                        '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
+                        .map(b => b.textContent).join(' ');
+                    return {rows: (text.match(/-\\d+~-\\d+%/g) || []).length,
+                            warn: (text.match(/수상하게 빠짐/g) || []).length,
+                            caution: (text.match(/주의 · 2배/g) || []).length,
+                            two: /자주 이기는 쪽/.test(document.body.innerText)};
+                }""")
+                page.screenshot(path=str(OUT / f"online_crash_{width}.png"), full_page=width > 600)
+                steady = page.get_by_text("🛡 자주 이기는 쪽", exact=False).first
+                if steady.count():
+                    steady.click()
+                    page.wait_for_function("() => /경고 없는 종목 중 평소 덜 움직이는 순/.test(document.body.innerText)",
+                                           timeout=120_000)
+                    page.wait_for_timeout(2000)
+                    out["steady_ok"] = True
+                up = page.locator('div[class*="st-key-j12_pullback_breakout"] button').first
+                up.scroll_into_view_if_needed()
+                up.click()
+                page.wait_for_function("() => /나스닥 지수 — /.test(document.body.innerText)", timeout=240_000)
+                page.wait_for_timeout(2000)
+                out["swing_line"] = page.evaluate("""() => { const t = document.body.innerText;
+                    const i = t.indexOf('나스닥 지수 — '); return i < 0 ? '' : t.slice(i, i + 140).replace(/\\s+/g, ' '); }""")
+                page.screenshot(path=str(OUT / f"online_swing_{width}.png"), full_page=width > 600)
+                out["problems"] = _problems(page)
+            except Exception as exc:
+                out["error"] = f"{type(exc).__name__}: {exc}"[:300]
+                try:
+                    page.screenshot(path=str(OUT / f"online_error_{width}.png"))
+                except Exception:
+                    pass
+            finally:
+                page.close()
+            runs.append(out)
+        browser.close()
+    for run in runs:
+        print(json.dumps(run, ensure_ascii=False), flush=True)
+    checks = {
+        "급락 표 보임": all((run.get("crash") or {}).get("rows", 0) > 0 for run in runs),
+        "② 두 목록 고르는 칸 · 자주 이기는 쪽 열림": all((run.get("crash") or {}).get("two") and run.get("steady_ok") for run in runs),
+        "④ 상승장 시장 줄이 200일선으로 말함": all("200일선" in (run.get("swing_line") or "") for run in runs),
+        "오류 0 · 폰 넘침 0": all(not (run.get("problems") or {}).get("exceptions")
+                             and ((run.get("problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600) for run in runs),
+    }
+    print("\n### 온라인 자비스12 (손님 · 보기만)", flush=True)
+    for name, ok in checks.items():
+        print(f"  {'됨' if ok else '안 됨'} · {name}", flush=True)
+    print(f"\n끝 · {'모두 됨' if all(checks.values()) else '안 된 것 있음'}", flush=True)
+    return 0 if all(checks.values()) else 1
+
+
 def main() -> int:
     if sys.argv[1:] == ["seed"]:
         return seed()
+    if sys.argv[1:] == ["online"]:
+        return online()
     from playwright.sync_api import sync_playwright
     OUT.mkdir(parents=True, exist_ok=True)
     password = tomllib.loads((ROOT / ".streamlit" / "secrets.toml").read_text(encoding="utf-8"))["APP_PASSWORD"]
