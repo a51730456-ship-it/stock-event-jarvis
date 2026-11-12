@@ -195,6 +195,7 @@ def crash_rows(frames: dict, memberships: dict, qqq: pd.DataFrame, place: int) -
         out = forward(frames[ticker], where[ticker], CRASH_HOLDS)
         drop = abs(float(row.get("judged_from_high_pct") or 0.0))
         market = abs(float(peak["nasdaq_drop"] or 0.0)) or 1.0
+        out.update(_extra_features(ticker, place, peak["peak_date"], float(peak["nasdaq_drop"] or 0.0), drop))
         out.update(day=ref_day.isoformat(), ticker=ticker, order=order, score=float(row.get("score") or 0.0),
                    bucket=row.get("bucket"), suspicious=bool(row.get("suspicious")),
                    vol_top=bool(row.get("vol_top")), vol60=row.get("vol60"),
@@ -203,6 +204,55 @@ def crash_rows(frames: dict, memberships: dict, qqq: pd.DataFrame, place: int) -
                    ratio=drop / market, drop=drop, market=float(peak["nasdaq_drop"] or 0.0))
         rows.append(out)
     return rows
+
+
+_W: dict = {}
+
+
+def build_wide(frames: dict) -> None:
+    """종목마다 따로인 일봉을 QQQ 날짜에 맞춘 넓은 표로(새 후보 항목을 빨리 재려고)."""
+    index = frames["QQQ"].index
+    _W["index"] = index
+    _W["close"] = pd.DataFrame({t: f["Close"].reindex(index) for t, f in frames.items()})
+    _W["volume"] = pd.DataFrame({t: f["Volume"].reindex(index) for t, f in frames.items() if "Volume" in f})
+    _W["ret"] = _W["close"].pct_change()
+
+
+def _extra_features(ticker: str, place: int, peak_iso: str, market_drop: float, drop: float) -> dict:
+    """그날까지의 값만 쓴다(앞날 값은 안 본다). 못 재면 None."""
+    close, ret, index = _W["close"], _W["ret"], _W["index"]
+    out = {"beta": None, "excess": None, "pre120": None, "above200": None, "ret5": None, "worst_day": None, "dollar": None}
+    if ticker not in close.columns:
+        return out
+    peak = int(index.searchsorted(pd.Timestamp(peak_iso)))
+    series = close[ticker]
+    try:
+        if peak >= 252:
+            mine = ret[ticker].iloc[peak - 250:peak].values
+            market = ret["QQQ"].iloc[peak - 250:peak].values
+            ok = ~(np.isnan(mine) | np.isnan(market))
+            if ok.sum() >= 200 and np.var(market[ok]) > 0:
+                beta = float(np.cov(mine[ok], market[ok])[0, 1] / np.var(market[ok], ddof=1))
+                out["beta"] = beta
+                # 나스닥이 빠진 만큼 이 종목이 「평소 버릇대로」 빠졌다면 얼마였나 — 그보다 더 빠진 폭(%p · 클수록 더 수상)
+                out["excess"] = drop - max(beta, 0.0) * abs(market_drop)
+            then = series.iloc[peak - 120]
+            if then and then == then and series.iloc[peak] == series.iloc[peak]:
+                out["pre120"] = (float(series.iloc[peak]) / float(then) - 1.0) * 100.0
+        now = series.iloc[place]
+        if place >= 200 and now == now:
+            out["above200"] = bool(now > series.iloc[place - 199:place + 1].mean())
+        if place >= 5 and now == now and series.iloc[place - 5] == series.iloc[place - 5]:
+            out["ret5"] = (float(now) / float(series.iloc[place - 5]) - 1.0) * 100.0
+        if place > peak:
+            worst = ret[ticker].iloc[peak + 1:place + 1].min()
+            out["worst_day"] = float(worst) * 100.0 if worst == worst else None
+        if ticker in _W["volume"].columns and place >= 20:
+            money = (series.iloc[place - 19:place + 1] * _W["volume"][ticker].iloc[place - 19:place + 1]).mean()
+            out["dollar"] = float(money) if money == money else None
+    except Exception:
+        pass
+    return out
 
 
 def scorecard(rows: list, key) -> list:
@@ -344,6 +394,204 @@ def measure_crash(frames: dict, memberships: dict) -> None:
         say(f"    {label:<8} " + " | ".join(text))
 
 
+def halves_line(label: str, rows: list, split: str, holds=("6개월", "1년")) -> None:
+    """한 무리를 전체 · 앞 절반 · 뒤 절반으로 — 이긴 비율 / 가운데 값."""
+    def cell(part):
+        text = []
+        for name in holds:
+            arr = np.array([r[name] for r in part if r.get(name) is not None and r[name] == r[name]], dtype=float)
+            text.append(f"{name} {len(arr)}개 {(arr > 0).mean() * 100:.1f}%/{np.median(arr):+.1f}" if len(arr) >= 20 else f"{name} {len(arr)}개 —")
+        return " ".join(text)
+    front = [r for r in rows if str(r["day"])[:10] < split]
+    back = [r for r in rows if str(r["day"])[:10] >= split]
+    mae = np.median([r["mae60"] for r in rows if r.get("mae60") is not None] or [np.nan])
+    say(f"    {label} ▸ 전체 {cell(rows)} | 앞 {cell(front)} | 뒤 {cell(back)} | 손실깊이 {mae:+.1f}%")
+
+
+def split_groups(title: str, rows: list, split: str, groups, holds=("6개월", "1년")) -> None:
+    say(f"  {title}")
+    for label, pick in groups:
+        halves_line(label, [r for r in rows if pick(r)], split, holds)
+
+
+def _third(rows: list, key: str):
+    """그날 걸린 종목끼리 셋으로 나눈 자리(아래 0 · 가운데 1 · 위 2). 못 잰 종목은 None."""
+    by_day: dict = {}
+    for r in rows:
+        if r.get(key) is not None:
+            by_day.setdefault(r["day"], []).append(r)
+    place = {}
+    for day_rows in by_day.values():
+        ordered = sorted(day_rows, key=lambda r: r[key])
+        for rank, r in enumerate(ordered):
+            place[(r["day"], r["ticker"])] = min(2, rank * 3 // max(1, len(ordered)))
+    return lambda r: place.get((r["day"], r["ticker"]))
+
+
+def find_crash(frames: dict, memberships: dict) -> None:
+    qqq = frames["QQQ"]
+    build_wide(frames)
+    episodes = qqq_episodes(qqq)
+    if FAKE:
+        episodes = episodes[-3:]
+    say(f"\n════════ 급락 후 반등장 — 실제로 가르는 항목 찾기 (급락 {len(episodes)}번 · 화면을 보고 살 수 있던 날) ════════")
+    live, first = {}, {}
+    for number, episode in enumerate(episodes, 1):
+        for turn, place in enumerate(episode["moves"][:-1] if len(episode["moves"]) > 1 else episode["moves"]):
+            rows = crash_rows(frames, memberships, qqq, place)
+            if rows:
+                live[qqq.index[place].date().isoformat()] = rows
+                if turn == 0:
+                    first[qqq.index[place].date().isoformat()] = rows
+        if number % 5 == 0:
+            say(f"  … 급락 {number}/{len(episodes)} · {time.time() - STARTED:.0f}초")
+    days = sorted(live)
+    split = days[len(days) // 2]
+    rows = [r for day_rows in live.values() for r in day_rows]
+    clean = [r for r in rows if not r["suspicious"]]
+    say(f"살 수 있던 날 {len(days)}일({days[0]} ~ {days[-1]}) · 앞뒤 가르는 날 {split} · 걸린 종목 {len(rows)}줄 · 경고 없는 종목 {len(clean)}줄")
+    say("  읽는 법 — 「이긴 비율%/가운데 값」 · 앞 = 앞 절반 날 · 뒤 = 뒤 절반 날 · 손실깊이 = 산 뒤 60일 안 가장 깊은 손실(가운데)")
+    split_groups("■ 0. 견줄 자", rows, split, (("걸린 종목 전부", lambda r: True), ("경고 없는 종목", lambda r: not r["suspicious"]),
+                                           ("경고 종목", lambda r: r["suspicious"])))
+    split_groups("■ 1. 나스닥보다 몇 배 빠졌나(종목 낙폭 ÷ QQQ 낙폭)", rows, split, (
+        ("1.5배 미만", lambda r: r["ratio"] < 1.5), ("1.5~2배", lambda r: 1.5 <= r["ratio"] < 2.0),
+        ("2~2.5배", lambda r: 2.0 <= r["ratio"] < 2.5), ("2.5~3배", lambda r: 2.5 <= r["ratio"] < 3.0),
+        ("3~4배", lambda r: 3.0 <= r["ratio"] < 4.0), ("4배 넘게", lambda r: r["ratio"] >= 4.0)))
+    split_groups("■ 2. 평소 버릇(베타)보다 더 빠진 폭 — 나스닥이 빠진 만큼 제 버릇대로 빠졌을 때와의 차이", rows, split, (
+        ("버릇보다 덜 빠짐(0 아래)", lambda r: r["excess"] is not None and r["excess"] < 0),
+        ("0~5%p 더", lambda r: r["excess"] is not None and 0 <= r["excess"] < 5),
+        ("5~10%p 더", lambda r: r["excess"] is not None and 5 <= r["excess"] < 10),
+        ("10~20%p 더", lambda r: r["excess"] is not None and 10 <= r["excess"] < 20),
+        ("20%p 넘게 더", lambda r: r["excess"] is not None and r["excess"] >= 20)))
+    say("  ── 아래는 모두 「경고 없는 종목」 안에서 ──")
+    for key, title, names in (
+        ("pre120", "■ 3. 급락 전 6개월에 얼마나 올랐나(나스닥 고점일까지 120일)", ("덜 오른 3분의 1", "가운데", "많이 오른 3분의 1")),
+        ("vol60", "■ 4. 평소 얼마나 움직이나(60일 변동성)", ("조용한 3분의 1", "가운데", "크게 움직이는 3분의 1")),
+        ("beta", "■ 5. 나스닥을 얼마나 따라 움직이나(베타)", ("낮은 3분의 1", "가운데", "높은 3분의 1")),
+        ("dollar", "■ 6. 거래대금(20일 평균)", ("작은 3분의 1", "가운데", "큰 3분의 1")),
+        ("ret5", "■ 7. 최근 5일 움직임", ("가장 많이 빠지는 중", "가운데", "이미 오르는 중")),
+        ("worst_day", "■ 8. 고점 뒤 가장 나빴던 하루", ("하루에 크게 빠진 적 있음", "가운데", "하루하루 조금씩 빠짐")),
+    ):
+        third = _third(clean, key)
+        split_groups(title, clean, split, tuple((name, (lambda r, n=n, third=third: third(r) == n)) for n, name in enumerate(names)))
+    split_groups("■ 9. 200일선 위인가", clean, split, (("200일선 위", lambda r: r["above200"] is True), ("200일선 아래", lambda r: r["above200"] is False)))
+    split_groups("■ 10. 지금 배점 항목(경고 없는 종목 안에서 다시)", clean, split, (
+        ("변동성 큰 절반(40)", lambda r: r["vol_top"]), ("변동성 작은 절반", lambda r: not r["vol_top"]),
+        ("테마 30주선 상위 3(30)", lambda r: r["above150"]), ("아님", lambda r: not r["above150"]),
+        ("같은 테마 4개↑(20)", lambda r: r["together"]), ("아님", lambda r: not r["together"]),
+        ("테마 6개월 수익 상위 3(10)", lambda r: r["ret120"]), ("아님", lambda r: not r["ret120"]),
+        ("낙폭 10~20%", lambda r: r["bucket"] == "d10"), ("낙폭 20~30%", lambda r: r["bucket"] == "d20"), ("낙폭 30~50%", lambda r: r["bucket"] == "d30")))
+
+    # 미리 정해 둔 줄 세우기 — 경고 없는 종목에서 위 10개를 뽑았을 때(숫자를 보고 고르지 않는다)
+    def key_of(name):
+        return {
+            "지금 앱 순서": lambda r: r["order"],
+            "버릇보다 덜 빠진 순": lambda r: r["excess"] if r["excess"] is not None else 999.0,
+            "나스닥 대비 덜 빠진 순": lambda r: r["ratio"],
+            "급락 전 6개월 많이 오른 순": lambda r: -(r["pre120"] if r["pre120"] is not None else -999.0),
+            "급락 전 6개월 덜 오른 순": lambda r: (r["pre120"] if r["pre120"] is not None else 999.0),
+            "조용한 순": lambda r: r["vol60"] if r.get("vol60") is not None else 99.0,
+            "크게 움직이는 순": lambda r: -(r["vol60"] if r.get("vol60") is not None else 0.0),
+            "거래대금 큰 순": lambda r: -(r["dollar"] or 0.0),
+            "아무 뜻 없는 순서": _neutral,
+        }[name]
+    say("\n■ 11. 경고 없는 종목에서 10개를 뽑는 법을 바꾸면 — 날마다 10개의 「이긴 종목 비율 / 가운데 값」을 내고 날끼리 평균(괄호 = 아무 뜻 없는 순서를 이긴 날)")
+    for title, source in (("살 수 있던 날 전부", live), ("목록이 처음 뜬 날만", first)):
+        say(f"  ▷ {title}")
+        for name in ("지금 앱 순서", "버릇보다 덜 빠진 순", "나스닥 대비 덜 빠진 순", "급락 전 6개월 많이 오른 순", "급락 전 6개월 덜 오른 순",
+                     "조용한 순", "크게 움직이는 순", "거래대금 큰 순", "아무 뜻 없는 순서"):
+            text = []
+            for part_name, keep in (("전체", lambda d: True), ("앞", lambda d: d < split), ("뒤", lambda d: d >= split)):
+                cells = []
+                for hold in ("6개월", "1년"):
+                    wins, meds, beat, total = [], [], 0, 0
+                    for day, day_rows in source.items():
+                        if not keep(day):
+                            continue
+                        pool = [r for r in day_rows if not r["suspicious"]]
+                        mine = [r[hold] for r in sorted(pool, key=key_of(name))[:10] if r.get(hold) is not None]
+                        base = [r[hold] for r in sorted(pool, key=_neutral)[:10] if r.get(hold) is not None]
+                        if len(mine) >= 5 and len(base) >= 5:
+                            wins.append(np.mean(np.array(mine) > 0) * 100)
+                            meds.append(float(np.median(mine)))
+                            total += 1
+                            beat += int(np.median(mine) > np.median(base))
+                    cells.append(f"{hold} {np.mean(wins):.0f}%/{np.mean(meds):+.1f}({beat}/{total})" if wins else f"{hold} —")
+                text.append(f"{part_name} " + " ".join(cells))
+            say(f"    {name:<16} " + " | ".join(text))
+
+
+def find_swing(frames: dict, ixic: pd.DataFrame, memberships: dict) -> None:
+    qqq = frames["QQQ"]
+    days = list(qqq.index[300::STEP])
+    say(f"\n════════ 상승장 — 실제로 가르는 항목 찾기 ({days[0].date()} ~ {days[-1].date()} · {len(days)}일) ════════")
+    _G.update(frames=frames, ixic=ixic, memberships=memberships, records=j3._swing_universe_records(),
+              config=us_swing.merged_config({"universe": {"include_adr": True}}))
+    workers = max(1, min(4, multiprocessing.cpu_count()))
+    chunks = [days[start::workers * 6] for start in range(workers * 6)]
+    try:
+        with multiprocessing.get_context("fork").Pool(workers) as pool:
+            parts = pool.map(_swing_chunk, chunks)
+    except Exception as exc:
+        say(f"  (나눠 돌리기 실패 — 한 줄로 돌림: {exc})")
+        parts = [_swing_chunk(chunk) for chunk in chunks]
+    found = [item for part in parts for item in part]
+    info = {item["day"]: item for item in found if item["kind"] == "day"}
+    rows = [item for item in found if item["kind"] == "row"]
+    for row in rows:
+        row["day_text"] = row["day"]
+        row["day"] = row["day"].date().isoformat()
+    all_days = sorted(day.date().isoformat() for day in info)
+    split = all_days[len(all_days) // 2]
+    holds = ("3개월", "6개월", "1년")
+    say(f"돌린 날 {len(info)}일 · 앞뒤 가르는 날 {split} · 자격을 채운 줄(시장 문 빼고) {len(rows)} · {time.time() - STARTED:.0f}초")
+    say("  읽는 법 — 「이긴 비율%/가운데 값」 · 앞 = 앞 절반 · 뒤 = 뒤 절반 · 손실깊이 = 산 뒤 60일 안 가장 깊은 손실(가운데)")
+
+    def above(row):
+        return info[row["day_text"]].get("above200")
+
+    def depth(row):
+        value = info[row["day_text"]].get("drawdown")
+        return None if value is None else value * 100.0
+
+    split_groups("■ 1. 시장 문을 무엇으로 삼나(자격은 같고 문만 다름)", rows, split, (
+        ("지금 문(전고점 되찾음 = 열림)", lambda r: r["status"] == "MARKET_ON"),
+        ("닫힘: 조정 중(−10% 아래를 찍고 아직 못 올라옴)", lambda r: r["status"] == "MARKET_OFF"),
+        ("닫힘: 되돌아오는 중", lambda r: r["status"] == "MARKET_RECOVERY"),
+        ("문 없음(언제나)", lambda r: True),
+        ("나스닥 200일선 위일 때만", lambda r: above(r) is True),
+        ("나스닥 200일선 아래일 때", lambda r: above(r) is False),
+        ("나스닥 고점에서 5% 안", lambda r: depth(r) is not None and depth(r) > -5),
+        ("나스닥 −5~−10%", lambda r: depth(r) is not None and -10 < depth(r) <= -5),
+        ("나스닥 −10~−20%", lambda r: depth(r) is not None and -20 < depth(r) <= -10),
+        ("나스닥 −20% 아래", lambda r: depth(r) is not None and depth(r) <= -20)), holds)
+    split_groups("■ 2. 얼마나 눌렸나", rows, split, (
+        ("3~4%", lambda r: 3 <= r["pull"] < 4), ("4~5%", lambda r: 4 <= r["pull"] < 5), ("5~6%", lambda r: 5 <= r["pull"] < 6),
+        ("6~8%", lambda r: 6 <= r["pull"] < 8), ("8~10%", lambda r: 8 <= r["pull"] <= 10)), holds)
+    split_groups("■ 3. 6개월에 얼마나 올라 있었나(절대 수익률)", rows, split, (
+        ("30% 미만", lambda r: r["ret120"] is not None and r["ret120"] < 30), ("30~60%", lambda r: r["ret120"] is not None and 30 <= r["ret120"] < 60),
+        ("60~100%", lambda r: r["ret120"] is not None and 60 <= r["ret120"] < 100), ("100% 넘게", lambda r: r["ret120"] is not None and r["ret120"] >= 100)), holds)
+    split_groups("■ 4. 강도 등수", rows, split, (
+        ("3 · 6개월 둘 다 상위 5%", lambda r: r["rs60"] >= 95 and r["rs120"] >= 95), ("둘 다 상위 10%(위 빼고)", lambda r: r["elite"] and not (r["rs60"] >= 95 and r["rs120"] >= 95)),
+        ("그 밖(상위 20% 안)", lambda r: not r["elite"])), holds)
+    for key, title, names in (
+        ("vol60", "■ 5. 평소 얼마나 움직이나(60일 변동성 · 전체 줄을 셋으로)", ("조용한 3분의 1", "가운데", "크게 움직이는 3분의 1")),
+        ("dollar", "■ 6. 거래대금", ("작은 3분의 1", "가운데", "큰 3분의 1")),
+        ("jump", "■ 7. 신고가 날 얼마나 뚫었나(전 고점 대비)", ("살짝", "가운데", "크게")),
+    ):
+        values = sorted(r[key] for r in rows if r.get(key) is not None)
+        if len(values) < 30:
+            continue
+        low, high = values[len(values) // 3], values[len(values) * 2 // 3]
+        split_groups(title, rows, split, (
+            (names[0], lambda r, key=key, low=low: r.get(key) is not None and r[key] < low),
+            (names[1], lambda r, key=key, low=low, high=high: r.get(key) is not None and low <= r[key] < high),
+            (names[2], lambda r, key=key, high=high: r.get(key) is not None and r[key] >= high)), holds)
+    split_groups("■ 8. 지금 점수(자격 채운 줄 전체에서)", rows, split, (
+        ("총점 85점↑", lambda r: r["total"] >= 85), ("75~85점", lambda r: 75 <= r["total"] < 85), ("75점 미만", lambda r: r["total"] < 75),
+        ("하루 5% 넘게 급락 있었음", lambda r: r["shock"]), ("없음", lambda r: not r["shock"])), holds)
+
+
 # ───────────────────────── 상승장 ─────────────────────────
 _G: dict = {}
 
@@ -377,7 +625,9 @@ def _swing_chunk(days: list) -> list:
         if not scan.get("ok"):
             continue
         status = (scan.get("market") or {}).get("market_status")
-        out.append({"kind": "day", "day": day, "status": status})
+        market = scan.get("market") or {}
+        out.append({"kind": "day", "day": day, "status": status, "above200": market.get("ixic_above_sma200"),
+                    "drawdown": market.get("market_drawdown")})
         for row in scan.get("all_rows") or []:
             try:
                 fits = (row.get("rs60_valid") and row.get("rs120_valid") and row.get("breakout_data_valid")
@@ -400,7 +650,11 @@ def _swing_chunk(days: list) -> list:
                         rebound=row.get("rebound_status"), theme=float(row.get("theme_score") or 0),
                         volume=float(row.get("volume_score") or 0), breadth=float(row.get("breadth_score") or 0),
                         elite=row.get("rs_core_status") == "ELITE", since=since,
-                        shock=bool(len(changes) and float(np.min(changes)) <= -0.05))
+                        shock=bool(len(changes) and float(np.min(changes)) <= -0.05),
+                        pull=float(row.get("pullback_pct_close") or 0), ret120=row.get("ret120"),
+                        rs60=float(row.get("rs60_percentile") or 0), rs120=float(row.get("rs120_percentile") or 0),
+                        dollar=row.get("avg_dollar_volume_20"), jump=row.get("breakout_pct_above_prior_high"),
+                        vol60=float(np.nanstd(closes[pos - 60:pos + 1][1:] / closes[pos - 60:pos + 1][:-1] - 1.0) * 100.0) if pos >= 61 else None)
             out.append(item)
     return out
 
@@ -490,6 +744,11 @@ def main() -> int:
         say("QQQ 나 나스닥 종합을 못 받았습니다 — 그만둡니다")
         return 1
     which = os.environ.get("J12_PART") or "both"
+    if which == "find":
+        find_crash(frames, memberships)
+        find_swing(frames, ixic, memberships)
+        say(f"\n끝 · {time.time() - STARTED:.0f}초")
+        return 0
     if which in ("both", "crash"):
         measure_crash(frames, memberships)
     if which in ("both", "swing"):
