@@ -188,6 +188,8 @@ def online() -> int:
                             two: /자주 이기는 쪽/.test(document.body.innerText)};
                 }""")
                 page.screenshot(path=str(OUT / f"online_crash_{width}.png"), full_page=width > 600)
+                out["crash_text"] = page.evaluate("""() => [...document.querySelectorAll('[class*="st-key-j12_rulebook_table"]')]
+                    .map(b => b.innerText).join(' ').replace(/\\s+/g, ' ').slice(0, 900)""")
                 steady = page.get_by_text("🛡 자주 이기는 쪽", exact=False).first
                 if steady.count():
                     steady.click()
@@ -206,8 +208,6 @@ def online() -> int:
                 out["swing_rows"] = page.evaluate("""() => document.body.innerText.match(/[SABCD]등급/g)?.length || 0""")
                 out["swing_text"] = page.evaluate("""() => { const t = document.body.innerText;
                     const i = t.indexOf('분기 실적'); return i < 0 ? '' : t.slice(i, i + 700).replace(/\\s+/g, ' '); }""")
-                out["crash_text"] = page.evaluate("""() => [...document.querySelectorAll('[class*="st-key-j12_rulebook_table"]')]
-                    .map(b => b.innerText).join(' ').replace(/\\s+/g, ' ').slice(0, 900)""")
                 # 「22개 테마」 · 「매수심사결과 높은 순위 9」(2026-11-13 상하님 「4개 파트 다 봤냐?」) — 열어서 표가 뜨는지 · 무엇이 실렸는지.
                 theme = page.locator('div[class*="st-key-btn_j12_theme_rank_open"] button').first
                 theme.scroll_into_view_if_needed()
@@ -220,6 +220,7 @@ def online() -> int:
                     .innerText.replace(/\\s+/g, ' ').slice(0, 500)""")
                 page.screenshot(path=str(OUT / f"online_theme_{width}.png"), full_page=width > 600)
                 top9 = page.locator('div[class*="st-key-j12_top7_find"] button').first
+                top9.wait_for(state="attached", timeout=300_000)       # 22개 테마를 연 뒤 판 전체가 다시 그려질 때까지
                 top9.scroll_into_view_if_needed()
                 top9.click()
                 page.wait_for_function(
