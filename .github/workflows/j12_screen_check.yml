@@ -26,7 +26,8 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # 2026-11-12 — ubuntu-latest 가 26.04 로 바뀌어 Playwright 1.56 이 브라우저를 못 깔았다(「Playwright does not support chromium on ubuntu26.04-x64」). 24.04 로 고정한다.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
