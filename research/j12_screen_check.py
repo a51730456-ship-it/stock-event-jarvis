@@ -203,6 +203,35 @@ def online() -> int:
                 out["swing_line"] = page.evaluate("""() => { const t = document.body.innerText;
                     const i = t.indexOf('나스닥 지수 — '); return i < 0 ? '' : t.slice(i, i + 140).replace(/\\s+/g, ' '); }""")
                 page.screenshot(path=str(OUT / f"online_swing_{width}.png"), full_page=width > 600)
+                out["swing_rows"] = page.evaluate("""() => document.body.innerText.match(/[SABCD]등급/g)?.length || 0""")
+                out["swing_text"] = page.evaluate("""() => { const t = document.body.innerText;
+                    const i = t.indexOf('분기 실적'); return i < 0 ? '' : t.slice(i, i + 700).replace(/\\s+/g, ' '); }""")
+                out["crash_text"] = page.evaluate("""() => [...document.querySelectorAll('[class*="st-key-j12_rulebook_table"]')]
+                    .map(b => b.innerText).join(' ').replace(/\\s+/g, ' ').slice(0, 900)""")
+                # 「22개 테마」 · 「매수심사결과 높은 순위 9」(2026-11-13 상하님 「4개 파트 다 봤냐?」) — 열어서 표가 뜨는지 · 무엇이 실렸는지.
+                theme = page.locator('div[class*="st-key-btn_j12_theme_rank_open"] button').first
+                theme.scroll_into_view_if_needed()
+                theme.click()
+                page.wait_for_function(
+                    "() => { const b = document.querySelector('[class*=\"st-key-j12_theme_table\"]');"
+                    " return b && b.textContent.length > 200; }", timeout=240_000)
+                page.wait_for_timeout(2000)
+                out["theme_text"] = page.evaluate("""() => document.querySelector('[class*="st-key-j12_theme_table"]')
+                    .innerText.replace(/\\s+/g, ' ').slice(0, 500)""")
+                page.screenshot(path=str(OUT / f"online_theme_{width}.png"), full_page=width > 600)
+                top9 = page.locator('div[class*="st-key-j12_top7_find"] button').first
+                top9.scroll_into_view_if_needed()
+                top9.click()
+                page.wait_for_function(
+                    "() => { const b = document.querySelector('[class*=\"st-key-j12_top7_table\"]');"
+                    " return b && b.textContent.length > 200; }", timeout=300_000)
+                page.wait_for_timeout(2500)
+                out["top9_text"] = page.evaluate("""() => document.querySelector('[class*="st-key-j12_top7_table"]')
+                    .innerText.replace(/\\s+/g, ' ').slice(0, 1500)""")
+                out["top9_notes"] = page.evaluate("""() => { const t = document.body.innerText;
+                    const i = t.indexOf('매수심사결과 높은 순위 9'); return i < 0 ? '' : t.slice(i, i + 500).replace(/\\s+/g, ' '); }""")
+                page.locator('[class*="st-key-j12_top7_table"]').first.scroll_into_view_if_needed()
+                page.screenshot(path=str(OUT / f"online_top9_{width}.png"), full_page=width > 600)
                 out["problems"] = _problems(page)
             except Exception as exc:
                 out["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -220,6 +249,8 @@ def online() -> int:
         "급락 표 보임": all((run.get("crash") or {}).get("rows", 0) > 0 for run in runs),
         "② 두 목록 고르는 칸 · 자주 이기는 쪽 열림": all((run.get("crash") or {}).get("two") and run.get("steady_ok") for run in runs),
         "④ 상승장 시장 줄이 200일선으로 말함": all("200일선" in (run.get("swing_line") or "") for run in runs),
+        "22개 테마 표 보임": all(len(run.get("theme_text") or "") > 100 for run in runs),
+        "순위 9 표 보임": all(len(run.get("top9_text") or "") > 100 for run in runs),
         "오류 0 · 폰 넘침 0": all(not (run.get("problems") or {}).get("exceptions")
                              and ((run.get("problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600) for run in runs),
     }
