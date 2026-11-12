@@ -1968,7 +1968,7 @@ import us_fundamentals
 import jarvis12_crash
 # 규칙 고침 스위치(2026-11-12 상하님 「다하되 · 잘못되면 되돌려야」) — False 면 고치기 전 그대로.
 import jarvis12_rules
-_REQUIRED_J12_RULES_REVISION = 2026111201
+_REQUIRED_J12_RULES_REVISION = 2026111202
 if int(getattr(jarvis12_rules, "MODULE_REVISION", 0)) < _REQUIRED_J12_RULES_REVISION:
     jarvis12_rules = importlib.reload(jarvis12_rules)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
@@ -1979,7 +1979,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026110401
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026111201
+_REQUIRED_J12_CRASH_REVISION = 2026111202
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026102301
@@ -8989,8 +8989,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 사지 말라는 화면이 되므로 갈래마다 전용 배점·전용 심사를 쓴다.
     mode = mode or st.session_state.get("j12_pullback_mode") or "기본"
     if mode == "crash":
-        scored = j3data.crash_rebound_score(row)
-        plan = j3data.crash_rebound_plan(row)
+        # 2026-11-12 상하님 「다 해라」 ③ — 테마 30주선 30점을 뺀 자비스12 점수(70점 만점) · 문턱도 그 만점의 70% · 50%.
+        scored = jarvis12_crash.score(row)
+        plan = jarvis12_crash.plan(row)
         # 2026-10-21 — 자비스12 줄은 첫 문장을 나스닥 고점일부터 잰 뜻으로 바꾼다(뒤 문장·과거 성적은 그대로 —
         # 과거 성적은 줄에 실린 새 칸 숫자다). 얼린 jarvis3_data 는 고치지 않는다.
         # 같은 날 저녁 — 글 전체를 짧게 핵심만으로 바꿨다(상하님 「장황하다 · 일반인이 보기에 직관적으로」).
@@ -9688,6 +9689,8 @@ _SCORE_TABLE_PLAIN = {
 def _score_table_rows(mode: str):
     """(이름, 점수, 왜) — 점수는 **모듈에서 읽는다**(위 설명 참고)."""
     weights = getattr(j3data, _SCORE_WEIGHT_SOURCE.get(mode, ""), {}) or {}
+    if mode == "crash":
+        weights = jarvis12_crash.score_weights()     # 2026-11-12 ③ — 뺀 항목(테마 30주선)은 0점
     for name, key, why in _SCORE_TABLE.get(mode, ()):
         points = float(weights.get(key) or 0) if key else 0.0
         # 47.0처럼 소수 첫 자리가 0이면 정수로 적는다 — 화면이 지저분해진다.
@@ -9717,6 +9720,11 @@ def _score_table_html(mode: str, base_win_rate=None) -> str:
         if base_win_rate else ""
     )
     plain = _SCORE_TABLE_PLAIN.get(mode, "")
+    if mode == "crash" and jarvis12_crash.drop_above150():
+        # 2026-11-12 ③ — 테마 30주선 30점을 뺐다(70점 만점). 옛 글은 상수에 그대로 두고 여기서만 바꿔 보인다.
+        plain = plain.replace("<b>40점이 그 종목의 출렁임</b>, <b>60점이 분야</b>, 더해서 100점입니다.",
+                              "<b>40점이 그 종목의 출렁임</b>, <b>30점이 분야</b>, 더해서 <b>70점 만점</b>입니다"
+                              "(테마 30주선 30점은 2026-11-12 뺐습니다).")
     head = (f"<div class='j3-pull-guide' style='padding-bottom:.15rem'>{plain}</div>"
             if plain else "")
     return (
@@ -10220,13 +10228,21 @@ def _crash12_score_html(result: dict, base_rate) -> str:
         f"<span class='j3-w-why'>{_CRASH12_SCORE_SHORT.get(name, '')}</span></div>"
         for name, points, text, _why in _score_table_rows("crash") if points
     )
-    more = (_score_table_html("crash", base_rate)
+    dropped = (
+        "<div class='j3-pull-guide'><b>뺀 항목 — 이 테마가 이미 오름세로 돌아섰나(30점)</b> · 2026-11-12 10년치로 다시 재니 "
+        "앞 5년에는 맞고(6개월 이긴 비율 65.4% 대 60.9%) 뒤 5년에는 거꾸로(65.7% 대 74.2%)였습니다. "
+        "한 시기에만 맞는 항목이라 점수에서 뺐습니다.</div>"
+        if jarvis12_crash.drop_above150() else "")
+    more = (_score_table_html("crash", base_rate) + dropped
             + "<div class='j3-pull-guide'><b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 "
             "여섯 가지를 재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>")
     return (
         f"<div class='j3-pull-guide'>{warn}"
-        "🧮 <b>점수 (100점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 먼저 일어선 종목(60). "
-        "점수는 <b>먼저 볼 차례</b>일 뿐 — 0점도 조건에 걸린 종목입니다."
+        + (("🧮 <b>점수 (70점 만점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 통째로 · 반년에 많이 오른 종목(30). "
+            "<span style='color:#9aa0aa'>테마 30주선(30점)은 2026-11-12 뺐습니다 — 10년치 앞 5년과 뒤 5년에서 방향이 뒤집혔습니다.</span> ")
+           if jarvis12_crash.drop_above150() else
+           "🧮 <b>점수 (100점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 먼저 일어선 종목(60). ")
+        + "점수는 <b>먼저 볼 차례</b>일 뿐 — 0점도 조건에 걸린 종목입니다."
         f"<div style='margin-top:.35rem'>{rows}</div></div>"
         "<details style='margin:.2rem 0 .4rem'>"
         "<summary style='cursor:pointer; color:#9dccff; font-weight:800; padding:.35rem .2rem'>"
@@ -10604,9 +10620,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         cols = row_box.columns(row_widths)
         # 점수는 순위 다음 **따로 칸**에 둔다(2026-08-06 사용자 지시).
         score = row.get("score")
+        # 색 문턱은 만점의 70% · 50%(2026-11-12 ③ — 급락은 70점 만점이 됐다. 상승장 · 고치기 전은 100점 그대로).
+        top = 100.0 if breakout else float(jarvis12_crash.score_max() or 100.0)
         score_class = (
-            "j3-score-hi" if (score or 0) >= 70
-            else "j3-score-mid" if (score or 0) >= 50
+            "j3-score-hi" if (score or 0) >= top * 0.70
+            else "j3-score-mid" if (score or 0) >= top * 0.50
             else "j3-score-low"
         )
         cols[0].markdown(

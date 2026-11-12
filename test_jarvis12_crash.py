@@ -134,6 +134,38 @@ class PickTests(unittest.TestCase):
         self.assertEqual([r["ticker"] for r in picked], [r["ticker"] for r in off])
         self.assertEqual([r["scorecard"] for r in picked], [r["scorecard"] for r in off])
 
+    def test_theme_150_line_is_dropped_from_the_score(self):
+        """2026-11-12 상하님 「다 해라」 ③ — 테마 30주선 30점을 뺀 70점 만점. 얼린 점수 함수의 값을 걷어 내기만 한다."""
+        import jarvis12_rules as rules
+        row = {"ticker": "S00"}
+        frozen = {"score": 100.0, "max": 100.0, "parts": [
+            ("이 종목이 평소 크게 움직이나", 40.0, 40.0, "a"), (c12.ABOVE150_LABEL, 30.0, 30.0, "b"),
+            ("이 테마가 통째로 떨어졌나", 20.0, 20.0, "c"), ("이 테마가 지난 반년에 많이 올랐나", 10.0, 10.0, "d")]}
+        with mock.patch.object(c12.j3, "crash_rebound_score", return_value=frozen):
+            got = c12.score(row)
+            self.assertEqual(70.0, got["score"])
+            self.assertEqual(70.0, got["max"])
+            self.assertNotIn(c12.ABOVE150_LABEL, [name for name, *_ in got["parts"]])
+            self.assertEqual(0.0, c12.score_weights()["above150"])
+            self.assertEqual(40.0, c12.score_weights()["volatility"])
+            # 판정 문턱 — 70점 만점의 70%(49) · 50%(35)
+            with mock.patch.object(c12.j3, "crash_rebound_plan", return_value={"state": "옛", "recommendation": "옛"}):
+                self.assertEqual("규칙에 맞는 자리", c12.plan(row)["state"])
+            low = {"score": 50.0, "max": 100.0, "parts": [(c12.ABOVE150_LABEL, 30.0, 30.0, "b"), ("이 테마가 통째로 떨어졌나", 20.0, 20.0, "c")]}
+            with mock.patch.object(c12.j3, "crash_rebound_score", return_value=low), \
+                    mock.patch.object(c12.j3, "crash_rebound_plan", return_value={"state": "옛", "recommendation": "옛"}):
+                self.assertEqual("규칙만 맞고 뒷받침이 없음", c12.plan(row)["state"])     # 20점 < 35
+            # 스위치를 끄면 얼린 값 그대로
+            with mock.patch.object(rules, "CRASH_DROP_ABOVE150", False):
+                self.assertIs(frozen, c12.score(row))
+                self.assertEqual(100.0, c12.score_max())
+        # 화면은 자비스12 점수 · 판정 · 배점을 쓴다
+        self.assertIn("scored = jarvis12_crash.score(row)", J12)
+        self.assertIn("plan = jarvis12_crash.plan(row)", J12)
+        self.assertIn("weights = jarvis12_crash.score_weights()", J12)
+        self.assertIn("뺀 항목 — 이 테마가 이미 오름세로 돌아섰나(30점)", J12)
+        self.assertNotIn("j3data.crash_rebound_score(row)", J12)
+
     def test_buy_reason_is_short_and_keeps_the_key_words(self):
         """세부 노란 상자 — 짧게 핵심만(2026-10-21 상하님 「장황하다」). 굵게 칠하는 말·새 칸 성적은 남는다."""
         _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
@@ -261,8 +293,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026111201", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026111201)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026111202", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026111202)
         # 맨 위 낙폭 막대 — 2026-10-27 상하님 「지금 고점 대비와 급락 후 반등장 설명이 다른 이유 · 둘 다 정확한 답을 맞춰라」:
         # 큰 숫자를 급락 후 반등장과 같은 함수의 같은 값(QQQ · reference 의 today_drop)으로 · IXIC 는 참고 한 줄 · 이번 하락 한 줄
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]

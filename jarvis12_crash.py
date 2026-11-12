@@ -43,7 +43,7 @@ import jarvis3_data as j3
 import jarvis12_rules as rules
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026111201
+MODULE_REVISION = 2026111202
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -53,6 +53,53 @@ SCORECARD_COUNT = 10                      # 2026-10-21 — 성적표에 쓰는 �
 SUSPICIOUS_TIMES = 3.0                    # 종목 낙폭이 나스닥 낙폭의 이 배를 넘으면 「수상하게 빠짐」
 # 2026-11-12 상하님 「다 해라」 — 2배를 넘으면 「주의」(보이기만 · 성적표 차례는 3배 경고만 본다 · jarvis12_rules 스위치)
 CAUTION_TIMES = float(getattr(rules, "CRASH_CAUTION_TIMES", 2.0))
+
+
+ABOVE150_LABEL = "이 테마가 이미 오름세로 돌아섰나"   # jarvis3_data.crash_rebound_score 의 그 항목 이름
+
+
+def drop_above150() -> bool:
+    """급락 점수에서 테마 30주선 30점을 빼나(2026-11-12 상하님 「다 해라」 · jarvis12_rules 스위치)."""
+    return bool(getattr(rules, "CRASH_DROP_ABOVE150", False))
+
+
+def score_weights() -> dict:
+    """자비스12 급락 배점 — 얼린 CRASH_SCORE_WEIGHTS 에서 뺀 항목만 0으로."""
+    weights = dict(j3.CRASH_SCORE_WEIGHTS)
+    if drop_above150():
+        weights["above150"] = 0.0
+    return weights
+
+
+def score_max() -> float:
+    return round(sum(score_weights().values()), 1)
+
+
+def score(row: dict) -> dict:
+    """급락 점수 — 얼린 crash_rebound_score 를 같은 인자로 부르고, 뺀 항목만 걷어 낸다(값은 다시 계산하지 않는다)."""
+    scored = j3.crash_rebound_score(row)
+    if not drop_above150():
+        return scored
+    parts = list(scored.get("parts") or ())
+    dropped = sum(float(part[1] or 0) for part in parts if part[0] == ABOVE150_LABEL)
+    # 합을 다시 내지 않고 **뺀 항목의 값만 뺀다** — 얼린 함수가 낸 총점과 어긋날 일이 없다.
+    return {"score": round(float(scored.get("score") or 0) - dropped, 1),
+            "parts": [part for part in parts if part[0] != ABOVE150_LABEL], "max": score_max()}
+
+
+def plan(row: dict) -> dict:
+    """세부사항 판정 — 얼린 crash_rebound_plan 그대로, 「규칙에 맞는 자리 / 근거가 얇음」 문턱만 자비스12 만점의 70% · 50% 로."""
+    out = dict(j3.crash_rebound_plan(row))
+    if not drop_above150():
+        return out
+    value, top = float(score(row)["score"]), score_max()
+    if value >= round(top * 0.70, 1):
+        out["state"], out["recommendation"] = "규칙에 맞는 자리", "조건부 후보"
+    elif value >= round(top * 0.50, 1):
+        out["state"], out["recommendation"] = "자리는 맞으나 근거가 얇음", "관찰"
+    else:
+        out["state"], out["recommendation"] = "규칙만 맞고 뒷받침이 없음", "관찰"
+    return out
 
 
 def caution_on() -> bool:
@@ -276,7 +323,7 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
     j3._attach_theme_rank(rows, memberships, all_metrics, prefix="theme_ret120",
                           metric_key="ret120", top_n=j3.CRASH_RET120_TOP_N)
     for row in rows:
-        row["score"] = float(j3.crash_rebound_score(row)["score"])
+        row["score"] = float(score(row)["score"])
     rows.sort(key=lambda row: (-row.get("score", 0.0),
                                int(row.get("theme_above20") or 99),
                                j3._rank_key(row)[0], j3._rank_key(row)[1],
@@ -392,7 +439,7 @@ def crash_list(*, reuse_only: bool = False) -> dict:
     if not daily:
         return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
     market = j3.crash_market_state()
-    base = {"ok": True, "mode": "crash", "rules": J12_RULES, "score_weights": j3.CRASH_SCORE_WEIGHTS,
+    base = {"ok": True, "mode": "crash", "rules": J12_RULES, "score_weights": score_weights(),
             "market": market, "reference": ref, "j12_fixed": True,
             "score_blind": False, "score_weak": False,
             "universe_count": len(j3.US_LARGE_CAP_UNIVERSE),
