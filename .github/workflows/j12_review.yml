@@ -1,0 +1,42 @@
+# 자비스12 급락 후 반등장 · 상승장의 고르는 법과 배점을 10년치로 잰다 (2026-11-12 상하님 「재 봐라」).
+# 클라우드 작업 칸은 야후가 막혀 못 잰다 — 깃허브 컴퓨터에서 돌려 결과를 실행 기록과 첨부 파일에 남긴다.
+# 저장소에는 아무것도 쓰지 않는다(읽기 권한만). 재기만 한다 — 배점 · 그물을 바꿀지는 숫자를 보여 드린 뒤 여쭙는다(CLAUDE.md 0-1).
+name: 자비스12 배점 점검 재기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j12_review_measure.py
+      - .github/workflows/j12_review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: j12-review
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 급락 · 상승장 10년치 재기
+        run: |
+          mkdir -p "$RUNNER_TEMP/j12review"
+          python research/j12_review_measure.py 2>&1 | tee "$RUNNER_TEMP/j12review/result.txt"
+      - name: 결과 파일 남기기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j12-review
+          path: ${{ runner.temp }}/j12review
+          retention-days: 30
