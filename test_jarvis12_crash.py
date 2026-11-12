@@ -134,6 +134,36 @@ class PickTests(unittest.TestCase):
         self.assertEqual([r["ticker"] for r in picked], [r["ticker"] for r in off])
         self.assertEqual([r["scorecard"] for r in picked], [r["scorecard"] for r in off])
 
+    def test_steady_list_is_quiet_first_without_warned_and_keeps_score_list(self):
+        """2026-11-12 상하님 「다 해라」 ② — 「자주 이기는 쪽」 = 경고 없는 종목에서 평소 덜 움직이는 순 10개. 점수 순 20개 · 성적표는 그대로."""
+        depths = [0.85] * 25 + [0.60]              # S25 는 3배 경고(−40% · 나스닥 −7%)
+        days, frames, members = self._frames(depths)
+        tickers = sorted(frames)
+
+        def fake_vol(rows):
+            for row in rows:                       # 번호가 클수록 조용하다 · 경고 종목 S25 가 가장 조용
+                row["vol60"] = 100.0 - int(row["ticker"][1:])
+
+        def run(steady):
+            with mock.patch.object(c12.j3, "US_LARGE_CAP_UNIVERSE", tickers), \
+                    mock.patch.object(c12.j3, "crash_rebound_score",
+                                      side_effect=lambda row: {"score": 100 - int(row["ticker"][1:])}), \
+                    mock.patch.object(c12.j3, "_attach_crash_volatility", side_effect=fake_vol):
+                return c12._pick(frames, members, days[305].date(), days[300].date(), -7.0, steady_out=steady)
+
+        steady = []
+        picked, _counts = run(steady)
+        self.assertEqual([f"S{i:02d}" for i in range(24, 14, -1)], [row["ticker"] for row in steady])
+        self.assertEqual([f"S{i:02d}" for i in range(20)], [row["ticker"] for row in picked])
+        self.assertEqual(days[306].date().isoformat(), steady[0]["buy_date"])   # 20위 밖 줄도 보이는 값을 단다
+        self.assertFalse(steady[0]["scorecard"])
+        self.assertEqual(list(range(1, 21)), [row["pullback_rank"] for row in picked])
+        plain, _ = run(None)
+        self.assertEqual([r["ticker"] for r in picked], [r["ticker"] for r in plain])
+        self.assertEqual([r["scorecard"] for r in picked], [r["scorecard"] for r in plain])
+        self.assertIn('["📈 크게 오르는 쪽 (점수 순)", "🛡 자주 이기는 쪽 (조용한 순)"]', J12)
+        self.assertIn('rows = list(result.get("steady_rows") or [])', J12)
+
     def test_theme_150_line_is_dropped_from_the_score(self):
         """2026-11-12 상하님 「다 해라」 ③ — 테마 30주선 30점을 뺀 70점 만점. 얼린 점수 함수의 값을 걷어 내기만 한다."""
         import jarvis12_rules as rules
@@ -270,7 +300,8 @@ class HeldTests(unittest.TestCase):
 class PageTests(unittest.TestCase):
     def test_page_shows_the_fixed_list_and_scorecard_counts_one_buy(self):
         self.assertIn('st.session_state["j12_pullback_result"] = jarvis12_crash.crash_list()', J12)
-        self.assertIn("if pressed != \"crash\":\n                    picklist_ui.autosave(\"US\", pressed, found)", J12)
+        # 2026-11-12 ④⑤ — 상승장도 같이 쓰는 기록에는 얼린 규칙 결과(jarvis12_swing.frozen)를 남긴다.
+        self.assertIn("if pressed != \"crash\":\n                    picklist_ui.autosave(\"US\", pressed, jarvis12_swing.frozen(found))", J12)
         self.assertIn("st.info(_crash12_story(reference, drop_now, len(rows)))", J12)
         self.assertIn("reference = jarvis12_crash.reference()", J12)
         self.assertEqual(3, J12.count('rows = [row for row in rows if row.get("list_kind") != "crash"]'))
@@ -293,8 +324,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026111202", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026111202)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026111203", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026111203)
         # 맨 위 낙폭 막대 — 2026-10-27 상하님 「지금 고점 대비와 급락 후 반등장 설명이 다른 이유 · 둘 다 정확한 답을 맞춰라」:
         # 큰 숫자를 급락 후 반등장과 같은 함수의 같은 값(QQQ · reference 의 today_drop)으로 · IXIC 는 참고 한 줄 · 이번 하락 한 줄
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]

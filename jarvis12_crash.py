@@ -43,12 +43,13 @@ import jarvis3_data as j3
 import jarvis12_rules as rules
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026111202
+MODULE_REVISION = 2026111203
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
 PER_BAND = 5                              # (2026-10-14 판) 두 갈래에서 5개씩 — 지금은 안 쓴다
 SHOW_COUNT = 20                           # 2026-10-21 — 화면·날짜별 목록에 보이는 수
+STEADY_COUNT = 10                         # 2026-11-12 ② 「자주 이기는 쪽」 수(성적표와 같은 10)
 SCORECARD_COUNT = 10                      # 2026-10-21 — 성적표에 쓰는 수(경고 없는 종목 먼저)
 SUSPICIOUS_TIMES = 3.0                    # 종목 낙폭이 나스닥 낙폭의 이 배를 넘으면 「수상하게 빠짐」
 # 2026-11-12 상하님 「다 해라」 — 2배를 넘으면 「주의」(보이기만 · 성적표 차례는 3배 경고만 본다 · jarvis12_rules 스위치)
@@ -100,6 +101,17 @@ def plan(row: dict) -> dict:
     else:
         out["state"], out["recommendation"] = "규칙만 맞고 뒷받침이 없음", "관찰"
     return out
+
+
+def two_lists_on() -> bool:
+    """② 목록 두 가지(「크게 오르는 쪽」 점수 순 · 「자주 이기는 쪽」 조용한 순) — 스위치를 끄면 점수 순 하나만."""
+    return bool(getattr(rules, "CRASH_TWO_LISTS", False))
+
+
+def steady_key(row: dict) -> tuple:
+    """「자주 이기는 쪽」 차례 — 평소 덜 움직이는(60일 변동성 작은) 순. 값이 없으면 뒤로, 같으면 점수 높은 순."""
+    vol = row.get("vol60")
+    return (vol is None, float(vol) if vol is not None else 0.0, -float(row.get("score") or 0.0), str(row.get("ticker") or ""))
 
 
 def caution_on() -> bool:
@@ -256,7 +268,7 @@ def reference() -> dict:
 
 
 def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_drop=None,
-          show: int = SHOW_COUNT) -> tuple:
+          show: int = SHOW_COUNT, steady_out: list | None = None) -> tuple:
     """기준일 장 마감까지의 주가로 점수를 매기고 급락 배점 차례로 show 개를 고른다(2026-10-21 상하님 지시).
 
     **종목 낙폭 = 기준일 종가 ÷ QQQ 고점일(peak_day)의 그 종목 고가 − 1** → 10~20 · 20~30 · 30~50% 칸.
@@ -340,8 +352,19 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
     chosen_ids = {id(row) for row in chosen}
     for row in picked:
         row["scorecard"] = id(row) in chosen_ids
+    # ② 「자주 이기는 쪽」(steady_out 을 넘긴 때만) — 경고(3배) 없는 종목 전부에서 조용한 순 STEADY_COUNT 개.
+    # 10년 측정 「11. 경고 없는 종목에서 10개를 뽑는 법」의 「조용한 순」과 같은 차례다. 성적표 · 점수 · 날짜별 목록은 그대로(점수 순).
+    steady = []
+    if steady_out is not None:
+        steady = sorted((row for row in rows if not row["suspicious"]), key=steady_key)[:STEADY_COUNT]
+        picked_ids = {id(row) for row in picked}
+        for row in steady:
+            if id(row) not in picked_ids:
+                row["scorecard"] = False
+        steady_out[:] = steady
     # 고른 뒤 **보이는 값만 오늘 것으로** — 점수·칸은 기준일 값 그대로다.
-    for index, row in enumerate(picked, 1):
+    shown_rows = list(picked) + [row for row in steady if id(row) not in {id(r) for r in picked}]
+    for index, row in enumerate(shown_rows, 1):
         ticker = row["ticker"]
         full = daily.get(ticker)
         now = j3._series_metrics(full)
@@ -370,7 +393,8 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
                 row["buy_open"] = float(full["Open"].iloc[after[0]])
         except Exception:
             pass
-        row["pullback_rank"] = index
+        if index <= len(picked):
+            row["pullback_rank"] = index
         row.pop("_order", None)
     return picked, counts
 
@@ -454,18 +478,26 @@ def crash_list(*, reuse_only: bool = False) -> dict:
     with _LOCK:
         memo = _MEMO.get(key)
     if memo and time.time() - memo[0] < _MEMO_SECONDS:
-        picked, counts = memo[1]
+        picked, counts, steady = memo[1]
     else:
-        picked, counts = _pick(daily, memberships, ref_day, ref.get("peak_date"), ref.get("nasdaq_drop"))
+        steady = []
+        picked, counts = _pick(daily, memberships, ref_day, ref.get("peak_date"), ref.get("nasdaq_drop"),
+                               steady_out=steady)
         with _LOCK:
-            _MEMO[key] = (time.time(), (picked, counts))
+            _MEMO[key] = (time.time(), (picked, counts, steady))
     # 「점수가 순위를 못 가른다」 경고는 자비스3 과 같이 **오늘 나스닥 낙폭**으로 판단한다 — 그 경고 글이
     # "나스닥이 지금 ○% 빠져 있습니다"라는 오늘 문장이다.
     # 2026-10-22 — 오늘 QQQ 낙폭도 같은 자(1년 최고 종가 대비)로. 못 구하면 예전 값(장중 최고가 대비)을 쓴다.
     drop_now = ref.get("today_drop")
     if drop_now is None:
         drop_now = (market or {}).get("drop_pct")
-    return {**base, "rows": [dict(row) for row in picked], "bucket_counts": counts,
+    steady_rows = []
+    if two_lists_on():
+        # 번호는 이 목록 안 차례 · score_rank 는 점수 순 목록에서의 자리(없으면 20위 밖).
+        rank_of = {id(row): row.get("pullback_rank") for row in picked}
+        steady_rows = [{**row, "score_rank": rank_of.get(id(row)), "pullback_rank": place}
+                       for place, row in enumerate(steady, 1)]
+    return {**base, "rows": [dict(row) for row in picked], "bucket_counts": counts, "steady_rows": steady_rows,
             "market": {**(market or {}), "drop_pct": drop_now},
             "score_blind": j3.crash_score_is_blind(drop_now), "score_weak": j3.crash_score_is_weak(drop_now),
             "days_since_reference": j3._trading_days_since(daily, ref["reference_date"])}
