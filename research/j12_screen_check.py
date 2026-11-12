@@ -116,8 +116,32 @@ def visit(browser, password: str, width: int) -> dict:
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
         out["crash_problems"] = _problems(page)
+        # ② 「🛡 자주 이기는 쪽」 — 눌러서 표가 다시 그려지는지 · 줄 수(2026-11-12 규칙 고침 ②).
+        steady = page.get_by_text("🛡 자주 이기는 쪽", exact=False).first
+        if steady.count():
+            steady.click()
+            page.wait_for_function("() => /경고 없는 종목 중 평소 덜 움직이는 순/.test(document.body.innerText)", timeout=120_000)
+            page.wait_for_timeout(2500)
+            out["steady_rows"] = page.evaluate("""() => [...document.querySelectorAll(
+                '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
+                .map(b => b.textContent).join(' ').match(/-\\d+~-\\d+%/g)?.length || 0""")
+            out["steady_problems"] = _problems(page)
         page.locator('[class*="st-key-j12_rulebook_table"]').first.scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
+        # ⑤ 상승장 — 시장 문이 「200일선 위/아래」로 말하는지 · 눌림 「주의」 딱지 수(2026-11-12 규칙 고침 ④ · ⑤).
+        up_button = page.locator('div[class*="st-key-j12_pullback_breakout"] button').first
+        up_button.scroll_into_view_if_needed()
+        up_button.click()
+        page.wait_for_function("() => /나스닥 지수 — /.test(document.body.innerText)", timeout=240_000)
+        page.wait_for_timeout(2500)
+        out["swing"] = page.evaluate("""() => {
+            const t = document.body.innerText; const i = t.indexOf('나스닥 지수 — ');
+            return {line: i < 0 ? '' : t.slice(i, i + 160).replace(/\\s+/g, ' '),
+                    grades: (t.match(/[SABCD]등급/g) || []).length,
+                    caution: [...document.querySelectorAll('span[title^="8% 넘게"]')].length};
+        }""")
+        out["swing_problems"] = _problems(page)
+        page.screenshot(path=str(OUT / f"j12_swing_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
         try:
@@ -162,6 +186,14 @@ def main() -> int:
         "④ 급락 오류 0 · 폰 넘침 0": all(not (run.get("crash_problems") or {}).get("exceptions")
                                      and ((run.get("crash_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                      for run in runs),
+        "② 자주 이기는 쪽 표 보임": all((run.get("steady_rows") or 0) > 0 for run in runs),
+        "② 자주 이기는 쪽 오류 0 · 폰 넘침 0": all(not (run.get("steady_problems") or {}).get("exceptions")
+                                          and ((run.get("steady_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                          for run in runs),
+        "⑤ 상승장 시장 줄이 200일선으로 말함": all("200일선" in ((run.get("swing") or {}).get("line") or "") for run in runs),
+        "⑤ 상승장 오류 0 · 폰 넘침 0": all(not (run.get("swing_problems") or {}).get("exceptions")
+                                      and ((run.get("swing_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                      for run in runs),
         "② 연 뒤 오류 0 · 폰 넘침 0": all(not (run.get("movers_problems") or {}).get("exceptions")
                                      and ((run.get("movers_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                      for run in runs),

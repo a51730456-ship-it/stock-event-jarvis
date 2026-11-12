@@ -1968,9 +1968,14 @@ import us_fundamentals
 import jarvis12_crash
 # 규칙 고침 스위치(2026-11-12 상하님 「다하되 · 잘못되면 되돌려야」) — False 면 고치기 전 그대로.
 import jarvis12_rules
-_REQUIRED_J12_RULES_REVISION = 2026111201
+_REQUIRED_J12_RULES_REVISION = 2026111204
 if int(getattr(jarvis12_rules, "MODULE_REVISION", 0)) < _REQUIRED_J12_RULES_REVISION:
     jarvis12_rules = importlib.reload(jarvis12_rules)
+# 상승장 — 얼린 계산 결과를 자비스12 규칙(④ 200일선 문 · ⑤ 눌림 점수)으로 다시 정한다(2026-11-12 · jarvis12_rules 스위치).
+import jarvis12_swing
+_REQUIRED_J12_SWING_REVISION = 2026111201
+if int(getattr(jarvis12_swing, "MODULE_REVISION", 0)) < _REQUIRED_J12_SWING_REVISION:
+    jarvis12_swing = importlib.reload(jarvis12_swing)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -1979,7 +1984,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026110401
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026111201
+_REQUIRED_J12_CRASH_REVISION = 2026111203
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026102301
@@ -7943,7 +7948,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
     if part in ("상승장", "눌림목"):
         with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
             # 관찰 줄까지 본다 — 상승장 화면이 누르게 해 주는 범위와 같다(2026-09-13).
-            found = _find_scan_row(j3data.breakout_scan(), code, with_watch=True)
+            found = _find_scan_row(jarvis12_swing.breakout_scan(), code, with_watch=True)
         if found:
             _render_pullback_detail(found, market, ranking, mode="breakout",
                                     panel="picklist")
@@ -8411,7 +8416,7 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
     result = j3data.collect_top_picks(
         ranking.get("rows") or [],
         market_score=market_score,
-        breakout=opened if opened_mode == "breakout" else None,
+        breakout=opened if opened_mode == "breakout" else jarvis12_swing.top_pick_part(),
         crash=crash_part,
     )
     if not crash12.get("ok"):
@@ -8749,7 +8754,7 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
     name = str(found_row.get("name") or code)
     if ruler == "상승장":
         with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
-            hit = _find_scan_row(j3data.breakout_scan(), code)
+            hit = _find_scan_row(jarvis12_swing.breakout_scan(), code)
         if hit:
             _render_pullback_detail(hit, market, ranking, mode="breakout",
                                     panel="mystock")
@@ -8989,8 +8994,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 사지 말라는 화면이 되므로 갈래마다 전용 배점·전용 심사를 쓴다.
     mode = mode or st.session_state.get("j12_pullback_mode") or "기본"
     if mode == "crash":
-        scored = j3data.crash_rebound_score(row)
-        plan = j3data.crash_rebound_plan(row)
+        # 2026-11-12 상하님 「다 해라」 ③ — 테마 30주선 30점을 뺀 자비스12 점수(70점 만점) · 문턱도 그 만점의 70% · 50%.
+        scored = jarvis12_crash.score(row)
+        plan = jarvis12_crash.plan(row)
         # 2026-10-21 — 자비스12 줄은 첫 문장을 나스닥 고점일부터 잰 뜻으로 바꾼다(뒤 문장·과거 성적은 그대로 —
         # 과거 성적은 줄에 실린 새 칸 숫자다). 얼린 jarvis3_data 는 고치지 않는다.
         # 같은 날 저녁 — 글 전체를 짧게 핵심만으로 바꿨다(상하님 「장황하다 · 일반인이 보기에 직관적으로」).
@@ -9511,7 +9517,7 @@ def _pullback_backdrop_cards(
             )
             market_body += (
                 "<div class='j3-reason-sub'>"
-                f"지금 <b>{html.escape(us_swing.plain_state(state.get('market_status')) or '자료부족')}</b>"
+                f"지금 <b>{html.escape(jarvis12_swing.market_words(state))}</b>"
                 " · 나스닥이 이 상태일 때만 새로 살 후보를 냅니다.</div>"
             )
     else:
@@ -9688,6 +9694,8 @@ _SCORE_TABLE_PLAIN = {
 def _score_table_rows(mode: str):
     """(이름, 점수, 왜) — 점수는 **모듈에서 읽는다**(위 설명 참고)."""
     weights = getattr(j3data, _SCORE_WEIGHT_SOURCE.get(mode, ""), {}) or {}
+    if mode == "crash":
+        weights = jarvis12_crash.score_weights()     # 2026-11-12 ③ — 뺀 항목(테마 30주선)은 0점
     for name, key, why in _SCORE_TABLE.get(mode, ()):
         points = float(weights.get(key) or 0) if key else 0.0
         # 47.0처럼 소수 첫 자리가 0이면 정수로 적는다 — 화면이 지저분해진다.
@@ -9717,6 +9725,11 @@ def _score_table_html(mode: str, base_win_rate=None) -> str:
         if base_win_rate else ""
     )
     plain = _SCORE_TABLE_PLAIN.get(mode, "")
+    if mode == "crash" and jarvis12_crash.drop_above150():
+        # 2026-11-12 ③ — 테마 30주선 30점을 뺐다(70점 만점). 옛 글은 상수에 그대로 두고 여기서만 바꿔 보인다.
+        plain = plain.replace("<b>40점이 그 종목의 출렁임</b>, <b>60점이 분야</b>, 더해서 100점입니다.",
+                              "<b>40점이 그 종목의 출렁임</b>, <b>30점이 분야</b>, 더해서 <b>70점 만점</b>입니다"
+                              "(테마 30주선 30점은 2026-11-12 뺐습니다).")
     head = (f"<div class='j3-pull-guide' style='padding-bottom:.15rem'>{plain}</div>"
             if plain else "")
     return (
@@ -9775,8 +9788,10 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     notes = [str(w) for w in (result.get("universe_warning"),
                               result.get("market_history_warning")) if w]
     market_line = (
-        f"나스닥 지수 — {us_swing.plain_state(market_status)}"
+        f"나스닥 지수 — {jarvis12_swing.market_words(market_state)}"
         + (f" · 지금 {float(ixic):,.2f}" if ixic is not None else "")
+        + (f" · 200일선 {float(market_state['ixic_sma200']):,.2f}"
+           if jarvis12_swing.gate_200_on() and market_state.get("ixic_sma200") is not None else "")
         + (f" · 지금까지의 최고 대비 {float(drawdown) * 100:+.1f}%"
            if drawdown is not None else "")
     )
@@ -9807,13 +9822,14 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         entry_cfg = config.get("entry") or {}
         st.markdown(
             jarvis12_brief.wrap([
-            ("key", "✅ 자격 6개", "나스닥 살 만한 장 · 3개월 강함 · 6개월 강함 · 1년 최고가 넘음 · 그 뒤 1~3일 · 3~10% 내려옴 — "
+            ("key", "✅ 자격 6개", ("나스닥 200일선 위" if jarvis12_swing.gate_200_on() else "나스닥 살 만한 장") + " · 3개월 강함 · 6개월 강함 · 1년 최고가 넘음 · 그 뒤 1~3일 · 3~10% 내려옴 — "
                                 "<b>다 넘어야</b> 후보"),
             ("info", "🏅 점수", "중요 <b>70</b>(3개월 25 · 6개월 25 · 눌림 20) + 보조 <b>30</b>"),
             ("bad", "⚠", "점수는 <b>승률이 아닙니다</b>"),
         ], (
 "<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
-            "나스닥이 살 만한 장인가 · 최근 3개월 강했나 · 최근 6개월 강했나 · "
+            + ("나스닥 종합 종가가 200일선 위인가" if jarvis12_swing.gate_200_on() else "나스닥이 살 만한 장인가")
+            + " · 최근 3개월 강했나 · 최근 6개월 강했나 · "
             "종가로 지난 1년 최고가를 넘었나 · 그 뒤 1~3거래일인가 · "
             "종가가 3~10% 내려왔나 — <b>여섯 가지를 다 넘어야</b> 정식 후보가 됩니다. "
             "뒤쪽 네 항목이 아무리 좋아도 이 여섯을 대신하지 못합니다.<br>"
@@ -9826,7 +9842,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
             "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>중요 점수 70</b>, "
             "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 점수 30</b>입니다. "
-            "총점은 승률이나 보장수익이 아닙니다.</div>"
+            + ("눌림은 3~10% 모두 20점이고, 8% 넘게 내려오면 <b>주의</b>입니다(과거 10년 6개월 뒤 이긴 비율 52%). "
+               if jarvis12_swing.flat_pullback_on() else "")
+            + "총점은 승률이나 보장수익이 아닙니다.</div>"
 )),
             unsafe_allow_html=True,
         )
@@ -9956,8 +9974,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
             # 눌림은 3~10%가 **좋은 자리**다. 좋으면 초록, 너무 깊으면 붉게.
+            # 2026-11-12 ⑤ — 3~10% 같은 점수 · 8% 넘으면 노란 「주의」(jarvis12_swing).
+            flat_pullback = jarvis12_swing.flat_pullback_on()
             pullback_tone = (
                 "j3-muted" if pullback is None
+                else "j3-down" if float(pullback) > 10.0
+                else "j3-green-strong" if flat_pullback and 3.0 <= float(pullback) <= 10.0
                 else "j3-green-strong" if 6.0 <= float(pullback) <= 10.0
                 else "j3-green" if 3.0 <= float(pullback) < 6.0
                 else "j3-down" if float(pullback) > 10.0
@@ -10012,7 +10034,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 label,
                 f"<span class='{pullback_tone}' style='font-weight:800'>"
                 f"{html.escape(pullback_text)}</span>"
-                f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
+                f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>"
+                # ⑤ 8% 넘게 내려온 눌림 — 노란 「주의」(보이기만 · 점수 · 차례 그대로).
+                + ("<span style='font-size:.72rem; font-weight:800; color:#ffd166; margin-left:.25rem'"
+                   " title='8% 넘게 내려왔습니다 — 지난 10년 이런 자리는 6개월 뒤 이긴 비율 52%로 가장 낮았습니다."
+                   " 점수 · 차례는 그대로입니다.'>주의</span>"
+                   if flat_pullback and row.get("pullback_caution") else ""),
                 f"<span style='color:{_sign_color(ret20)}; font-weight:800'>{ret20_text}</span>",
                 f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
                 f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
@@ -10220,13 +10247,21 @@ def _crash12_score_html(result: dict, base_rate) -> str:
         f"<span class='j3-w-why'>{_CRASH12_SCORE_SHORT.get(name, '')}</span></div>"
         for name, points, text, _why in _score_table_rows("crash") if points
     )
-    more = (_score_table_html("crash", base_rate)
+    dropped = (
+        "<div class='j3-pull-guide'><b>뺀 항목 — 이 테마가 이미 오름세로 돌아섰나(30점)</b> · 2026-11-12 10년치로 다시 재니 "
+        "앞 5년에는 맞고(6개월 이긴 비율 65.4% 대 60.9%) 뒤 5년에는 거꾸로(65.7% 대 74.2%)였습니다. "
+        "한 시기에만 맞는 항목이라 점수에서 뺐습니다.</div>"
+        if jarvis12_crash.drop_above150() else "")
+    more = (_score_table_html("crash", base_rate) + dropped
             + "<div class='j3-pull-guide'><b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 "
             "여섯 가지를 재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>")
     return (
         f"<div class='j3-pull-guide'>{warn}"
-        "🧮 <b>점수 (100점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 먼저 일어선 종목(60). "
-        "점수는 <b>먼저 볼 차례</b>일 뿐 — 0점도 조건에 걸린 종목입니다."
+        + (("🧮 <b>점수 (70점 만점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 통째로 · 반년에 많이 오른 종목(30). "
+            "<span style='color:#9aa0aa'>테마 30주선(30점)은 2026-11-12 뺐습니다 — 10년치 앞 5년과 뒤 5년에서 방향이 뒤집혔습니다.</span> ")
+           if jarvis12_crash.drop_above150() else
+           "🧮 <b>점수 (100점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 먼저 일어선 종목(60). ")
+        + "점수는 <b>먼저 볼 차례</b>일 뿐 — 0점도 조건에 걸린 종목입니다."
         f"<div style='margin-top:.35rem'>{rows}</div></div>"
         "<details style='margin:.2rem 0 .4rem'>"
         "<summary style='cursor:pointer; color:#9dccff; font-weight:800; padding:.35rem .2rem'>"
@@ -10501,6 +10536,20 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             "설명서 그대로 찾은 결과입니다."
         )
         return
+    # ② 목록 두 가지(2026-11-12 상하님 「다 해라」 · jarvis12_rules.CRASH_TWO_LISTS) — 기본은 지금 점수 순.
+    # 「자주 이기는 쪽」은 경고(3배) 없는 종목에서 평소 덜 움직이는 순 10개다. 성적표 · 순위 9 · 날짜별 목록은 점수 순 그대로.
+    if not breakout and result.get("j12_fixed") and jarvis12_crash.two_lists_on() and result.get("steady_rows"):
+        view = st.radio(
+            "급락 목록 보기",
+            ["📈 크게 오르는 쪽 (점수 순)", "🛡 자주 이기는 쪽 (조용한 순)"],
+            horizontal=True, key="j12_crash_view", label_visibility="collapsed",
+        )
+        if view.startswith("🛡"):
+            rows = list(result.get("steady_rows") or [])
+            st.caption("🛡 경고 없는 종목 중 평소 덜 움직이는 순 10개 — 지난 10년 6개월 뒤 이긴 비율 72%(점수 순 63%) · "
+                       "대신 오른 크기는 작았습니다(가운데 +11% 대 +19%). 성적표는 점수 순 그대로 셉니다.")
+        else:
+            st.caption("📈 지금 점수 순 — 지난 10년 6개월 뒤 이긴 비율 63% · 오른 크기 가운데 +19%(조용한 순 +11%).")
 
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
     # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.
@@ -10604,9 +10653,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         cols = row_box.columns(row_widths)
         # 점수는 순위 다음 **따로 칸**에 둔다(2026-08-06 사용자 지시).
         score = row.get("score")
+        # 색 문턱은 만점의 70% · 50%(2026-11-12 ③ — 급락은 70점 만점이 됐다. 상승장 · 고치기 전은 100점 그대로).
+        top = 100.0 if breakout else float(jarvis12_crash.score_max() or 100.0)
         score_class = (
-            "j3-score-hi" if (score or 0) >= 70
-            else "j3-score-mid" if (score or 0) >= 50
+            "j3-score-hi" if (score or 0) >= top * 0.70
+            else "j3-score-mid" if (score or 0) >= top * 0.50
             else "j3-score-low"
         )
         cols[0].markdown(
@@ -11020,7 +11071,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 # 같은 판에서 같은 계산을 두 번 한 셈이다. breakout_scan 이
                 # 그 기억을 본다. 없으면 예전처럼 그때 찾으므로 늦어지지 않는다.
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
-                    st.session_state["j12_pullback_result"] = j3data.breakout_scan()
+                    st.session_state["j12_pullback_result"] = jarvis12_swing.breakout_scan()
             else:
                 # 자비스12 는 **급락 기준일 하루로 정한 10종목**이다(2026-10-14 상하님 지시 — jarvis12_crash).
                 with st.spinner("급락 기준일 자료로 두 갈래 위 5개씩 고르는 중입니다…"):
@@ -11034,8 +11085,9 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
                 # 급락은 남기지 않는다(2026-10-14) — 날짜별 목록은 자비스3 과 같이 쓰는 기록이라 옛 20개
                 # 그대로 쌓이고(깃허브·뒤 일꾼), 자비스12 화면은 기준일 10종목이라 모양이 다르다.
+                # 상승장도 같이 쓰는 기록에는 **얼린 규칙 결과**를 남긴다(2026-11-12 — 화면만 자비스12 규칙).
                 if pressed != "crash":
-                    picklist_ui.autosave("US", pressed, found)
+                    picklist_ui.autosave("US", pressed, jarvis12_swing.frozen(found))
     if not st.session_state.get("j12_pullback_open"):
         return
     result = st.session_state.get("j12_pullback_result")
