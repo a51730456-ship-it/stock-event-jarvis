@@ -109,6 +109,31 @@ class PickTests(unittest.TestCase):
         # 점수는 경고와 상관없이 그대로 — 화면 차례도 점수 차례
         self.assertEqual([f"S{i:02d}" for i in range(16)], [row["ticker"] for row in picked])
 
+    def test_two_times_nasdaq_is_caution_only_shown(self):
+        """2026-11-12 상하님 「다 해라」 — 2배~3배는 「주의」(보이기만). 성적표 차례 · 점수 차례는 3배 경고만 본다."""
+        import jarvis12_rules as rules
+        # 나스닥 −7% → 2배 −14% · 3배 −21%. −15% 는 주의 · −25% 는 경고 · −12% 는 둘 다 아님
+        depths = [0.75] * 2 + [0.85] * 4 + [0.88] * 4
+        _days, picked, _counts, _seen = self._pick(depths, nasdaq_drop=-7.0)
+        by = {row["ticker"]: row for row in picked}
+        self.assertTrue(by["S00"]["suspicious"])
+        self.assertFalse(by["S00"]["caution"])                 # 3배를 넘으면 경고만 단다
+        self.assertTrue(by["S02"]["caution"])
+        self.assertFalse(by["S02"]["suspicious"])
+        self.assertFalse(by["S06"]["caution"])
+        # 성적표 — 주의 종목은 그대로 들어간다(경고 종목만 뒤로)
+        chosen = {row["ticker"] for row in picked if row["scorecard"]}
+        self.assertEqual({f"S{i:02d}" for i in range(2, 10)} | {"S00", "S01"}, chosen)
+        self.assertEqual([f"S{i:02d}" for i in range(10)], [row["ticker"] for row in picked])
+        self.assertIn("주의 — 그 2배 넘게 빠짐", c12.buy_reason(by["S02"]))
+        self.assertNotIn("주의", c12.buy_reason(by["S06"]))
+        # 스위치를 끄면 고치기 전 그대로
+        with mock.patch.object(rules, "CRASH_CAUTION", False):
+            _days, off, _counts, _seen = self._pick(depths, nasdaq_drop=-7.0)
+        self.assertFalse(any(row["caution"] for row in off))
+        self.assertEqual([r["ticker"] for r in picked], [r["ticker"] for r in off])
+        self.assertEqual([r["scorecard"] for r in picked], [r["scorecard"] for r in off])
+
     def test_buy_reason_is_short_and_keeps_the_key_words(self):
         """세부 노란 상자 — 짧게 핵심만(2026-10-21 상하님 「장황하다」). 굵게 칠하는 말·새 칸 성적은 남는다."""
         _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
@@ -236,8 +261,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102206", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102206)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026111201", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026111201)
         # 맨 위 낙폭 막대 — 2026-10-27 상하님 「지금 고점 대비와 급락 후 반등장 설명이 다른 이유 · 둘 다 정확한 답을 맞춰라」:
         # 큰 숫자를 급락 후 반등장과 같은 함수의 같은 값(QQQ · reference 의 today_drop)으로 · IXIC 는 참고 한 줄 · 이번 하락 한 줄
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]

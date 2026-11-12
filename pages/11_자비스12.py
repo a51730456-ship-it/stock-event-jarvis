@@ -1966,6 +1966,11 @@ if int(getattr(jarvis12_brief, "MODULE_REVISION", 0)) < _REQUIRED_J12_BRIEF_REVI
 import us_fundamentals
 # 급락 후 반등장 — **기준일 하루로 정한 10종목**(자비스12 전용 · 2026-10-14 상하님 지시 · 설명서 3-3).
 import jarvis12_crash
+# 규칙 고침 스위치(2026-11-12 상하님 「다하되 · 잘못되면 되돌려야」) — False 면 고치기 전 그대로.
+import jarvis12_rules
+_REQUIRED_J12_RULES_REVISION = 2026111201
+if int(getattr(jarvis12_rules, "MODULE_REVISION", 0)) < _REQUIRED_J12_RULES_REVISION:
+    jarvis12_rules = importlib.reload(jarvis12_rules)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -1974,7 +1979,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026110401
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026102206
+_REQUIRED_J12_CRASH_REVISION = 2026111201
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026102301
@@ -6854,6 +6859,7 @@ def _crash12_day_rows(day_iso: str, saved_rows: list, *, light: bool = False) ->
                     "bucket_label": row.get("bucket_label") or row.get("origin") or "", "hold_days": None,
                     "origin": "", "reference_date": row["trade_date"], "score_order": row.get("score_order"),
                     "peak_date": row.get("peak_date"), "suspicious": bool(row.get("suspicious")),
+                    "caution": bool(row.get("caution")),
                     "scorecard": bool(row.get("scorecard", True)), "j12_fixed": True})
     return out
 
@@ -10151,6 +10157,8 @@ def _crash12_story(reference: dict, drop_now, count: int) -> str:
         "- 🗂️ **종목 낙폭** 칸: :violet[**10\\~20%**] · :blue[**20\\~30%**] · :orange[**30\\~50%**]",
         f"- ⚠️ :orange[**수상하게 빠짐**] = QQQ 낙폭의 {times:.0f}배(:red[**{-abs(ref_drop) * times:.1f}%**])보다 "
         "더 빠진 종목 (점수는 그대로)",
+        *([f"- 🟡 **주의** = {jarvis12_crash.CAUTION_TIMES:.0f}배(:red[**{-abs(ref_drop) * jarvis12_crash.CAUTION_TIMES:.1f}%**])보다 "
+           "더 빠진 종목 (보이기만 · 과거에 덜 이겼음)"] if jarvis12_crash.caution_on() else []),
         "- 📊 **성적표** = 경고 없는 점수 위 :green[**10개**]",
     ]
     if reference.get("recovered_on"):
@@ -10185,7 +10193,9 @@ def _crash12_guide_html(ref_date, cards: list) -> str:
         f"① <b>기준일</b> — QQQ 낙폭이 <span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊은 날{ref_text}<br>"
         "② <b>고르기</b> — 그날 <b>종목 낙폭</b> 10&#126;20 · 20&#126;30 · 30&#126;50%인 종목을 점수 차례로 <b>20개</b> · "
         "다음 급락까지 그대로<br>"
-        "③ <b>경고</b> — 종목 낙폭이 QQQ 낙폭의 3배를 넘으면 <b>⚠ 수상하게 빠짐</b> · 성적표는 경고 없는 위 <b>10개</b>"
+        "③ <b>경고</b> — 종목 낙폭이 QQQ 낙폭의 3배를 넘으면 <b>⚠ 수상하게 빠짐</b>"
+        + (" · 2배를 넘으면 <b>주의</b>" if jarvis12_crash.caution_on() else "")
+        + " · 성적표는 경고 없는 위 <b>10개</b>"
         "</div>"
         # 2026-10-22 상하님 「바꿔라」 — 카드 숫자를 지금 재는 법으로 다시 잰 값으로 바꿔 「다시 재야 함」을 지웠다(평균 수익률).
         "<div class='j3-pull-guide' style='padding-bottom:.1rem'><b>칸별 과거 성적</b> — 지난 급락 22번 가장 깊은 날 · "
@@ -10674,6 +10684,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                               + "<span class='j3-pull-amber' style='font-size:.72rem; font-weight:850'"
                               " title='QQQ보다 3배 넘게 빠졌습니다 — 이 회사만의 까닭이 있었는지 보십시오."
                               " 점수는 그대로 · 성적표에는 경고 없는 종목을 먼저 셉니다.'>⚠ 수상하게 빠짐</span></span>")
+            elif row.get("caution"):
+                # 2026-11-12 상하님 「다 해라」 — 2배~3배는 「주의」(보이기만). 경고 딱지와 같은 세로 묶음 · 옅은 색.
+                third_cell = ("<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                              " line-height:1.15; gap:.1rem'>" + third_cell
+                              + "<span style='font-size:.72rem; font-weight:800; color:#ffd166'"
+                              " title='QQQ보다 2배 넘게 빠졌습니다 — 지난 10년 이런 종목은 덜 이겼습니다."
+                              " 점수 · 성적표 차례는 그대로입니다.'>주의 · 2배</span></span>")
         # 순위를 정한 값(테마 동반)과 참고값(거래대금)을 표에 그대로 보여 준다.
         tier = int(row.get("together_tier") or 0)
         tier_class = ("j3-muted", "j3-pull-theme", "j3-pull-amber", "j3-green-strong")[tier]

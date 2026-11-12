@@ -94,6 +94,21 @@ def visit(browser, password: str, width: int) -> dict:
         }""")
         out["dist_problems"] = _problems(page)
         page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
+        # ④ 급락 후 반등장 — 「주의 · 2배」·「⚠ 수상하게 빠짐」 딱지(2026-11-12 규칙 고침 ① · jarvis12_rules).
+        page.locator('div[class*="st-key-j12_pullback_crash"] button').first.click()
+        page.wait_for_selector(".j3-pull-table", timeout=240_000)
+        page.wait_for_timeout(2500)
+        out["crash"] = page.evaluate("""() => {
+            const t = document.querySelector('.j3-pull-table');
+            const text = t ? t.innerText : '';
+            return {rows: t ? Math.max(0, t.querySelectorAll('tr').length - 1) : 0,
+                    warn: (text.match(/수상하게 빠짐/g) || []).length,
+                    caution: (text.match(/주의 · 2배/g) || []).length,
+                    guide: /2배를 넘으면/.test(document.body.innerText)};
+        }""")
+        out["crash_problems"] = _problems(page)
+        page.locator(".j3-pull-table").first.scroll_into_view_if_needed()
+        page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
         try:
@@ -134,6 +149,10 @@ def main() -> int:
         "③ 시장분석 오류 0 · 폰 넘침 0": all(not (run.get("dist_problems") or {}).get("exceptions")
                                        and ((run.get("dist_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                        for run in runs),
+        "④ 급락 표 보임": all((run.get("crash") or {}).get("rows", 0) > 0 for run in runs),
+        "④ 급락 오류 0 · 폰 넘침 0": all(not (run.get("crash_problems") or {}).get("exceptions")
+                                     and ((run.get("crash_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                     for run in runs),
         "② 연 뒤 오류 0 · 폰 넘침 0": all(not (run.get("movers_problems") or {}).get("exceptions")
                                      and ((run.get("movers_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                      for run in runs),

@@ -10,6 +10,9 @@ on:
       - jarvis12_watch_since.py
       - jarvis12_movers.py
       - jarvis12_market.py
+      - jarvis12_crash.py
+      - jarvis12_rules.py
+      - jarvis12_swing.py
       - research/j12_screen_check.py
       - .github/workflows/j12_screen_check.yml
   workflow_dispatch:
