@@ -346,6 +346,14 @@ def online() -> int:
                     page.screenshot(path=str(OUT / f"online_years_{width}.png"), full_page=width > 600)
                 except Exception as exc:
                     out["years_error"] = f"{type(exc).__name__}: {exc}"[:160]
+                    # 무엇이 보였나 남긴다 — 닫기 단추로 바뀌었는지(눌림이 먹었는지) · 그 근처 글 · 사진
+                    out["years_seen"] = page.evaluate("""() => { const t = document.body.innerText;
+                        const i = t.indexOf('연중 최대 하락'); return {closed: /연중 최대 하락 닫기/.test(t),
+                        caption: /그리지 못했습니다/.test(t), near: i < 0 ? '' : t.slice(Math.max(0, i - 80), i + 220).replace(/\\s+/g, ' ')}; }""")
+                    try:
+                        page.screenshot(path=str(OUT / f"online_years_error_{width}.png"), full_page=width > 600)
+                    except Exception:
+                        pass
                 out["problems"] = _problems(page)
             except Exception as exc:
                 out["error"] = f"{type(exc).__name__}: {exc}"[:300]
