@@ -147,6 +147,25 @@ def visit(browser, password: str, width: int) -> dict:
                 '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
                 .map(b => b.textContent).join(' ').match(/-\\d+~-\\d+%/g)?.length || 0""")
             out["steady_problems"] = _problems(page)
+        # 기능 ③ 내 계획 한 장 — 첫 종목 세부사항에서 열어 값을 적고 저장(이 실행의 임시 DB 에만)
+        plan_btn = page.locator('div[class*="st-key-btn_j12_plan_open_"] button').first
+        if plan_btn.count():
+            plan_btn.scroll_into_view_if_needed()
+            plan_btn.click()
+            try:
+                page.locator('div[class*="st-key-j12_plan_buy_"] input').first.wait_for(timeout=60_000)
+                for name, value in (("buy", "100"), ("stop", "92"), ("target", "120"), ("qty", "10")):
+                    box = page.locator(f'div[class*="st-key-j12_plan_{name}_"] input').first
+                    box.fill(value)
+                    box.press("Tab")
+                page.get_by_role("button", name="계획 저장").first.click()
+                page.wait_for_selector(".j12pl-box", timeout=60_000)
+                page.wait_for_timeout(1200)
+                out["plan"] = page.evaluate("""() => document.querySelector('.j12pl-box').innerText.replace(/\\s+/g, ' ').slice(0, 260)""")
+            except Exception as exc:
+                out["plan_error"] = f"{type(exc).__name__}: {exc}"[:200]
+            out["plan_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_plan_{width}.png"), full_page=width > 600)
         # 기능 ⑤ 지난 급락 기록표(누를 때만 · 2026-11-13)
         hist_btn = page.locator('div[class*="st-key-btn_j12_crash_hist_open"] button').first
         if hist_btn.count():
@@ -343,6 +362,10 @@ def main() -> int:
         "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
         "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
         "② 종목 성적표 다섯 칸": all(any("성장" in b and "흔들림" in b for b in (run.get("grades") or [])) for run in runs),
+        "③ 내 계획 — 적고 저장하면 그림 · 금액": all("목표에 닿으면 +20.0%" in (run.get("plan") or "") for run in runs),
+        "③ 오류 0 · 폰 넘침 0": all(not (run.get("plan_problems") or {}).get("exceptions")
+                                  and ((run.get("plan_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                  for run in runs),
         "⑤ 지난 급락 기록표 열림": all((run.get("crash_hist") or {}).get("rows", 0) >= 3 for run in runs),
         "⑥ 연중 최대 하락 그림": all((run.get("years") or {}).get("bars", 0) >= 10 for run in runs),
         "⑤ ⑥ 오류 0 · 폰 넘침 0": all(not (run.get(k) or {}).get("exceptions")

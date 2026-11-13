@@ -1996,6 +1996,11 @@ import jarvis12_options
 _REQUIRED_J12_OPTIONS_REVISION = 2026111301
 if int(getattr(jarvis12_options, "MODULE_REVISION", 0)) < _REQUIRED_J12_OPTIONS_REVISION:
     jarvis12_options = importlib.reload(jarvis12_options)
+# 기능 ③ 내 계획 한 장 — 상하님이 적은 값만 그림 · 자비스12 전용 표(2026-11-13).
+import jarvis12_plan
+_REQUIRED_J12_PLAN_REVISION = 2026111301
+if int(getattr(jarvis12_plan, "MODULE_REVISION", 0)) < _REQUIRED_J12_PLAN_REVISION:
+    jarvis12_plan = importlib.reload(jarvis12_plan)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -3145,6 +3150,7 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     if not info:
         st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 없습니다"
                     "(미국테마 명부 종목만 모읍니다).</div>", unsafe_allow_html=True)
+        _render_my_plan(ticker, metrics, panel)
         return
     tap_id = "j3fn-" + re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{ticker}")
     st.markdown(
@@ -3159,6 +3165,64 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
         + "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
         unsafe_allow_html=True,
     )
+    _render_my_plan(ticker, metrics, panel)
+
+
+def _render_my_plan(ticker: str, metrics: dict | None, panel: str) -> None:
+    """기능 ③ 「📝 내 계획 한 장」 — 눌러야 열림 · 값은 상하님이 적음(앱은 손절 · 목표 · 수량을 정하지 않음) · 손님은 안 보임."""
+    if auth.is_guest():
+        return
+    slot = re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{ticker}")
+    if not _section_toggle("📝 내 계획 한 장 — 산 값 · 손절 · 목표", f"j12_plan_open_{slot}",
+                           close_label="내 계획 닫기"):
+        return
+    try:
+        plan = jarvis12_plan.get(ticker)
+    except Exception as exc:
+        st.caption(f"계획 기록을 읽지 못했습니다 — {_safe_error_text(exc)}")
+        return
+    with st.form(f"j12_plan_form_{slot}", border=False):
+        c1, c2, c3, c4 = st.columns(4)
+        buy = c1.number_input("산 값(USD)", min_value=0.0, value=(plan or {}).get("buy"), step=0.01,
+                              format="%.2f", key=f"j12_plan_buy_{slot}")
+        stop = c2.number_input("손절", min_value=0.0, value=(plan or {}).get("stop"), step=0.01,
+                               format="%.2f", key=f"j12_plan_stop_{slot}")
+        target = c3.number_input("목표", min_value=0.0, value=(plan or {}).get("target"), step=0.01,
+                                 format="%.2f", key=f"j12_plan_target_{slot}")
+        qty = c4.number_input("수량(선택)", min_value=0.0, value=(plan or {}).get("qty"), step=1.0,
+                              format="%.0f", key=f"j12_plan_qty_{slot}")
+        saved = st.form_submit_button("계획 저장", width="stretch")
+    if saved:
+        try:
+            plan = jarvis12_plan.save(ticker, buy, stop, target, qty)
+            st.success("계획을 저장했습니다.")
+        except ValueError as exc:
+            st.warning(str(exc))
+        except Exception as exc:
+            st.error(f"계획 저장 실패: {_safe_error_text(exc)}")
+    if not plan:
+        st.caption("산 값과 손절 · 목표 중 하나 이상을 적으면 그림이 나옵니다. 앱은 값을 정해 드리지 않습니다.")
+        return
+    try:
+        current = _list_price_change(metrics or {})[0] if metrics else None
+    except Exception:
+        current = None
+    closes = []
+    try:
+        daily, _meta, _members = j3data._universe_daily(True)
+        frame = (daily or {}).get(str(ticker).upper())
+        if frame is not None:
+            closes = [float(v) for v in frame["Close"].dropna().tail(60)]
+    except Exception:
+        closes = []
+    st.markdown(jarvis12_plan.CSS, unsafe_allow_html=True)
+    st.markdown(jarvis12_plan.html(plan, closes, current), unsafe_allow_html=True)
+    if st.button("계획 지우기", key=f"j12_plan_delete_{slot}"):
+        try:
+            jarvis12_plan.delete(ticker)
+            st.success("계획을 지웠습니다.")
+        except Exception as exc:
+            st.error(f"지우기 실패: {_safe_error_text(exc)}")
 
 
 def _render_day_price_row(metrics: dict, ticker: str | None = None,
