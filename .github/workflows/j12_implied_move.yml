@@ -1,0 +1,53 @@
+# 자비스12 기능 ① 실적 날 흔들림 예보 (2026-11-13 상하님 「너의 추천 차례로 다 해라」).
+# 실적 발표가 14일 안에 있는 미국 명부 종목만 야후 옵션 값(ATM 스트래들 ÷ 주가)을 받아 data/fundamentals/US_implied.json 에 올린다.
+# 화면은 그 파일만 읽는다(받으러 가지 않는다). 점수 · 판정에 안 쓴다.
+# 평일 장 마감 뒤 한 번(06:40 KST) — 올릴 때마다 온라인 앱이 한 번 껐다 켜지므로 하루 한 번만. 바뀐 것이 없으면 안 올린다.
+# 작업 갈래에 올릴 때는 시험으로만 돈다(앞 8종목 · 파일 안 씀) — 옵션 값이 받아지는지 먼저 본다.
+name: 자비스12 실적 흔들림 모으기
+
+on:
+  schedule:
+    - cron: "40 21 * * 1-5"     # 화~토 06:40 KST = 미국 월~금 장 마감 뒤
+  push:
+    branches: [master-a283cq]
+    paths:
+      - jarvis12_options.py
+      - .github/workflows/j12_implied_move.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: j12-implied-move
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 옵션 값 받기
+        env:
+          J12_DRY: ${{ github.event_name == 'push' && '1' || '' }}
+        run: python jarvis12_options.py collect
+      - name: 저장소에 올리기 (시험이 아닐 때만)
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "j12-implied-move"
+          git config user.email "j12-implied-move@users.noreply.github.com"
+          git add data/fundamentals/US_implied.json
+          if git diff --cached --quiet; then echo "바뀐 것 없음"; exit 0; fi
+          git commit -m "미국 실적 흔들림 예보 $(TZ=Asia/Seoul date +'%Y-%m-%d')"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            sleep $((i * 10))
+          done
+          echo "올리기 실패" && exit 1

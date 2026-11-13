@@ -1976,6 +1976,31 @@ import jarvis12_swing
 _REQUIRED_J12_SWING_REVISION = 2026111201
 if int(getattr(jarvis12_swing, "MODULE_REVISION", 0)) < _REQUIRED_J12_SWING_REVISION:
     jarvis12_swing = importlib.reload(jarvis12_swing)
+# 기능 ④ 목록 쏠림(흔들림 · 테마) — 보여 주기만(2026-11-13 상하님 「너의 추천 차례로 다 해라」).
+import jarvis12_risk
+_REQUIRED_J12_RISK_REVISION = 2026111301
+if int(getattr(jarvis12_risk, "MODULE_REVISION", 0)) < _REQUIRED_J12_RISK_REVISION:
+    jarvis12_risk = importlib.reload(jarvis12_risk)
+# 기능 ⑤ 지난 급락 기록표 · ⑥ 해마다 연중 최대 하락 — QQQ 긴 일봉 · 누를 때만 · 보여 주기만(2026-11-13).
+import jarvis12_history
+_REQUIRED_J12_HISTORY_REVISION = 2026111301
+if int(getattr(jarvis12_history, "MODULE_REVISION", 0)) < _REQUIRED_J12_HISTORY_REVISION:
+    jarvis12_history = importlib.reload(jarvis12_history)
+# 기능 ② 종목 성적표 A~F — 명부 안 등수 · 보여 주기만(2026-11-13).
+import jarvis12_grades
+_REQUIRED_J12_GRADES_REVISION = 2026111301
+if int(getattr(jarvis12_grades, "MODULE_REVISION", 0)) < _REQUIRED_J12_GRADES_REVISION:
+    jarvis12_grades = importlib.reload(jarvis12_grades)
+# 기능 ① 실적 날 흔들림 예보 — 깃허브가 모은 파일만 읽음 · 보여 주기만(2026-11-13).
+import jarvis12_options
+_REQUIRED_J12_OPTIONS_REVISION = 2026111301
+if int(getattr(jarvis12_options, "MODULE_REVISION", 0)) < _REQUIRED_J12_OPTIONS_REVISION:
+    jarvis12_options = importlib.reload(jarvis12_options)
+# 기능 ③ 내 계획 한 장 — 상하님이 적은 값만 그림 · 자비스12 전용 표(2026-11-13).
+import jarvis12_plan
+_REQUIRED_J12_PLAN_REVISION = 2026111301
+if int(getattr(jarvis12_plan, "MODULE_REVISION", 0)) < _REQUIRED_J12_PLAN_REVISION:
+    jarvis12_plan = importlib.reload(jarvis12_plan)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -3100,7 +3125,23 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     읽는다. 단추를 누르면 4주간 일별 시세처럼 창이 튀어 오르는데, 창은 처음부터 숨은 채 같이
     그려 두고 숨은 스위치로 여닫는다 — 눌러도 서버에 묻지 않아 곧바로 뜬다.
     시가총액·PER·PBR 은 목록·세부사항과 같은 지금 값(_list_price_change)으로 다시 센다.
+    기능 ② 「🎓 종목 성적표 A~F」를 이 단추 바로 위에 둔다(2026-11-13 · 명부 안 등수 · 보여 주기만).
     """
+    try:
+        grade_block = jarvis12_grades.card_html(ticker)
+    except Exception:
+        grade_block = ""
+    if grade_block:
+        st.markdown(jarvis12_grades.CSS, unsafe_allow_html=True)
+        st.markdown(grade_block, unsafe_allow_html=True)
+    # 기능 ① — 발표가 14일 안에 있고 깃허브가 모은 값이 있을 때만(없으면 아무것도 안 그림).
+    try:
+        move_block = jarvis12_options.html(jarvis12_options.move_for(ticker), jarvis12_options.reactions_for(ticker))
+    except Exception:
+        move_block = ""
+    if move_block:
+        st.markdown(jarvis12_options.CSS, unsafe_allow_html=True)
+        st.markdown(move_block, unsafe_allow_html=True)
     try:
         price = _list_price_change(metrics or {})[0] if metrics else None
         info = us_fundamentals.summary(ticker, price)
@@ -3109,6 +3150,7 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     if not info:
         st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 없습니다"
                     "(미국테마 명부 종목만 모읍니다).</div>", unsafe_allow_html=True)
+        _render_my_plan(ticker, metrics, panel)
         return
     tap_id = "j3fn-" + re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{ticker}")
     st.markdown(
@@ -3123,6 +3165,64 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
         + "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
         unsafe_allow_html=True,
     )
+    _render_my_plan(ticker, metrics, panel)
+
+
+def _render_my_plan(ticker: str, metrics: dict | None, panel: str) -> None:
+    """기능 ③ 「📝 내 계획 한 장」 — 눌러야 열림 · 값은 상하님이 적음(앱은 손절 · 목표 · 수량을 정하지 않음) · 손님은 안 보임."""
+    if auth.is_guest():
+        return
+    slot = re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{ticker}")
+    if not _section_toggle("📝 내 계획 한 장 — 산 값 · 손절 · 목표", f"j12_plan_open_{slot}",
+                           close_label="내 계획 닫기"):
+        return
+    try:
+        plan = jarvis12_plan.get(ticker)
+    except Exception as exc:
+        st.caption(f"계획 기록을 읽지 못했습니다 — {_safe_error_text(exc)}")
+        return
+    with st.form(f"j12_plan_form_{slot}", border=False):
+        c1, c2, c3, c4 = st.columns(4)
+        buy = c1.number_input("산 값(USD)", min_value=0.0, value=(plan or {}).get("buy"), step=0.01,
+                              format="%.2f", key=f"j12_plan_buy_{slot}")
+        stop = c2.number_input("손절", min_value=0.0, value=(plan or {}).get("stop"), step=0.01,
+                               format="%.2f", key=f"j12_plan_stop_{slot}")
+        target = c3.number_input("목표", min_value=0.0, value=(plan or {}).get("target"), step=0.01,
+                                 format="%.2f", key=f"j12_plan_target_{slot}")
+        qty = c4.number_input("수량(선택)", min_value=0.0, value=(plan or {}).get("qty"), step=1.0,
+                              format="%.0f", key=f"j12_plan_qty_{slot}")
+        saved = st.form_submit_button("계획 저장", width="stretch")
+    if saved:
+        try:
+            plan = jarvis12_plan.save(ticker, buy, stop, target, qty)
+            st.success("계획을 저장했습니다.")
+        except ValueError as exc:
+            st.warning(str(exc))
+        except Exception as exc:
+            st.error(f"계획 저장 실패: {_safe_error_text(exc)}")
+    if not plan:
+        st.caption("산 값과 손절 · 목표 중 하나 이상을 적으면 그림이 나옵니다. 앱은 값을 정해 드리지 않습니다.")
+        return
+    try:
+        current = _list_price_change(metrics or {})[0] if metrics else None
+    except Exception:
+        current = None
+    closes = []
+    try:
+        daily, _meta, _members = j3data._universe_daily(True)
+        frame = (daily or {}).get(str(ticker).upper())
+        if frame is not None:
+            closes = [float(v) for v in frame["Close"].dropna().tail(60)]
+    except Exception:
+        closes = []
+    st.markdown(jarvis12_plan.CSS, unsafe_allow_html=True)
+    st.markdown(jarvis12_plan.html(plan, closes, current), unsafe_allow_html=True)
+    if st.button("계획 지우기", key=f"j12_plan_delete_{slot}"):
+        try:
+            jarvis12_plan.delete(ticker)
+            st.success("계획을 지웠습니다.")
+        except Exception as exc:
+            st.error(f"지우기 실패: {_safe_error_text(exc)}")
 
 
 def _render_day_price_row(metrics: dict, ticker: str | None = None,
@@ -3557,6 +3657,10 @@ def _render_market_overview() -> None:
     # 위 숫자가 언제 것인지 **바로 밑에** 적는다(2026-09-12 상하님 지시).
     st.markdown(_as_of_line(overview, phase), unsafe_allow_html=True)
     _render_nasdaq_drawdown(overview)
+    # 기능 ⑥ — 누를 때만 QQQ 전체 일봉을 읽는다(첫 화면을 안 늦춘다 · CLAUDE.md 0-0).
+    if _section_toggle("📅 해마다 한 번은 빠진다 — QQQ 연중 최대 하락", "j12_years_open",
+                       close_label="연중 최대 하락 닫기"):
+        _render_history_block("years")
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     #
@@ -9799,6 +9903,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.success(market_line + " — 오늘은 새로 살 후보를 낼 수 있는 장입니다.")
     else:
         st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
+    _render_list_risk(primary + watch, "정식 후보 + 관찰")
 
     # 저장 알림과 기준일·명부 줄은 2026-08-21에 뺐다(상하님 지시 — "설명 없애라").
     # 그 값들은 아래 표가 이미 보여준다(정식 후보 수 · 관찰 수 · 종목별 기준일).
@@ -10270,6 +10375,34 @@ def _crash12_score_html(result: dict, base_rate) -> str:
     )
 
 
+def _render_history_block(kind: str) -> None:
+    """기능 ⑤(crashes) · ⑥(years) — QQQ 긴 일봉으로 만든 덩이. 못 받으면 까닭 한 줄(빈 상자 안 만듦)."""
+    with st.spinner("QQQ 상장 뒤 일봉을 읽는 중입니다…"):
+        try:
+            data = jarvis12_history.history()
+        except Exception as exc:
+            data = {"ok": False, "reason": str(exc)}
+    if not data.get("ok"):
+        st.caption(f"지금은 그리지 못했습니다 — {data.get('reason') or 'QQQ 일봉을 못 받았습니다'}")
+        return
+    block = (jarvis12_history.crash_html(data.get("crashes")) if kind == "crashes"
+             else jarvis12_history.years_html(data.get("years")))
+    if block:
+        st.markdown(jarvis12_history.CSS, unsafe_allow_html=True)
+        st.markdown(block, unsafe_allow_html=True)
+
+
+def _render_list_risk(rows: list, label: str) -> None:
+    """기능 ④ — 표 위 한 덩이(흔들림 · 테마 쏠림). 받아 둔 일봉만 읽는다 · 못 재면 그리지 않는다(빈칸 안 만듦)."""
+    try:
+        block = jarvis12_risk.html(jarvis12_risk.cached_summary(rows), label)
+    except Exception:
+        block = ""
+    if block:
+        st.markdown(jarvis12_risk.CSS, unsafe_allow_html=True)
+        st.markdown(block, unsafe_allow_html=True)
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -10550,6 +10683,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                        "대신 오른 크기는 작았습니다(가운데 +11% 대 +19%). 성적표는 점수 순 그대로 셉니다.")
         else:
             st.caption("📈 지금 점수 순 — 지난 10년 6개월 뒤 이긴 비율 63% · 오른 크기 가운데 +19%(조용한 순 +11%).")
+    if not breakout:
+        _render_list_risk(rows, "급락 목록")
+        # 기능 ⑤ — 누를 때만(QQQ 전체 일봉 한 종목 · 6시간 기억).
+        if result.get("j12_fixed") and _section_toggle("📜 지난 급락 기록표 — 처음 빠진 날 대 바닥",
+                                                       "j12_crash_hist_open", close_label="지난 급락 기록표 닫기"):
+            _render_history_block("crashes")
 
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
     # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.

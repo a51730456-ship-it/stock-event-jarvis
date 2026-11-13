@@ -93,6 +93,21 @@ def visit(browser, password: str, width: int) -> dict:
             return i < 0 ? '' : t.slice(i, i + 260).replace(/\\s+/g, ' ');
         }""")
         out["dist_problems"] = _problems(page)
+        # 기능 ⑥ 해마다 연중 최대 하락(누를 때만 · 2026-11-13)
+        years_btn = page.locator('div[class*="st-key-btn_j12_years_open"] button').first
+        if years_btn.count():
+            years_btn.scroll_into_view_if_needed()
+            years_btn.click()
+            try:
+                page.wait_for_function("() => /해마다 평균/.test(document.body.innerText) || /그리지 못했습니다/.test(document.body.innerText)",
+                                       timeout=120_000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
+            out["years"] = page.evaluate("""() => { const b = [...document.querySelectorAll('.j12hs-box')].pop();
+                return b ? {text: b.innerText.replace(/\\s+/g, ' ').slice(0, 260), bars: b.querySelectorAll('rect').length} : null; }""")
+            out["years_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_years_{width}.png"), full_page=width > 600)
         page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
         # ④ 급락 후 반등장 — 「주의 · 2배」·「⚠ 수상하게 빠짐」 딱지(2026-11-12 규칙 고침 ① · jarvis12_rules).
         # 단추는 테마 순위가 다 실린 뒤에 그려진다 — 단추가 붙을 때까지 기다린다. 표는 <table> 이 아니라 칸 묶음
@@ -115,6 +130,9 @@ def visit(browser, password: str, width: int) -> dict:
                     caution: (text.match(/주의 · 2배/g) || []).length,
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
+        # 기능 ④ 목록 쏠림 덩이(2026-11-13)
+        out["crash_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
         out["crash_problems"] = _problems(page)
         # ② 「🛡 자주 이기는 쪽」 — 눌러서 표가 다시 그려지는지 · 줄 수(2026-11-12 규칙 고침 ②).
         steady = page.get_by_text("🛡 자주 이기는 쪽", exact=False).first
@@ -126,6 +144,57 @@ def visit(browser, password: str, width: int) -> dict:
                 '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
                 .map(b => b.textContent).join(' ').match(/-\\d+~-\\d+%/g)?.length || 0""")
             out["steady_problems"] = _problems(page)
+        # 기능 ② 종목 성적표 — 표의 첫 종목을 눌러 세부사항을 연다(세부사항은 눌러야 열림 · 2026-11-13 확인 도구 바로잡음)
+        first_stock = page.locator('div[class*="st-key-j12rbf_00"] button').first
+        if first_stock.count():
+            first_stock.scroll_into_view_if_needed()
+            first_stock.click()
+            try:
+                page.wait_for_selector(".j12gr-box", timeout=180_000)
+                page.wait_for_timeout(1500)
+            except Exception as exc:
+                out["grades_error"] = f"{type(exc).__name__}: {exc}"[:200]
+        out["grades"] = page.evaluate("""() => [...document.querySelectorAll('.j12gr-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
+        out["implied"] = page.evaluate("""() => [...document.querySelectorAll('.j12im-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
+        out["detail_problems"] = _problems(page)
+        page.screenshot(path=str(OUT / f"j12_detail_{width}.png"), full_page=width > 600)
+        # 기능 ③ 내 계획 한 장 — 첫 종목 세부사항에서 열어 값을 적고 저장(이 실행의 임시 DB 에만)
+        plan_btn = page.locator('div[class*="st-key-btn_j12_plan_open_"] button').first
+        if plan_btn.count():
+            plan_btn.scroll_into_view_if_needed()
+            plan_btn.click()
+            try:
+                page.locator('div[class*="st-key-j12_plan_buy_"] input').first.wait_for(timeout=60_000)
+                for name, value in (("buy", "100"), ("stop", "92"), ("target", "120"), ("qty", "10")):
+                    box = page.locator(f'div[class*="st-key-j12_plan_{name}_"] input').first
+                    box.fill(value)
+                    box.press("Tab")
+                page.get_by_role("button", name="계획 저장").first.click()
+                page.wait_for_selector(".j12pl-box", timeout=60_000)
+                page.wait_for_timeout(1200)
+                out["plan"] = page.evaluate("""() => document.querySelector('.j12pl-box').innerText.replace(/\\s+/g, ' ').slice(0, 260)""")
+            except Exception as exc:
+                out["plan_error"] = f"{type(exc).__name__}: {exc}"[:200]
+            out["plan_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_plan_{width}.png"), full_page=width > 600)
+        # 기능 ⑤ 지난 급락 기록표(누를 때만 · 2026-11-13)
+        hist_btn = page.locator('div[class*="st-key-btn_j12_crash_hist_open"] button').first
+        if hist_btn.count():
+            hist_btn.scroll_into_view_if_needed()
+            hist_btn.click()
+            try:
+                page.wait_for_function("() => document.querySelector('.j12hs-tbl') || /그리지 못했습니다/.test(document.body.innerText)",
+                                       timeout=120_000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
+            out["crash_hist"] = page.evaluate("""() => { const b = document.querySelector('.j12hs-tbl');
+                const box = b && b.closest('.j12hs-box');
+                return box ? {text: box.innerText.replace(/\\s+/g, ' ').slice(0, 400), rows: box.querySelectorAll('tr').length} : null; }""")
+            out["crash_hist_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_crash_hist_{width}.png"), full_page=width > 600)
         page.locator('[class*="st-key-j12_rulebook_table"]').first.scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
         # ⑤ 상승장 — 시장 문이 「200일선 위/아래」로 말하는지 · 눌림 「주의」 딱지 수(2026-11-12 규칙 고침 ④ · ⑤).
@@ -140,6 +209,8 @@ def visit(browser, password: str, width: int) -> dict:
                     grades: (t.match(/[SABCD]등급/g) || []).length,
                     caution: [...document.querySelectorAll('span[title^="8% 넘게"]')].length};
         }""")
+        out["swing_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
         out["swing_problems"] = _problems(page)
         page.screenshot(path=str(OUT / f"j12_swing_{width}.png"), full_page=width > 600)
         # 「매수심사결과 높은 순위 9」 — 손님에게는 그리지 않아 온라인 손님 확인에서는 못 본다(2026-11-13). 로그인한 이 판에서 본다.
@@ -301,6 +372,21 @@ def main() -> int:
         "② 자주 이기는 쪽 오류 0 · 폰 넘침 0": all(not (run.get("steady_problems") or {}).get("exceptions")
                                           and ((run.get("steady_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                           for run in runs),
+        "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
+        "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
+        "② 종목 성적표 다섯 칸": all(any("성장" in b and "흔들림" in b for b in (run.get("grades") or [])) for run in runs),
+        "② 세부사항 오류 0 · 폰 넘침 0": all(not (run.get("detail_problems") or {}).get("exceptions")
+                                       and ((run.get("detail_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                       for run in runs),
+        "③ 내 계획 — 적고 저장하면 그림 · 금액": all("목표에 닿으면 +20.0%" in (run.get("plan") or "") for run in runs),
+        "③ 오류 0 · 폰 넘침 0": all(not (run.get("plan_problems") or {}).get("exceptions")
+                                  and ((run.get("plan_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                  for run in runs),
+        "⑤ 지난 급락 기록표 열림": all((run.get("crash_hist") or {}).get("rows", 0) >= 3 for run in runs),
+        "⑥ 연중 최대 하락 그림": all((run.get("years") or {}).get("bars", 0) >= 10 for run in runs),
+        "⑤ ⑥ 오류 0 · 폰 넘침 0": all(not (run.get(k) or {}).get("exceptions")
+                                    and ((run.get(k) or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                    for run in runs for k in ("years_problems", "crash_hist_problems")),
         "순위 9 표 보임": all(len(run.get("top9_text") or "") > 100 for run in runs),
         "순위 9 오류 0 · 폰 넘침 0": all(not (run.get("top9_problems") or {}).get("exceptions")
                                      and ((run.get("top9_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
