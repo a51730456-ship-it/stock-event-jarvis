@@ -1993,7 +1993,7 @@ if int(getattr(jarvis12_grades, "MODULE_REVISION", 0)) < _REQUIRED_J12_GRADES_RE
     jarvis12_grades = importlib.reload(jarvis12_grades)
 # 기능 ① 실적 날 흔들림 예보 — 깃허브가 모은 파일만 읽음 · 보여 주기만(2026-11-13).
 import jarvis12_options
-_REQUIRED_J12_OPTIONS_REVISION = 2026111301
+_REQUIRED_J12_OPTIONS_REVISION = 2026111302
 if int(getattr(jarvis12_options, "MODULE_REVISION", 0)) < _REQUIRED_J12_OPTIONS_REVISION:
     jarvis12_options = importlib.reload(jarvis12_options)
 # 기능 ③ 내 계획 한 장 — 상하님이 적은 값만 그림 · 자비스12 전용 표(2026-11-13).
