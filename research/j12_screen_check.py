@@ -93,6 +93,21 @@ def visit(browser, password: str, width: int) -> dict:
             return i < 0 ? '' : t.slice(i, i + 260).replace(/\\s+/g, ' ');
         }""")
         out["dist_problems"] = _problems(page)
+        # 기능 ⑥ 해마다 연중 최대 하락(누를 때만 · 2026-11-13)
+        years_btn = page.locator('div[class*="st-key-btn_j12_years_open"] button').first
+        if years_btn.count():
+            years_btn.scroll_into_view_if_needed()
+            years_btn.click()
+            try:
+                page.wait_for_function("() => /해마다 평균/.test(document.body.innerText) || /그리지 못했습니다/.test(document.body.innerText)",
+                                       timeout=120_000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
+            out["years"] = page.evaluate("""() => { const b = [...document.querySelectorAll('.j12hs-box')].pop();
+                return b ? {text: b.innerText.replace(/\\s+/g, ' ').slice(0, 260), bars: b.querySelectorAll('rect').length} : null; }""")
+            out["years_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_years_{width}.png"), full_page=width > 600)
         page.screenshot(path=str(OUT / f"j12_market_{width}.png"), full_page=width > 600)
         # ④ 급락 후 반등장 — 「주의 · 2배」·「⚠ 수상하게 빠짐」 딱지(2026-11-12 규칙 고침 ① · jarvis12_rules).
         # 단추는 테마 순위가 다 실린 뒤에 그려진다 — 단추가 붙을 때까지 기다린다. 표는 <table> 이 아니라 칸 묶음
@@ -129,6 +144,22 @@ def visit(browser, password: str, width: int) -> dict:
                 '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
                 .map(b => b.textContent).join(' ').match(/-\\d+~-\\d+%/g)?.length || 0""")
             out["steady_problems"] = _problems(page)
+        # 기능 ⑤ 지난 급락 기록표(누를 때만 · 2026-11-13)
+        hist_btn = page.locator('div[class*="st-key-btn_j12_crash_hist_open"] button').first
+        if hist_btn.count():
+            hist_btn.scroll_into_view_if_needed()
+            hist_btn.click()
+            try:
+                page.wait_for_function("() => document.querySelector('.j12hs-tbl') || /그리지 못했습니다/.test(document.body.innerText)",
+                                       timeout=120_000)
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
+            out["crash_hist"] = page.evaluate("""() => { const b = document.querySelector('.j12hs-tbl');
+                const box = b && b.closest('.j12hs-box');
+                return box ? {text: box.innerText.replace(/\\s+/g, ' ').slice(0, 400), rows: box.querySelectorAll('tr').length} : null; }""")
+            out["crash_hist_problems"] = _problems(page)
+            page.screenshot(path=str(OUT / f"j12_crash_hist_{width}.png"), full_page=width > 600)
         page.locator('[class*="st-key-j12_rulebook_table"]').first.scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / f"j12_crash_{width}.png"), full_page=width > 600)
         # ⑤ 상승장 — 시장 문이 「200일선 위/아래」로 말하는지 · 눌림 「주의」 딱지 수(2026-11-12 규칙 고침 ④ · ⑤).
@@ -308,6 +339,11 @@ def main() -> int:
                                           for run in runs),
         "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
         "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
+        "⑤ 지난 급락 기록표 열림": all((run.get("crash_hist") or {}).get("rows", 0) >= 3 for run in runs),
+        "⑥ 연중 최대 하락 그림": all((run.get("years") or {}).get("bars", 0) >= 10 for run in runs),
+        "⑤ ⑥ 오류 0 · 폰 넘침 0": all(not (run.get(k) or {}).get("exceptions")
+                                    and ((run.get(k) or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                    for run in runs for k in ("years_problems", "crash_hist_problems")),
         "순위 9 표 보임": all(len(run.get("top9_text") or "") > 100 for run in runs),
         "순위 9 오류 0 · 폰 넘침 0": all(not (run.get("top9_problems") or {}).get("exceptions")
                                      and ((run.get("top9_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)

@@ -1981,6 +1981,11 @@ import jarvis12_risk
 _REQUIRED_J12_RISK_REVISION = 2026111301
 if int(getattr(jarvis12_risk, "MODULE_REVISION", 0)) < _REQUIRED_J12_RISK_REVISION:
     jarvis12_risk = importlib.reload(jarvis12_risk)
+# 기능 ⑤ 지난 급락 기록표 · ⑥ 해마다 연중 최대 하락 — QQQ 긴 일봉 · 누를 때만 · 보여 주기만(2026-11-13).
+import jarvis12_history
+_REQUIRED_J12_HISTORY_REVISION = 2026111301
+if int(getattr(jarvis12_history, "MODULE_REVISION", 0)) < _REQUIRED_J12_HISTORY_REVISION:
+    jarvis12_history = importlib.reload(jarvis12_history)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -3562,6 +3567,10 @@ def _render_market_overview() -> None:
     # 위 숫자가 언제 것인지 **바로 밑에** 적는다(2026-09-12 상하님 지시).
     st.markdown(_as_of_line(overview, phase), unsafe_allow_html=True)
     _render_nasdaq_drawdown(overview)
+    # 기능 ⑥ — 누를 때만 QQQ 전체 일봉을 읽는다(첫 화면을 안 늦춘다 · CLAUDE.md 0-0).
+    if _section_toggle("📅 해마다 한 번은 빠진다 — QQQ 연중 최대 하락", "j12_years_open",
+                       close_label="연중 최대 하락 닫기"):
+        _render_history_block("years")
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     #
@@ -10276,6 +10285,23 @@ def _crash12_score_html(result: dict, base_rate) -> str:
     )
 
 
+def _render_history_block(kind: str) -> None:
+    """기능 ⑤(crashes) · ⑥(years) — QQQ 긴 일봉으로 만든 덩이. 못 받으면 까닭 한 줄(빈 상자 안 만듦)."""
+    with st.spinner("QQQ 상장 뒤 일봉을 읽는 중입니다…"):
+        try:
+            data = jarvis12_history.history()
+        except Exception as exc:
+            data = {"ok": False, "reason": str(exc)}
+    if not data.get("ok"):
+        st.caption(f"지금은 그리지 못했습니다 — {data.get('reason') or 'QQQ 일봉을 못 받았습니다'}")
+        return
+    block = (jarvis12_history.crash_html(data.get("crashes")) if kind == "crashes"
+             else jarvis12_history.years_html(data.get("years")))
+    if block:
+        st.markdown(jarvis12_history.CSS, unsafe_allow_html=True)
+        st.markdown(block, unsafe_allow_html=True)
+
+
 def _render_list_risk(rows: list, label: str) -> None:
     """기능 ④ — 표 위 한 덩이(흔들림 · 테마 쏠림). 받아 둔 일봉만 읽는다 · 못 재면 그리지 않는다(빈칸 안 만듦)."""
     try:
@@ -10569,6 +10595,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.caption("📈 지금 점수 순 — 지난 10년 6개월 뒤 이긴 비율 63% · 오른 크기 가운데 +19%(조용한 순 +11%).")
     if not breakout:
         _render_list_risk(rows, "급락 목록")
+        # 기능 ⑤ — 누를 때만(QQQ 전체 일봉 한 종목 · 6시간 기억).
+        if result.get("j12_fixed") and _section_toggle("📜 지난 급락 기록표 — 처음 빠진 날 대 바닥",
+                                                       "j12_crash_hist_open", close_label="지난 급락 기록표 닫기"):
+            _render_history_block("crashes")
 
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
     # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.
