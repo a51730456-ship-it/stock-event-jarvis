@@ -48,25 +48,29 @@ def test_collect_keeps_old_values_for_failures_and_drops_passed(tmp_path):
     fund.write_text(json.dumps({"stocks": {
         "AAA": {"earn": {"next": "2026-11-17", "when": "장 마감 뒤"}},
         "BBB": {"earn": {"next": "2026-11-18", "when": "장 전"}},
-        "CCC": {"earn": {"next": "2026-12-30"}}}}), encoding="utf-8")
+        "CCC": {"earn": {"next": "2026-12-30"}},
+        "DDD": {"earn": {"next": "2026-11-19"}}}}), encoding="utf-8")
     out = tmp_path / "US_implied.json"
     out.write_text(json.dumps({"moves": {
         "BBB": {"at": "2026-11-12", "earn": "2026-11-18", "move": 5.0},
         "ZZZ": {"at": "2026-11-01", "earn": "2026-11-05", "move": 9.0}}}), encoding="utf-8")
 
     def fake(ticker, day, after_close):
-        return {"expiry": "2026-11-21", "spot": 50.0, "strike": 50.0, "straddle": 3.0, "move": 6.0} if ticker == "AAA" else None
+        return ({"expiry": "2026-11-21", "spot": 50.0, "strike": 50.0, "straddle": 3.0, "move": 6.0}
+                if ticker in ("AAA", "DDD") else None)
 
     with mock.patch.object(o, "FUND", fund), mock.patch.object(o, "OUT", out), \
             mock.patch.object(o, "_today", return_value=date(2026, 11, 13)), mock.patch.object(o, "implied_move", side_effect=fake):
         summary = o.collect()
     saved = json.loads(out.read_text(encoding="utf-8"))["moves"]
-    assert summary == {"targets": 2, "got": 1, "failed": ["BBB"]}                 # CCC 는 14일 밖
+    assert summary == {"targets": 3, "got": 2, "failed": ["BBB"]}                 # CCC 는 14일 밖
+    assert saved["DDD"]["when"] == ""                                             # 발표 시각을 모르면 빈칸(「장 전」으로 안 채움)
     assert saved["AAA"]["move"] == 6.0 and saved["BBB"]["move"] == 5.0           # 못 받으면 옛 값을 둔다
+    assert saved["AAA"]["when"] == "장 마감 뒤"
     assert "ZZZ" not in saved                                                     # 발표가 지난 값은 버린다
 
 
 def test_page_reads_only_the_file():
     source = PAGE.read_text(encoding="utf-8")
     assert "jarvis12_options.move_for(ticker)" in source and "implied_move(" not in source
-    assert "_REQUIRED_J12_OPTIONS_REVISION = 2026111301" in source and o.MODULE_REVISION == 2026111301
+    assert "_REQUIRED_J12_OPTIONS_REVISION = 2026111302" in source and o.MODULE_REVISION == 2026111302

@@ -20,7 +20,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-MODULE_REVISION = 2026111301
+MODULE_REVISION = 2026111302
 
 ROOT = Path(__file__).resolve().parent
 FUND = ROOT / "data" / "fundamentals" / "US.json"
@@ -109,7 +109,7 @@ def upcoming(stocks: dict, today: date, days: int = AHEAD_DAYS) -> list:
         except (TypeError, ValueError):
             continue
         if today <= day <= today + timedelta(days=days):
-            out.append((ticker, day, str(earn.get("when") or "") == "장 마감 뒤"))
+            out.append((ticker, day, str(earn.get("when") or "") == "장 마감 뒤", str(earn.get("when") or "")))
     return sorted(out, key=lambda item: (item[1], item[0]))
 
 
@@ -126,7 +126,7 @@ def collect(*, dry: bool = False, limit: int | None = None) -> dict:
     if limit:
         targets = targets[:limit]
     got, failed = 0, []
-    for ticker, day, after_close in targets:
+    for ticker, day, after_close, when in targets:
         started = time.time()
         try:
             found = implied_move(ticker, day, after_close)
@@ -135,7 +135,7 @@ def collect(*, dry: bool = False, limit: int | None = None) -> dict:
             print(f"  {ticker} 못 받음 — {type(exc).__name__}: {str(exc)[:80]}", flush=True)
         if found:
             moves[ticker] = {"at": today.isoformat(), "earn": day.isoformat(),
-                             "when": "장 마감 뒤" if after_close else "장 전", **found}
+                             "when": when, **found}             # 재무 파일에 적힌 그대로(모르면 빈칸 — 「장 전」으로 채우지 않음)
             got += 1
             print(f"  {ticker} 발표 {day} · 만기 {found['expiry']} · 주가 {found['spot']} · 행사가 {found['strike']} · "
                   f"±{found['move']}% · {time.time() - started:.1f}초", flush=True)
