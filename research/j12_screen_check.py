@@ -335,10 +335,17 @@ def online() -> int:
                 out["version"] = page.evaluate("""() => (document.body.innerText.match(/판 \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d · [0-9a-f]{6,}/) || [''])[0]""")
                 try:
                     page.locator('div[class*="st-key-j3b_nav_market"] button').first.click()
+                    # 시장분석이 다 그려진 뒤에 누른다 — 그리는 도중에 누르면 눌림이 사라진다(2026-11-13 온라인 확인에서 겪음)
+                    page.wait_for_function("() => document.body.innerText.includes('🧮 분산일')", timeout=180_000)
+                    page.wait_for_timeout(2500)
                     years_btn = page.locator('div[class*="st-key-btn_j12_years_open"] button').first
-                    years_btn.wait_for(state="attached", timeout=180_000)
                     years_btn.scroll_into_view_if_needed()
                     years_btn.click()
+                    try:
+                        page.wait_for_function("() => /연중 최대 하락 닫기/.test(document.body.innerText)", timeout=20_000)
+                    except Exception:
+                        out["years_reclick"] = True              # 눌림이 안 먹었으면 한 번만 다시 누른다
+                        years_btn.click()
                     page.wait_for_function("() => /해마다 평균/.test(document.body.innerText)", timeout=180_000)
                     page.wait_for_timeout(1500)
                     out["years"] = page.evaluate("""() => { const b = [...document.querySelectorAll('.j12hs-box')].pop();
