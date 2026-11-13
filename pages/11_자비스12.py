@@ -1991,6 +1991,11 @@ import jarvis12_grades
 _REQUIRED_J12_GRADES_REVISION = 2026111301
 if int(getattr(jarvis12_grades, "MODULE_REVISION", 0)) < _REQUIRED_J12_GRADES_REVISION:
     jarvis12_grades = importlib.reload(jarvis12_grades)
+# 기능 ① 실적 날 흔들림 예보 — 깃허브가 모은 파일만 읽음 · 보여 주기만(2026-11-13).
+import jarvis12_options
+_REQUIRED_J12_OPTIONS_REVISION = 2026111301
+if int(getattr(jarvis12_options, "MODULE_REVISION", 0)) < _REQUIRED_J12_OPTIONS_REVISION:
+    jarvis12_options = importlib.reload(jarvis12_options)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -3124,6 +3129,14 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     if grade_block:
         st.markdown(jarvis12_grades.CSS, unsafe_allow_html=True)
         st.markdown(grade_block, unsafe_allow_html=True)
+    # 기능 ① — 발표가 14일 안에 있고 깃허브가 모은 값이 있을 때만(없으면 아무것도 안 그림).
+    try:
+        move_block = jarvis12_options.html(jarvis12_options.move_for(ticker), jarvis12_options.reactions_for(ticker))
+    except Exception:
+        move_block = ""
+    if move_block:
+        st.markdown(jarvis12_options.CSS, unsafe_allow_html=True)
+        st.markdown(move_block, unsafe_allow_html=True)
     try:
         price = _list_price_change(metrics or {})[0] if metrics else None
         info = us_fundamentals.summary(ticker, price)
