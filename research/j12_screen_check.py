@@ -284,6 +284,30 @@ def online() -> int:
                                            timeout=120_000)
                     page.wait_for_timeout(2000)
                     out["steady_ok"] = True
+                # 2026-11-13 기능 여섯 — 온라인에서도 보이나(손님 화면 · ③ 내 계획은 손님에게 안 보임)
+                out["crash_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+                    .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
+                try:
+                    hist_btn = page.locator('div[class*="st-key-btn_j12_crash_hist_open"] button').first
+                    hist_btn.scroll_into_view_if_needed()
+                    hist_btn.click()
+                    page.wait_for_selector(".j12hs-tbl", timeout=180_000)
+                    page.wait_for_timeout(1500)
+                    out["crash_hist"] = page.evaluate("""() => document.querySelector('.j12hs-tbl').closest('.j12hs-box')
+                        .innerText.replace(/\\s+/g, ' ').slice(0, 220)""")
+                except Exception as exc:
+                    out["crash_hist_error"] = f"{type(exc).__name__}: {exc}"[:160]
+                try:
+                    first_stock = page.locator('div[class*="st-key-j12rbf_00"] button').first
+                    first_stock.scroll_into_view_if_needed()
+                    first_stock.click()
+                    page.wait_for_selector(".j12gr-box", timeout=180_000)
+                    page.wait_for_timeout(1500)
+                    out["grades"] = page.evaluate("""() => document.querySelector('.j12gr-box').innerText.replace(/\\s+/g, ' ').slice(0, 160)""")
+                    out["plan_hidden"] = page.locator('div[class*="st-key-btn_j12_plan_open_"]').count() == 0
+                    page.screenshot(path=str(OUT / f"online_detail_{width}.png"), full_page=width > 600)
+                except Exception as exc:
+                    out["grades_error"] = f"{type(exc).__name__}: {exc}"[:160]
                 up = page.locator('div[class*="st-key-j12_pullback_breakout"] button').first
                 up.scroll_into_view_if_needed()
                 up.click()
@@ -293,6 +317,8 @@ def online() -> int:
                     const i = t.indexOf('나스닥 지수 — '); return i < 0 ? '' : t.slice(i, i + 140).replace(/\\s+/g, ' '); }""")
                 page.screenshot(path=str(OUT / f"online_swing_{width}.png"), full_page=width > 600)
                 out["swing_rows"] = page.evaluate("""() => document.body.innerText.match(/[SABCD]등급/g)?.length || 0""")
+                out["swing_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+                    .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
                 out["swing_text"] = page.evaluate("""() => { const t = document.body.innerText;
                     const i = t.indexOf('분기 실적'); return i < 0 ? '' : t.slice(i, i + 700).replace(/\\s+/g, ' '); }""")
                 # 「22개 테마」 · 「매수심사결과 높은 순위 9」(2026-11-13 상하님 「4개 파트 다 봤냐?」) — 열어서 표가 뜨는지 · 무엇이 실렸는지.
@@ -306,6 +332,35 @@ def online() -> int:
                 out["theme_text"] = page.evaluate("""() => document.querySelector('[class*="st-key-j12_theme_table"]')
                     .innerText.replace(/\\s+/g, ' ').slice(0, 500)""")
                 page.screenshot(path=str(OUT / f"online_theme_{width}.png"), full_page=width > 600)
+                out["version"] = page.evaluate("""() => (document.body.innerText.match(/판 \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d · [0-9a-f]{6,}/) || [''])[0]""")
+                try:
+                    page.locator('div[class*="st-key-j3b_nav_market"] button').first.click()
+                    # 시장분석이 다 그려진 뒤에 누른다 — 그리는 도중에 누르면 눌림이 사라진다(2026-11-13 온라인 확인에서 겪음)
+                    page.wait_for_function("() => document.body.innerText.includes('🧮 분산일')", timeout=180_000)
+                    page.wait_for_timeout(2500)
+                    years_btn = page.locator('div[class*="st-key-btn_j12_years_open"] button').first
+                    years_btn.scroll_into_view_if_needed()
+                    years_btn.click()
+                    try:
+                        page.wait_for_function("() => /연중 최대 하락 닫기/.test(document.body.innerText)", timeout=20_000)
+                    except Exception:
+                        out["years_reclick"] = True              # 눌림이 안 먹었으면 한 번만 다시 누른다
+                        years_btn.click()
+                    page.wait_for_function("() => /해마다 평균/.test(document.body.innerText)", timeout=180_000)
+                    page.wait_for_timeout(1500)
+                    out["years"] = page.evaluate("""() => { const b = [...document.querySelectorAll('.j12hs-box')].pop();
+                        return b ? b.innerText.replace(/\\s+/g, ' ').slice(0, 160) : ''; }""")
+                    page.screenshot(path=str(OUT / f"online_years_{width}.png"), full_page=width > 600)
+                except Exception as exc:
+                    out["years_error"] = f"{type(exc).__name__}: {exc}"[:160]
+                    # 무엇이 보였나 남긴다 — 닫기 단추로 바뀌었는지(눌림이 먹었는지) · 그 근처 글 · 사진
+                    out["years_seen"] = page.evaluate("""() => { const t = document.body.innerText;
+                        const i = t.indexOf('연중 최대 하락'); return {closed: /연중 최대 하락 닫기/.test(t),
+                        caption: /그리지 못했습니다/.test(t), near: i < 0 ? '' : t.slice(Math.max(0, i - 80), i + 220).replace(/\\s+/g, ' ')}; }""")
+                    try:
+                        page.screenshot(path=str(OUT / f"online_years_error_{width}.png"), full_page=width > 600)
+                    except Exception:
+                        pass
                 out["problems"] = _problems(page)
             except Exception as exc:
                 out["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -324,6 +379,12 @@ def online() -> int:
         "② 두 목록 고르는 칸 · 자주 이기는 쪽 열림": all((run.get("crash") or {}).get("two") and run.get("steady_ok") for run in runs),
         "④ 상승장 시장 줄이 200일선으로 말함": all("200일선" in (run.get("swing_line") or "") for run in runs),
         "22개 테마 표 보임": all(len(run.get("theme_text") or "") > 100 for run in runs),
+        "기능 ④ 쏠림 — 급락 · 상승장 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or []))
+                                          and run.get("swing_risk") for run in runs),
+        "기능 ⑤ 지난 급락 기록표": all("처음 −5% 다음 날" in (run.get("crash_hist") or "") for run in runs),
+        "기능 ② 종목 성적표(세부사항)": all("성장" in (run.get("grades") or "") for run in runs),
+        "기능 ③ 손님에게 내 계획 안 보임": all(run.get("plan_hidden") for run in runs),
+        "기능 ⑥ 연중 최대 하락(시장분석)": all("해마다 평균" in (run.get("years") or "") for run in runs),
         "오류 0 · 폰 넘침 0": all(not (run.get("problems") or {}).get("exceptions")
                              and ((run.get("problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600) for run in runs),
     }
