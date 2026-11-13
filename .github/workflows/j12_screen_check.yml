@@ -7,12 +7,8 @@ on:
   push:
     branches: [master-a283cq]
     paths:
-      - jarvis12_watch_since.py
-      - jarvis12_movers.py
-      - jarvis12_market.py
-      - jarvis12_crash.py
-      - jarvis12_rules.py
-      - jarvis12_swing.py
+      - "jarvis12_*.py"
+      - "pages/11_자비스12.py"
       - research/j12_screen_check.py
       - .github/workflows/j12_screen_check.yml
   workflow_dispatch:

@@ -115,6 +115,9 @@ def visit(browser, password: str, width: int) -> dict:
                     caution: (text.match(/주의 · 2배/g) || []).length,
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
+        # 기능 ④ 목록 쏠림 덩이(2026-11-13)
+        out["crash_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
         out["crash_problems"] = _problems(page)
         # ② 「🛡 자주 이기는 쪽」 — 눌러서 표가 다시 그려지는지 · 줄 수(2026-11-12 규칙 고침 ②).
         steady = page.get_by_text("🛡 자주 이기는 쪽", exact=False).first
@@ -140,6 +143,8 @@ def visit(browser, password: str, width: int) -> dict:
                     grades: (t.match(/[SABCD]등급/g) || []).length,
                     caution: [...document.querySelectorAll('span[title^="8% 넘게"]')].length};
         }""")
+        out["swing_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
         out["swing_problems"] = _problems(page)
         page.screenshot(path=str(OUT / f"j12_swing_{width}.png"), full_page=width > 600)
         # 「매수심사결과 높은 순위 9」 — 손님에게는 그리지 않아 온라인 손님 확인에서는 못 본다(2026-11-13). 로그인한 이 판에서 본다.
@@ -301,6 +306,8 @@ def main() -> int:
         "② 자주 이기는 쪽 오류 0 · 폰 넘침 0": all(not (run.get("steady_problems") or {}).get("exceptions")
                                           and ((run.get("steady_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
                                           for run in runs),
+        "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
+        "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
         "순위 9 표 보임": all(len(run.get("top9_text") or "") > 100 for run in runs),
         "순위 9 오류 0 · 폰 넘침 0": all(not (run.get("top9_problems") or {}).get("exceptions")
                                      and ((run.get("top9_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)

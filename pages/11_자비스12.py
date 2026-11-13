@@ -1976,6 +1976,11 @@ import jarvis12_swing
 _REQUIRED_J12_SWING_REVISION = 2026111201
 if int(getattr(jarvis12_swing, "MODULE_REVISION", 0)) < _REQUIRED_J12_SWING_REVISION:
     jarvis12_swing = importlib.reload(jarvis12_swing)
+# 기능 ④ 목록 쏠림(흔들림 · 테마) — 보여 주기만(2026-11-13 상하님 「너의 추천 차례로 다 해라」).
+import jarvis12_risk
+_REQUIRED_J12_RISK_REVISION = 2026111301
+if int(getattr(jarvis12_risk, "MODULE_REVISION", 0)) < _REQUIRED_J12_RISK_REVISION:
+    jarvis12_risk = importlib.reload(jarvis12_risk)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -9799,6 +9804,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.success(market_line + " — 오늘은 새로 살 후보를 낼 수 있는 장입니다.")
     else:
         st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
+    _render_list_risk(primary + watch, "정식 후보 + 관찰")
 
     # 저장 알림과 기준일·명부 줄은 2026-08-21에 뺐다(상하님 지시 — "설명 없애라").
     # 그 값들은 아래 표가 이미 보여준다(정식 후보 수 · 관찰 수 · 종목별 기준일).
@@ -10270,6 +10276,17 @@ def _crash12_score_html(result: dict, base_rate) -> str:
     )
 
 
+def _render_list_risk(rows: list, label: str) -> None:
+    """기능 ④ — 표 위 한 덩이(흔들림 · 테마 쏠림). 받아 둔 일봉만 읽는다 · 못 재면 그리지 않는다(빈칸 안 만듦)."""
+    try:
+        block = jarvis12_risk.html(jarvis12_risk.cached_summary(rows), label)
+    except Exception:
+        block = ""
+    if block:
+        st.markdown(jarvis12_risk.CSS, unsafe_allow_html=True)
+        st.markdown(block, unsafe_allow_html=True)
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -10550,6 +10567,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                        "대신 오른 크기는 작았습니다(가운데 +11% 대 +19%). 성적표는 점수 순 그대로 셉니다.")
         else:
             st.caption("📈 지금 점수 순 — 지난 10년 6개월 뒤 이긴 비율 63% · 오른 크기 가운데 +19%(조용한 순 +11%).")
+    if not breakout:
+        _render_list_risk(rows, "급락 목록")
 
     # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
     # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.
