@@ -361,6 +361,24 @@ def online() -> int:
                         page.screenshot(path=str(OUT / f"online_years_error_{width}.png"), full_page=width > 600)
                     except Exception:
                         pass
+                # 기능 ① 실적 날 흔들림 예보 — 관심종목에서 엔비디아 세부사항을 연다(2026-11-13 상하님 「엔비디아 세부사항 열어서 확인해라」)
+                try:
+                    page.locator('div[class*="st-key-j12b_nav_watch"] button').first.click()
+                    page.wait_for_selector('div[class*="st-key-j12b_wdgo_NVDA"] button', state="attached", timeout=180_000)
+                    page.wait_for_timeout(2500)
+                    # 종목 카드의 그림 단추가 대신 누르는 숨은 단추 — 화면처럼 스크립트로 누른다
+                    page.evaluate("""() => document.querySelector('div[class*="st-key-j12b_wdgo_NVDA"] button').click()""")
+                    page.wait_for_selector(".j12gr-box", timeout=180_000)
+                    page.wait_for_timeout(2500)
+                    out["nvda_implied"] = page.evaluate("""() => [...document.querySelectorAll('.j12im-box')]
+                        .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 260))""")
+                    out["nvda_grades"] = page.evaluate("""() => (document.querySelector('.j12gr-box') || {innerText: ''}).innerText.replace(/\\s+/g, ' ').slice(0, 160)""")
+                    box = page.locator(".j12im-box").first
+                    if box.count():
+                        box.scroll_into_view_if_needed()
+                    page.screenshot(path=str(OUT / f"online_nvda_{width}.png"), full_page=width > 600)
+                except Exception as exc:
+                    out["nvda_error"] = f"{type(exc).__name__}: {exc}"[:200]
                 out["problems"] = _problems(page)
             except Exception as exc:
                 out["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -384,6 +402,8 @@ def online() -> int:
         "기능 ⑤ 지난 급락 기록표": all("처음 −5% 다음 날" in (run.get("crash_hist") or "") for run in runs),
         "기능 ② 종목 성적표(세부사항)": all("성장" in (run.get("grades") or "") for run in runs),
         "기능 ③ 손님에게 내 계획 안 보임": all(run.get("plan_hidden") for run in runs),
+        "기능 ① 엔비디아 실적 날 흔들림 예보": all(any("흔들림 예보" in b and "11월 17일" in b for b in (run.get("nvda_implied") or []))
+                                             for run in runs),
         "기능 ⑥ 연중 최대 하락(시장분석)": all("해마다 평균" in (run.get("years") or "") for run in runs),
         "오류 0 · 폰 넘침 0": all(not (run.get("problems") or {}).get("exceptions")
                              and ((run.get("problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600) for run in runs),
