@@ -1986,6 +1986,11 @@ import jarvis12_history
 _REQUIRED_J12_HISTORY_REVISION = 2026111301
 if int(getattr(jarvis12_history, "MODULE_REVISION", 0)) < _REQUIRED_J12_HISTORY_REVISION:
     jarvis12_history = importlib.reload(jarvis12_history)
+# 기능 ② 종목 성적표 A~F — 명부 안 등수 · 보여 주기만(2026-11-13).
+import jarvis12_grades
+_REQUIRED_J12_GRADES_REVISION = 2026111301
+if int(getattr(jarvis12_grades, "MODULE_REVISION", 0)) < _REQUIRED_J12_GRADES_REVISION:
+    jarvis12_grades = importlib.reload(jarvis12_grades)
 # 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
 import jarvis12_picklist_ui
 
@@ -3110,7 +3115,15 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     읽는다. 단추를 누르면 4주간 일별 시세처럼 창이 튀어 오르는데, 창은 처음부터 숨은 채 같이
     그려 두고 숨은 스위치로 여닫는다 — 눌러도 서버에 묻지 않아 곧바로 뜬다.
     시가총액·PER·PBR 은 목록·세부사항과 같은 지금 값(_list_price_change)으로 다시 센다.
+    기능 ② 「🎓 종목 성적표 A~F」를 이 단추 바로 위에 둔다(2026-11-13 · 명부 안 등수 · 보여 주기만).
     """
+    try:
+        grade_block = jarvis12_grades.card_html(ticker)
+    except Exception:
+        grade_block = ""
+    if grade_block:
+        st.markdown(jarvis12_grades.CSS, unsafe_allow_html=True)
+        st.markdown(grade_block, unsafe_allow_html=True)
     try:
         price = _list_price_change(metrics or {})[0] if metrics else None
         info = us_fundamentals.summary(ticker, price)

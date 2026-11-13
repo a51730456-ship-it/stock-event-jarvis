@@ -130,6 +130,9 @@ def visit(browser, password: str, width: int) -> dict:
                     caution: (text.match(/주의 · 2배/g) || []).length,
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
+        # 기능 ② 종목 성적표(세부사항 「재무 한눈에」 위 · 급락 표를 열면 첫 종목 세부사항이 같이 그려짐)
+        out["grades"] = page.evaluate("""() => [...document.querySelectorAll('.j12gr-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
         # 기능 ④ 목록 쏠림 덩이(2026-11-13)
         out["crash_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
             .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
@@ -339,6 +342,7 @@ def main() -> int:
                                           for run in runs),
         "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
         "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
+        "② 종목 성적표 다섯 칸": all(any("성장" in b and "흔들림" in b for b in (run.get("grades") or [])) for run in runs),
         "⑤ 지난 급락 기록표 열림": all((run.get("crash_hist") or {}).get("rows", 0) >= 3 for run in runs),
         "⑥ 연중 최대 하락 그림": all((run.get("years") or {}).get("bars", 0) >= 10 for run in runs),
         "⑤ ⑥ 오류 0 · 폰 넘침 0": all(not (run.get(k) or {}).get("exceptions")
