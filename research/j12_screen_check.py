@@ -130,9 +130,6 @@ def visit(browser, password: str, width: int) -> dict:
                     caution: (text.match(/주의 · 2배/g) || []).length,
                     guide: /2배를 넘으면/.test(document.body.innerText)};
         }""")
-        # 기능 ② 종목 성적표(세부사항 「재무 한눈에」 위 · 급락 표를 열면 첫 종목 세부사항이 같이 그려짐)
-        out["grades"] = page.evaluate("""() => [...document.querySelectorAll('.j12gr-box')]
-            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
         # 기능 ④ 목록 쏠림 덩이(2026-11-13)
         out["crash_risk"] = page.evaluate("""() => [...document.querySelectorAll('.j12rk-box')]
             .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 220))""")
@@ -147,6 +144,22 @@ def visit(browser, password: str, width: int) -> dict:
                 '[class*="st-key-j12_rulebook_table"], [class*="st-key-j12_rulebook_rest"]')]
                 .map(b => b.textContent).join(' ').match(/-\\d+~-\\d+%/g)?.length || 0""")
             out["steady_problems"] = _problems(page)
+        # 기능 ② 종목 성적표 — 표의 첫 종목을 눌러 세부사항을 연다(세부사항은 눌러야 열림 · 2026-11-13 확인 도구 바로잡음)
+        first_stock = page.locator('div[class*="st-key-j12rbf_00"] button').first
+        if first_stock.count():
+            first_stock.scroll_into_view_if_needed()
+            first_stock.click()
+            try:
+                page.wait_for_selector(".j12gr-box", timeout=180_000)
+                page.wait_for_timeout(1500)
+            except Exception as exc:
+                out["grades_error"] = f"{type(exc).__name__}: {exc}"[:200]
+        out["grades"] = page.evaluate("""() => [...document.querySelectorAll('.j12gr-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
+        out["implied"] = page.evaluate("""() => [...document.querySelectorAll('.j12im-box')]
+            .map(b => b.innerText.replace(/\\s+/g, ' ').slice(0, 160))""")
+        out["detail_problems"] = _problems(page)
+        page.screenshot(path=str(OUT / f"j12_detail_{width}.png"), full_page=width > 600)
         # 기능 ③ 내 계획 한 장 — 첫 종목 세부사항에서 열어 값을 적고 저장(이 실행의 임시 DB 에만)
         plan_btn = page.locator('div[class*="st-key-btn_j12_plan_open_"] button').first
         if plan_btn.count():
@@ -362,6 +375,9 @@ def main() -> int:
         "④ 쏠림 덩이 — 급락 표 위": all(any("흔들림" in b for b in (run.get("crash_risk") or [])) for run in runs),
         "④ 쏠림 덩이 — 상승장 표 위": all(len(run.get("swing_risk") or []) >= 1 for run in runs),
         "② 종목 성적표 다섯 칸": all(any("성장" in b and "흔들림" in b for b in (run.get("grades") or [])) for run in runs),
+        "② 세부사항 오류 0 · 폰 넘침 0": all(not (run.get("detail_problems") or {}).get("exceptions")
+                                       and ((run.get("detail_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
+                                       for run in runs),
         "③ 내 계획 — 적고 저장하면 그림 · 금액": all("목표에 닿으면 +20.0%" in (run.get("plan") or "") for run in runs),
         "③ 오류 0 · 폰 넘침 0": all(not (run.get("plan_problems") or {}).get("exceptions")
                                   and ((run.get("plan_problems") or {}).get("overflow", 1) <= 0 or run["width"] >= 600)
