@@ -72,6 +72,24 @@
 
 ## 6. 내력
 
+- 2026-11-13 — **미국 증권사 기능 여섯 넣음**(상하님 「너의 추천 차례로 다 해라」 · 차례 ④ → ⑤ → ② → ① → ⑥ → ③ · **모두 보여 주기만** —
+  점수 · 판정 · 차례 · 성적표 · 날짜별 목록 안 바꿈). 고친 것은 자비스12 전용 파일과 화면뿐(얼린 파일 안 고침).
+  · ④ `jarvis12_risk.py` — 급락 · 상승장 표 위 「📏 이 목록이 한쪽으로 쏠렸나」: QQQ 대비 2년 베타 평균(겹친 날 120일 미만 빈칸) · 첫째
+    소속 테마 쏠림(40% 이상이면 노랑). 받아 둔 200종목 일봉만 읽음. 본뜬 곳 IB 「Risk Navigator」.
+  · ⑤ ⑥ `jarvis12_history.py` — QQQ 상장 뒤 일봉(누를 때만 · 6시간 기억). ⑤ 급락 표 위 단추 「📜 지난 급락 기록표」 — 급락 찾기는
+    `jarvis12_crash.episodes` 와 같은 규칙(시험으로 대조) · 처음 −5% 다음 날 대 바닥 다음 날 1년 뒤. ⑥ 시장분석 나스닥 막대 밑 단추
+    「📅 해마다 한 번은 빠진다」 — 해마다 연중 최대 하락 막대 · 그해 결과 점. 본뜬 곳 Schwab 「Market Corrections」 · J.P. Morgan.
+  · ② `jarvis12_grades.py` — 세부사항 「재무 한눈에」 위 「🎓 종목 성적표」: 명부 안 등수로 성장 · 수익 · 가격(PER) · 주가 힘 · 흔들림
+    A 10% · B 20% · C 40% · D 20% · F 10%. 못 잰 과목은 —. 본뜬 곳 Schwab 「Equity Ratings」.
+  · ① `jarvis12_options.py` + 깃허브 「자비스12 실적 흔들림 모으기」(.github/workflows/j12_implied_move.yml · 평일 06:40 KST) — 발표 14일 안
+    종목만 ATM 스트래들 ÷ 주가를 data/fundamentals/US_implied.json 에. 화면은 파일만 읽음. 첫 시험(실행 43336157228) 8종목 다 받음
+    (NVDA 11/17 ±9.5% · DIS ±6.2% · HD ±5.2% …). 본뜬 곳 Schwab thinkorswim 「Market Maker Move」.
+    올릴 때마다 온라인 앱이 한 번 껐다 켜짐(바뀐 것이 있는 평일 하루 한 번).
+  · ③ `jarvis12_plan.py` — 세부사항 「📝 내 계획 한 장」(누를 때만 · 손님은 안 보임): 상하님이 적은 산 값 · 손절 · 목표 · 수량을
+    최근 60일 주가 위 선으로 · 닿으면 % · 달러 금액 · 버는 폭 ÷ 잃는 폭. 자비스12 전용 표 `jarvis12_plans`(같은 DB · 표만 새로).
+    빈칸으로 열고 앱은 값을 정하지 않음(CLAUDE.md 0-1 바).
+  · 시험 test_jarvis12_risk · history · grades · options · plan · 깃허브 화면 확인에 ②③④⑤⑥ 단계.
+  · 지킴이(.claude/hooks/j12_only.py · 이 작업 칸에만 있음)에 `.github/workflows/j12_implied_move.yml` 한 줄을 더함.
 - 2026-11-12 밤 — **①~⑤ 온라인 확인** — 「자비스12 화면 확인」을 손으로 돌릴 때 `online` 을 켜면 온라인 앱을 손님(guest=1)으로 열어
   급락 · 상승장만 본다(`research/j12_screen_check.py online` · 보기만). 실행 43273441064 통과(PC · 폰).
 - 2026-11-12 밤 — **규칙 고침 ② 급락 목록 두 가지**(5. 할 일 5번 · 상하님 「다 해라」). 스위치 `jarvis12_rules.CRASH_TWO_LISTS`(False = 점수 순 하나만).
